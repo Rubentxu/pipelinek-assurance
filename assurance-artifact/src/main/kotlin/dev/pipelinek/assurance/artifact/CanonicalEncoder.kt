@@ -16,7 +16,11 @@ import dev.pipelinek.assurance.domain.evidence.Provenance
 import dev.pipelinek.assurance.domain.evidence.RevisionRef
 import dev.pipelinek.assurance.domain.evidence.SnapshotId
 import dev.pipelinek.assurance.domain.evidence.TypedExternalId
+import dev.pipelinek.assurance.engine.AssuranceReport
+import dev.pipelinek.assurance.engine.AssertionResult
 import dev.pipelinek.assurance.engine.AssuranceSuiteIR
+import dev.pipelinek.assurance.engine.Counterexample
+import dev.pipelinek.assurance.engine.UnsupportedReason
 
 /**
  * M0 — Encoding canónico y digest determinista.
@@ -38,6 +42,7 @@ object CanonicalEncoder {
 
     private const val SNAPSHOT_SCHEMA = "assurance-evidence/v1"
     private const val SUITE_SCHEMA = "assurance-suite/v1"
+    private const val REPORT_SCHEMA = "assurance-report/v1"
 
     /**
      * Serializa un snapshot a su forma canónica.
@@ -45,30 +50,75 @@ object CanonicalEncoder {
      * `items` se ordena por `EvidenceId` antes de emitir; `sources` por
      * `producerId`; `gaps` por `capability`; `correlations` por el par de ids.
      * La permutación de entrada no altera el resultado (UAT-001).
+     *
+     * Los items se ordenan por un criterio TOTAL, no sólo por `id`. Encontrado
+     * por property testing, no por los tests de ejemplo: `EvidenceSnapshot`
+     * NO exige ids únicos, y con dos items que comparten id, `sortedBy` es
+     * estable, así que su orden relativo lo decidía el orden de entrada. Dos
+     * runs con el mismo contenido y distinto orden de items producían
+     * digests distintos, que es exactamente lo que el digest canónico
+     * prohíbe. Ordenar por (id, contenido) rompe el empate de forma
+     * determinista.
      */
     fun encodeSnapshot(snapshot: EvidenceSnapshot): String = buildString {
         appendField("schema", SNAPSHOT_SCHEMA)
         appendField("id", snapshot.id.value)
         appendField("subject", encodeSubject(snapshot.subject))
 
-        appendField("sources", snapshot.sources.sortedBy { it.producerId }.joinToString("\n") {
-            encodeManifest(it)
-        })
+        appendField(
+            "sources",
+            canonicalSources(snapshot.sources).joinToString("\n") { encodeManifest(it) },
+        )
 
-        appendField("items", snapshot.items.sortedBy { it.id.value }.joinToString("\n") {
-            encodeItem(it)
-        })
+        appendField(
+            "items",
+            // El desempate por contenido completo: necesario cuando dos items
+            // comparten `EvidenceId`, porque `sortedWith` es estable.
+            canonicalItems(snapshot.items).joinToString("\n") { encodeItem(it) },
+        )
 
-        appendField("gaps", snapshot.gaps.sortedWith(compareBy({ it.capability }, { it.reason.toString() }))
-            .joinToString("\n") { encodeGap(it) })
+        appendField("gaps", canonicalGaps(snapshot.gaps).joinToString("\n") { encodeGap(it) })
 
         appendField(
             "correlations",
-            snapshot.correlations
-                .sortedWith(compareBy({ it.from.namespace.name }, { it.from.value }, { it.to.value }))
-                .joinToString("\n") { encodeCorrelation(it) },
+            canonicalCorrelations(snapshot.correlations).joinToString("\n") { encodeCorrelation(it) },
         )
     }
+
+    /**
+     * Orden canónico de items. Clave `EvidenceId`, desempate por contenido.
+     *
+     * PÚBLICO a propósito: el CBOR y el JSON tienen que ordenar con EXACTAMENTE
+     * el mismo criterio que el digest, o el artefacto y el digest contarian
+     * historias distintas. Duplicar el criterio en el codec sería pedir que
+     * diverjan.
+     */
+    fun canonicalItems(items: List<EvidenceItem>): List<EvidenceItem> =
+        items.sortedWith(totalOrder({ it.id.value }) { encodeItem(it) })
+
+    /** Orden canónico de manifests. Ver [canonicalItems]. */
+    fun canonicalSources(sources: List<EvidenceSourceManifest>): List<EvidenceSourceManifest> =
+        sources.sortedWith(totalOrder({ it.producerId }) { encodeManifest(it) })
+
+    /** Orden canónico de gaps. Ver [canonicalItems]. */
+    fun canonicalGaps(gaps: List<EvidenceGap>): List<EvidenceGap> =
+        gaps.sortedWith(totalOrder({ it.capability }) { encodeGap(it) })
+
+    /** Orden canónico de correlaciones. Ver [canonicalItems]. */
+    fun canonicalCorrelations(links: List<Correlation>): List<Correlation> =
+        links.sortedWith(
+            totalOrder({ "${it.from.namespace.name}:${it.from.value}" }) { encodeCorrelation(it) },
+        )
+
+    /**
+     * Orden total por clave, con desempate por representación canónica.
+     *
+     * Sin el desempate, dos elementos con la misma clave conservan su orden de
+     * entrada (`sortedWith` es estable), y el digest pasa a depender del orden
+     * en que el runtime recogió la evidencia.
+     */
+    private fun <T> totalOrder(key: (T) -> String, tie: (T) -> String = { "" }): Comparator<T> =
+        compareBy(key).thenBy(tie)
 
     /** Digest canónico del snapshot. Base del determinismo de M0. */
     fun digestSnapshot(snapshot: EvidenceSnapshot): Digest =
@@ -117,9 +167,196 @@ object CanonicalEncoder {
 
     fun digestSuite(suite: AssuranceSuiteIR): Digest = Digest.ofUtf8(encodeSuite(suite))
 
+    /**
+     * Digest canónico de un report.
+     *
+     * No incluye el `evaluationId` ni los digests de entrada: son funciones del
+     * resto de campos, y meterlos duplicaria la informacion sin anadir
+     * verificabilidad. Tampoco incluye el instante de evaluacion, porque no
+     * existe en el tipo.
+     *
+     * Si dos runners evaluan la misma evidencia con la misma suite y el mismo
+     * engine, este digest es identico. Eso es lo que hace que un report sea
+     * comparable byte a byte entre maquinas.
+     */
+    fun digestReport(report: AssuranceReport): Digest = Digest.ofUtf8(
+        buildString {
+            appendField("schema", REPORT_SCHEMA)
+            appendField("engineVersion", report.engineVersion)
+            appendField("snapshotDigest", report.snapshotDigest.hex)
+            appendField("suiteDigest", report.suiteDigest.hex)
+            appendField(
+                "results",
+                report.results.sortedWith(
+                    compareBy(
+                        { it::class.simpleName },
+                        { resultKey(it) },
+                    ),
+                ).joinToString("\n") { encodeResult(it) },
+            )
+            appendField(
+                "gaps",
+                report.gaps.sortedWith(compareBy({ it.capability }, { it.reason.toString() }))
+                    .joinToString("\n") { g ->
+                        buildString {
+                            appendField("capability", g.capability)
+                            appendField("reason", g.reason.toString())
+                            appendField("detail", g.detail ?: "-")
+                        }
+                    },
+            )
+            appendField(
+                "artifacts",
+                report.artifacts.sortedBy { it.logicalRole }.joinToString("\n") { a ->
+                    buildString {
+                        appendField("logicalRole", a.logicalRole)
+                        appendField("mediaType", a.mediaType)
+                        appendField("digest", a.digest.hex)
+                    }
+                },
+            )
+            appendField(
+                "correlations",
+                report.correlations
+                    .sortedWith(compareBy({ it.from.namespace.name }, { it.from.value }, { it.to.value }))
+                    .joinToString("\n") { encodeCorrelation(it) },
+            )
+        },
+    )
+
+    /**
+     * Clave estable para ordenar resultados.
+     *
+     * Ordenar por tipo+clave hace que el digest no dependa del orden en que el
+     * runtime evaluó, que es una decisión de implementación y no del dominio.
+     *
+     * La clave DEBE ser única por resultado, no sólo por tipo. Si dos
+     * `Unsupported` comparten clave, el orden relativo entre ellos lo decide
+     * el `sort` estable, es decir, el orden de entrada, y dos runs con el
+     * mismo contenido darían digests distintos. Por eso `Unsupported` usa su
+     * razón codificada, no la cadena vacía.
+     */
+    private fun resultKey(r: AssertionResult): String = when (r) {
+        is AssertionResult.Passed -> "passed:${r.proof.assertionId.value}"
+        is AssertionResult.Failed -> "failed:${r.counterexample.assertionId.value}"
+        is AssertionResult.Inconclusive -> r.gaps
+            .sortedWith(compareBy({ it.capability }, { it.reason.toString() }))
+            .joinToString(separator = "|") { "${it.capability}:${it.reason}" }
+            .ifEmpty { "inconclusive" }
+        is AssertionResult.Unsupported -> "unsupported:${encodeUnsupportedReason(r.reason)}"
+        is AssertionResult.Error -> "error:${r.failure.phase}:${r.failure.detail}"
+    }
+
+    private fun encodeResult(r: AssertionResult): String = buildString {
+        appendField("kind", r::class.simpleName ?: "Unknown")
+        when (r) {
+            is AssertionResult.Passed -> {
+                appendField("assertionId", r.proof.assertionId.value)
+                appendField("snapshotId", r.proof.snapshotId)
+                appendField(
+                    "evidenceIds",
+                    r.proof.evidenceIds.map { it.value }.distinct().sorted().joinToString(","),
+                )
+            }
+            is AssertionResult.Failed -> {
+                appendField("assertionId", r.counterexample.assertionId.value)
+                appendField("explanation", r.counterexample.explanation)
+                appendField(
+                    "evidenceRefs",
+                    r.counterexample.evidenceRefs.map { it.value }.distinct().sorted().joinToString(","),
+                )
+                appendField(
+                    "subjectRefs",
+                    r.counterexample.subjectRefs
+                        .sortedWith(compareBy({ it.namespace.name }, { it.value }))
+                        .joinToString(",") { "${it.namespace.name}:${it.value}" },
+                )
+                // Los hints son un SET ordenado, no una lista: el motor puede
+                // emitirlos duplicados sin que eso signifique nada, y duplicados
+                // no deben cambiar el digest.
+                appendField(
+                    "hints",
+                    r.counterexample.reproductionHints.distinct().sorted().joinToString("|"),
+                )
+                // Los campos propios de cada variante SÍ entran al digest.
+                //
+                // Esto no era opcional: un `DependencyPath` con `path=[a,b]` y
+                // otro con `path=[x,y]` producían el mismo digest, porque sólo
+                // se codificaban los campos comunes de la interfaz. Dos
+                // contraejemplos con distinto significado eran indistinguibles
+                // en el artefacto firmado.
+                appendField("counterexampleKind", r.counterexample::class.simpleName ?: "Unknown")
+                encodeCounterexampleFields(r.counterexample)
+            }
+            is AssertionResult.Inconclusive -> {
+                appendField(
+                    "gaps",
+                    r.gaps.sortedWith(compareBy({ it.capability }, { it.reason.toString() }))
+                        .joinToString("\n") { g -> "${g.capability}:${g.reason}" },
+                )
+            }
+            is AssertionResult.Unsupported -> appendField("reason", encodeUnsupportedReason(r.reason))
+            is AssertionResult.Error -> {
+                appendField("phase", r.failure.phase)
+                appendField("detail", r.failure.detail)
+                appendField("cause", r.failure.cause ?: "-")
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Formas canónicas de cada tipo
     // -----------------------------------------------------------------------
+
+    /**
+     * Codifica los campos PROPIOS de cada variante de contraejemplo.
+     *
+     * Los campos comunes (assertionId, explanation, refs, hints) los emite
+     * [encodeResult]. Aquí van los que existen sólo en una variante.
+     *
+     * El `when` es exhaustivo a propósito: cuando el dominio añada un
+     * contraejemplo nuevo, esto deja de compilar. Con un `else` compilaría y
+     * ese contraejemplo entraría al digest sin sus campos, que es peor que no
+     * entrar.
+     */
+    private fun StringBuilder.encodeCounterexampleFields(c: Counterexample) {
+        when (c) {
+            is Counterexample.DependencyPath -> {
+                appendField("path", c.path.joinToString(">"))
+                appendField("fromLayer", c.fromLayer)
+                appendField("toLayer", c.toLayer)
+            }
+            is Counterexample.Cycle -> appendField("cycle", c.cycle.joinToString(">"))
+            is Counterexample.CausalSlice -> appendField("invocationChain", c.invocationChain.joinToString(">"))
+            is Counterexample.Mutation -> {
+                appendField("mutatedSymbol", c.mutatedSymbol)
+                appendField("killedBy", c.killedBy ?: "-")
+            }
+            is Counterexample.MissingTrace -> {
+                appendField("missingSpanFor", c.missingSpanFor)
+                appendField("expectedPropagation", c.expectedPropagation)
+            }
+            is Counterexample.BaselineRegression -> {
+                appendField("stableId", c.stableId)
+                appendField("state", c.state.name)
+            }
+        }
+    }
+
+    /**
+     * Codifica una razón de `Unsupported`.
+     *
+     * El `toString()` por defecto de un `data class` de Kotlin sí distingue
+     * variantes, pero su formato no es un contrato: cambia entre versiones de
+     * Kotlin sin que nadie lo note, y el digest cambiaría con el compilador.
+     * Codificar a mano lo hace estable.
+     */
+    private fun encodeUnsupportedReason(r: UnsupportedReason): String = when (r) {
+        is UnsupportedReason.UnknownLensKind -> "unknown-lens-kind:${r.kind}"
+        is UnsupportedReason.UnknownOperator -> "unknown-operator:${r.operator}"
+        is UnsupportedReason.UnknownEvidenceKind -> "unknown-evidence-kind:${r.kind}"
+        is UnsupportedReason.AuthorityNotAdmitted -> "authority-not-admitted:${r.required}/${r.offered}"
+    }
 
     private fun encodeManifest(m: EvidenceSourceManifest): String = buildString {
         appendField("producerId", m.producerId)

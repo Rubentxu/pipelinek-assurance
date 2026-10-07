@@ -48,15 +48,26 @@ MUTANTS = {
         "",
     )]),
     "M-R01": (ARTIFACT, [
-        ("snapshot.items.sortedBy { it.id.value }", "snapshot.items"),
-        (""".sortedWith(compareBy({ it.from.namespace.name }, { it.from.value }, { it.to.value }))\n""", ""),
-        ("snapshot.sources.sortedBy { it.producerId }", "snapshot.sources"),
+        # "Serializa sin canonicalizar": el mutante clásico de AAT-16. Quitar
+        # las llamadas a canonical* devuelve el encoder al orden de iteracion.
+        ("canonicalSources(snapshot.sources)", "snapshot.sources"),
+        ("canonicalItems(snapshot.items)", "snapshot.items"),
+        ("canonicalGaps(snapshot.gaps)", "snapshot.gaps"),
+        ("canonicalCorrelations(snapshot.correlations)", "snapshot.correlations"),
         ("lens.arguments.toSortedMap()", "lens.arguments"),
         ("a.operands.toSortedMap()", "a.operands"),
         ("item.thresholds.toSortedMap()", "item.thresholds"),
         ("m.completenessByCapability.toSortedMap()", "m.completenessByCapability"),
         ("suite.lenses.sortedBy { it.lensId.value }", "suite.lenses"),
         ("suite.assertions.sortedBy { it.id.value }", "suite.assertions"),
+    ]),
+    # El defecto que encontro el property testing, no los tests de ejemplo:
+    # ordenar por `EvidenceId` SOLO. `sortedWith` es estable, asi que dos items
+    # con el mismo id conservan el orden de entrada y el digest pasa a
+    # depender de como el runtime recogio la evidencia. Es exactamente lo que
+    # prohibe el digest canónico.
+    "M-R02": (ARTIFACT, [
+        ("compareBy(key).thenBy(tie)", "compareBy(key)"),
     ]),
 }
 

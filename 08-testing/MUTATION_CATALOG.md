@@ -15,3 +15,4 @@
 | M-O01 | OTel missing span se trata como success | observability |
 | M-I01 | TraceId e InvocationId comparten wrapper String sin tipo | identity fitness |
 | M-R01 | report serializer no canonicaliza maps | digest reproducibility |
+| M-R02 | digest ordena por clave sin desempate por contenido | digest reproducibility |

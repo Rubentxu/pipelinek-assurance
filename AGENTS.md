@@ -35,8 +35,13 @@ kotlin 2.4.10
 El JDK 24 lanza Gradle; el target de compilación es 21, alineado con
 `pipeline-kotlin` para que el SDK de PipelineK entre limpio en M3.
 
-El repositorio usa asdf para el binario de Gradle y mise para el JDK. Invocar
-siempre por `./gradlew` para no depender de la resolución de shims.
+El repositorio usa asdf tanto para el binario de Gradle como para el JDK. Las
+ejecuciones reales de este proyecto se hicieron con
+`JAVA_HOME=$HOME/.asdf/installs/java/temurin-24.0.2+12 ./gradlew ...`. Invocar
+siempre por `./gradlew` para no depender de la resolución de shims. Anotación
+histórica: una versión anterior de este documento decía "mise para el JDK",
+que no es lo que se usa; se corrige aquí para que la documentación no describa
+un toolchain que nadie ejecuta.
 
 ## Modules
 

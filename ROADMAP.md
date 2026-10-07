@@ -139,10 +139,28 @@ independientes idénticos, lista de AAT verdes con comando.
   hex-encodaba sin hashear y el fixture usaba un LGC con forma de hash: ambos
   producian 64 hex chars que parecian un digest y no lo eran.
 - `CanonicalEncoder` con orden canónico explícito y separación por longitud.
-- Certificación de mutantes reproducible con `tools/certify_mutants.py`:
-  M-E01 (2 tests), M-E02 (2), M-H01 (2), M-R01 (7). Todos mueren, ninguno por
-  un único test.
-- 49 tests verdes con `./gradlew build`.
+- Certificación de mutantes reproducible con `tools/certify_mutants.py`, todos
+  muertos y ninguno por un único test: M-E01 (2 tests), M-E02 (3), M-H01 (2),
+  M-R01 (17), M-R02 (4).
+- Property tests reales (`EvidenceLawsTest`, `EvidenceArbs`) cubriendo
+  invariancia de permutación, roundtrip CBOR/JSON, purity, preservación de
+  estructura, autoridad de heurísticos, strings especiales y estabilidad del
+  digest de suite. Property testing es lo que exige `MILESTONE_GATES.md`
+  ("property laws verdes"); no habia ningún uso de `checkAll` antes de esto.
+- Golden corpus de siete entradas (`assurance-testkit/src/test/resources/golden/`)
+  regenerado con `:assurance-testkit:generateGolden` y verificado (no
+  regenerado) por `check`.
+- 112 tests verdes con `./gradlew check`.
+
+Defecto real encontrado por el property testing, no por los tests de ejemplo:
+`EvidenceSnapshot` admite `EvidenceId` duplicados, y como `sortedWith` es
+estable, ordenar por `EvidenceId` sólo dejaba el empate a la posición de
+entrada. Dos runs con el mismo contenido y distinto orden de items producían
+digests distintos. Corregido con un orden total (clave + desempate por
+representación canónica) aplicado en `CanonicalEncoder` **y** en
+`EvidenceArtifactCodec`, con las funciones de orden expuestas desde
+`CanonicalEncoder` para que el codec no pueda divergir del digest. Los bytes
+canónicos cambiaron, así que el golden se regeneró a conciencia.
 
 Pendiente para cerrar el gate:
 
