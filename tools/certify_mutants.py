@@ -22,17 +22,22 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOMAIN = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/evidence/Evidence.kt"
 ARTIFACT = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/CanonicalEncoder.kt"
+CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/EvidenceArtifactCodec.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 
-# Cada mutante: (nombre, fichero, [(buscar, reemplazar)])
+# Cada mutante: (nombre, [(fichero, [(buscar, reemplazar)]), ...])
+#
+# Varios ficheros por mutante porque hay mutantes que tocan sitios distintos
+# del mismo defecto: quitar las cotas del decode toca DOS funciones del
+# codec, y un mutante que sólo quita una no mata nada.
 MUTANTS = {
-    "M-E01": (DOMAIN, [(
+    "M-E01": [(DOMAIN, [(
         '''            require(completeness !is Completeness.Unknown && completeness !is Completeness.Unsupported) {
                 "Un Fact no puede tener completitud $completeness"
             }''',
         "",
-    )]),
-    "M-E02": (DOMAIN, [(
+    )])],
+    "M-E02": [(DOMAIN, [(
         '''            require(
                 authority == EvidenceAuthority.AgentHypothesis ||
                     authority == EvidenceAuthority.HumanCurated,
@@ -40,14 +45,14 @@ MUTANTS = {
                 "Una Hypothesis requiere AgentHypothesis o HumanCurated, no $authority"
             }''',
         "",
-    )]),
-    "M-H01": (DOMAIN, [(
+    )])],
+    "M-H01": [(DOMAIN, [(
         '''            require(authority == EvidenceAuthority.HeuristicAnalyzer) {
                 "Un Signal requiere autoridad HeuristicAnalyzer, no $authority"
             }''',
         "",
-    )]),
-    "M-R01": (ARTIFACT, [
+    )])],
+    "M-R01": [(ARTIFACT, [
         # "Serializa sin canonicalizar": el mutante clásico de AAT-16. Quitar
         # las llamadas a canonical* devuelve el encoder al orden de iteracion.
         ("canonicalSources(snapshot.sources)", "snapshot.sources"),
@@ -60,15 +65,47 @@ MUTANTS = {
         ("m.completenessByCapability.toSortedMap()", "m.completenessByCapability"),
         ("suite.lenses.sortedBy { it.lensId.value }", "suite.lenses"),
         ("suite.assertions.sortedBy { it.id.value }", "suite.assertions"),
-    ]),
+    ])],
     # El defecto que encontro el property testing, no los tests de ejemplo:
     # ordenar por `EvidenceId` SOLO. `sortedWith` es estable, asi que dos items
     # con el mismo id conservan el orden de entrada y el digest pasa a
     # depender de como el runtime recogio la evidencia. Es exactamente lo que
     # prohibe el digest canónico.
-    "M-R02": (ARTIFACT, [
+    "M-R02": [(ARTIFACT, [
         ("compareBy(key).thenBy(tie)", "compareBy(key)"),
-    ]),
+    ])],
+    # "Convertir a dominio sin aplicar las cotas". Este es el mutante de
+    # seguridad real, y no teórico: la llamada vive en
+    # `EvidenceSnapshotDto.toDomain()`, que es el único punto por el que
+    # pasan tanto el encode como el decode. Quitarla devuelve el codec al
+    # estado en el que la entrada no confiable no encuentra ningún freno.
+    #
+    # Nota: este mutante nació de una premisa mía que era FALSA. Yo creía que
+    # las cotas no se ejecutaban al decodificar, y añadí una segunda llamada en
+    # `decodeFrom*` "para arreglarlo". Al certificar, M-S01 sobrevivió y la
+    # causa fue que la llamada original ya cubría el decode. La segunda
+    # llamada era redundante y se ha retirado.
+    "M-S01": [(CODEC, [
+        (
+            """    fun toDomain(): EvidenceSnapshot {
+        EvidenceArtifactCodec.requireWithinLimits(this)""",
+            """    fun toDomain(): EvidenceSnapshot {""",
+        ),
+    ])],
+    # La cota de longitud de cadena no existe. Sin ella, una cadena de 1 GiB
+    # pasa por el decoder sin que nadie mire su tamaño.
+    #
+    # REDUNDANCIA INSUFICIENTE, y el harness lo dice con exit 1: lo mata un
+    # solo test. No se maquilla como certificado. La redundancia real llegará
+    # con un segundo test que ejercite la cota por CBOR y otro por una cadena
+    # anidada (por ejemplo `Completeness.Unsupported.reason`, que hoy no tiene
+    # test propio). Queda como deuda declarada, no como gate cerrado.
+    "M-S02": [(CODEC, [
+        (
+            "    require(length <= EvidenceArtifactCodec.MAX_STRING_LENGTH) {",
+            "    require(true) {",
+        ),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
@@ -128,15 +165,16 @@ def main():
         return 2
 
     name = sys.argv[1]
-    path, edits = MUTANTS[name]
+    targets = MUTANTS[name]
     backups = {}
-    for target in {path}:
-        backups[target] = tempfile.NamedTemporaryFile(delete=False, suffix=".bak")
-        backups[target].write(open(os.path.join(ROOT, target), "rb").read())
-        backups[target].close()
+    for path, _ in targets:
+        backups[path] = tempfile.NamedTemporaryFile(delete=False, suffix=".bak")
+        backups[path].write(open(os.path.join(ROOT, path), "rb").read())
+        backups[path].close()
 
     try:
-        apply(path, edits)
+        for path, edits in targets:
+            apply(path, edits)
         run_tests()
         results = parse_report()
         killed = sorted(t for t, s in results if s == "failed")

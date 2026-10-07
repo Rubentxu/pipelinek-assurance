@@ -16,3 +16,5 @@
 | M-I01 | TraceId e InvocationId comparten wrapper String sin tipo | identity fitness |
 | M-R01 | report serializer no canonicaliza maps | digest reproducibility |
 | M-R02 | digest ordena por clave sin desempate por contenido | digest reproducibility |
+| M-S01 | decoder no aplica las cotas al construir el dominio | bounded decoding |
+| M-S02 | cota de longitud de cadena ausente | bounded decoding |

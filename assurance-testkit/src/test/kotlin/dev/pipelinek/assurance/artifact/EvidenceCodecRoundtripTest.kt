@@ -285,26 +285,134 @@ class EvidenceCodecRoundtripTest : AnnotationSpec() {
     }
 
     @Test
-    fun oversized_payload_is_refused_by_the_collection_bound() {
+    fun a_decodified_snapshot_without_a_manifest_is_refused_by_domain() {
+        // Fail-closed por invariante de dominio: sin manifest no hay snapshot,
+        // porque no hay producer declarado de dónde venga la evidencia.
+        //
+        // HISTORIA, porque el nombre original mentia: este test se llamaba
+        // `oversized_payload_is_refused_by_the_collection_bound` y construía
+        // MAX_COLLECTION_SIZE + 1 facts para comprobar la cota. Falló con
+        // OutOfMemoryError. La razón es que la comprobación ocurre DESPUÉS de
+        // deserializar: cuando la cota se alcanza, la memoria ya está gastada.
+        //
+        // La conclusión honesta: una cota de tamaño de collection comprobada
+        // sobre el DTO construido es una verificación de cortesía, no una
+        // salvaguarda. La salvaguarda real es `MAX_INPUT_BYTES`, sobre la
+        // ENTRADA, antes de deserializar, y esa sí se ejecuta: lo prueba
+        // `max_input_bytes_cuts_before_deserializing`.
+        //
+        // Lo que este test fija es el contrato de fail-closed, no el número.
         val json = buildString {
             append("{\"apiVersion\":\"assurance-evidence/v1\",\"kind\":\"EvidenceSnapshot\"")
             append(",\"snapshotId\":\"s\",\"producer\":\"p\",\"producerVersion\":\"1\"")
             append(",\"subject\":{\"type\":\"Module\",\"path\":\"c\"}")
-            append(",\"manifest\":[]")
-            append(",\"payload\":[")
-            repeat(2) { i ->
-                if (i > 0) append(',')
-                append("{\"type\":\"Fact\",\"id\":\"ns/s/k/1\",\"subject\":{\"type\":\"Module\",\"path\":\"c\"}")
-                append(",\"authority\":\"DeterministicAnalyzer\",\"producerId\":\"p\",\"producerVersion\":\"1\"")
-                append(",\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",\"completeness\":{\"type\":\"Complete\"}}")
-            }
-            append("]}")
+            append(",\"manifest\":[],\"payload\":[]}")
         }
 
-        // El JSON es valido; lo que lo hace inadmisible es que el manifest esta
-        // vacio y el dominio exige al menos uno. Fail-closed, no excepcion
-        // silenciosa.
-        shouldThrow<Exception> { EvidenceArtifactCodec.decodeFromJson(json) }
+        val e = shouldThrow<IllegalArgumentException> { EvidenceArtifactCodec.decodeFromJson(json) }
+        // El mensaje tiene que nombrar la colección culpable, no sólo fallar.
+        e.message shouldContain "manifest"
+    }
+
+    @Test
+    fun max_input_bytes_cuts_before_deserializing() {
+        // La salvaguarda que sí funciona: se comprueba sobre los BYTES, sin
+        // haber construido nada. Un payload de 64 MiB + 1 se rechaza por
+        // tamaño, sin deserializar un solo elemento.
+        //
+        // 64 MiB se reservan en el test, no en producción: es el coste de poder
+        // demostrar que la comprobación ocurre ANTES de deserializar.
+        val oversized = ByteArray((EvidenceArtifactCodec.MAX_INPUT_BYTES + 1).toInt())
+        oversized[0] = 0xA1.toByte() // map(1), para que no falle por CBOR inválido
+
+        val e = shouldThrow<Exception> { EvidenceArtifactCodec.decodeFromCbor(oversized) }
+        // El mensaje nombra la cota: si fallara por CBOR inválido, el texto
+        // sería otro y el test caería.
+        e.message shouldContain "excede el limite de ${EvidenceArtifactCodec.MAX_INPUT_BYTES}"
+    }
+
+    @Test
+    fun a_string_over_the_length_bound_is_refused_on_decode() {
+        // La cota de longitud SOLO puede probarse por decode: por encode es
+        // imposible construir un snapshot válido con una cadena tan larga sin
+        // gastarse la memoria que la cota existe para ahorrar.
+        //
+        // Se usa una cadena de MAX+1 caracteres, no de MAX+1 bytes, porque la
+        // cota está declarada sobre caracteres.
+        val huge = "x".repeat(EvidenceArtifactCodec.MAX_STRING_LENGTH + 1)
+        val json = buildString {
+            append("{\"apiVersion\":\"assurance-evidence/v1\",\"kind\":\"EvidenceSnapshot\"")
+            append(",\"snapshotId\":\"s\",\"producer\":\"p\",\"producerVersion\":\"1\"")
+            append(",\"subject\":{\"type\":\"Module\",\"path\":\"c\"}")
+            append(",\"manifest\":[{\"producerId\":\"p\",\"producerVersion\":\"1\",")
+            append("\"subjectRevision\":\"r\",\"requestedCapabilities\":[\"c\"],\"producedCapabilities\":[\"c\"],")
+            append("\"completenessByCapability\":{\"c\":{\"type\":\"Complete\"}},")
+            append("\"schemaVersion\":\"1\",\"digest\":\"")
+            append("0".repeat(64))
+            append("\"}],")
+            append("\"payload\":[{\"type\":\"Fact\",\"id\":\"ns/s/k/1\",\"subject\":{\"type\":\"Module\",\"path\":\"")
+            append(huge)
+            append("\"},\"authority\":\"DeterministicAnalyzer\",\"producerId\":\"p\",\"producerVersion\":\"1\"")
+            append(",\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",\"completeness\":{\"type\":\"Complete\"}}]}")
+        }
+
+        val e = shouldThrow<Exception> { EvidenceArtifactCodec.decodeFromJson(json) }
+        e.message shouldContain "Module.path"
+        e.message shouldContain "${EvidenceArtifactCodec.MAX_STRING_LENGTH}"
+    }
+
+    @Test
+    fun a_nested_string_over_the_bound_is_refused_on_decode() {
+        // Redundancia deliberada de `a_string_over_the_length_bound_is_refused_
+        // on_decode`: el mutante M-S02 (quitar la cota de longitud) mataba sólo
+        // a un test, y el harness exige dos. Este segundo caso ataca una
+        // cadena ANIDADA (`Completeness.Unsupported.reason`), que en el test
+        // anterior no aparece, para que la cota se verifique en dos rutas
+        // distintas del decoder.
+        val huge = "x".repeat(EvidenceArtifactCodec.MAX_STRING_LENGTH + 1)
+        val json = buildString {
+            append("{\"apiVersion\":\"assurance-evidence/v1\",\"kind\":\"EvidenceSnapshot\"")
+            append(",\"snapshotId\":\"s\",\"producer\":\"p\",\"producerVersion\":\"1\"")
+            append(",\"subject\":{\"type\":\"Module\",\"path\":\"c\"}")
+            append(",\"manifest\":[{\"producerId\":\"p\",\"producerVersion\":\"1\",")
+            append("\"subjectRevision\":\"r\",\"requestedCapabilities\":[\"c\"],\"producedCapabilities\":[\"c\"],")
+            append("\"completenessByCapability\":{\"c\":{\"type\":\"Complete\"}},")
+            append("\"schemaVersion\":\"1\",\"digest\":\"")
+            append("0".repeat(64))
+            append("\"}],")
+            append("\"payload\":[{\"type\":\"Fact\",\"id\":\"ns/s/k/1\",")
+            append("\"subject\":{\"type\":\"Module\",\"path\":\"c\"},")
+            append("\"authority\":\"DeterministicAnalyzer\",\"producerId\":\"p\",\"producerVersion\":\"1\",")
+            append("\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",")
+            append("\"completeness\":{\"type\":\"Unsupported\",\"reason\":\"")
+            append(huge)
+            append("\"}}]}")
+        }
+
+        val e = shouldThrow<IllegalArgumentException> { EvidenceArtifactCodec.decodeFromJson(json) }
+        // El mensaje apunta al campo anidado, no a un "algo excede el limite"
+        // genérico: hay que saber QUÉ string era la enorme.
+        e.message shouldContain "Completeness.Unsupported.reason"
+    }
+
+    @Test
+    fun a_string_just_under_the_length_bound_is_accepted() {
+        // Control positivo: si la cota fuera demasiado agresiva, rechazaría
+        // evidencia legítima. Una cadena justo por debajo tiene que pasar.
+        val legal = "x".repeat(EvidenceArtifactCodec.MAX_STRING_LENGTH)
+        val snapshot = EvidenceFixtures.snapshot(
+            items = listOf(EvidenceItem.Fact(
+                id = EvidenceId("synthetic/bound/ok/1"),
+                subject = EvidenceSubject.Module(legal),
+                authority = dev.pipelinek.assurance.domain.evidence.EvidenceAuthority.DeterministicAnalyzer,
+                provenance = EvidenceFixtures.provenance("ModuleDependencies"),
+                predicate = "x",
+                objectValue = null,
+            )),
+        )
+
+        val decoded = EvidenceArtifactCodec.decodeFromCbor(EvidenceArtifactCodec.encodeToCbor(snapshot))
+        decoded.items.size shouldBe 1
     }
 
     @Test

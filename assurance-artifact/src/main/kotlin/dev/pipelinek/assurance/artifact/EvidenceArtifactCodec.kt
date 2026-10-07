@@ -53,10 +53,23 @@ object EvidenceArtifactCodec {
     const val API_VERSION = "assurance-evidence/v1"
 
     /**
-     * Límites de decoding (`SECURITY_AND_TRUST.md`: bounded decoding).
+     * Cotas de artefacto (`SECURITY_AND_TRUST.md`: bounded decoding).
      *
      * No son aficiones: un CBOR puede pedir 4 GiB de bytes en un solo elemento.
      * Sin cota, "decodificar evidencia no confiable" es un OOM a petición.
+     *
+     * Dónde se aplican, con precisión: `EvidenceSnapshotDto.toDomain()` las
+     * llama, y `toDomain()` está en el camino de DECODE. Es decir, ya se
+     * ejecutaban al decodificar. Lo que faltaba no era la llamada, era la
+     * COMPROBACIÓN: `MAX_NESTING_DEPTH` y `MAX_STRING_LENGTH` estaban
+     * declaradas y nadie las leía.
+     *
+     * Sobre MAX_COLLECTION_SIZE y el OOM: se comprueba sobre el DTO ya
+     * construido, así que no evita agotar la memoria con un payload enorme;
+     * esa protección la da `MAX_INPUT_BYTES`, que sí se comprueba sobre los
+     * BYTES antes de deserializar. Ver `max_input_bytes_cuts_before_
+     * deserializing` y el comentario de
+     * `a_decodified_snapshot_without_a_manifest_is_refused_by_domain`.
      */
     const val MAX_INPUT_BYTES = 64L * 1024 * 1024
     const val MAX_COLLECTION_SIZE = 1_000_000
@@ -108,6 +121,9 @@ object EvidenceArtifactCodec {
         } catch (e: Exception) {
             throw ArtifactDecodeException("CBOR no decodificable: ${e.message}", e)
         }
+        // Las cotas ya se aplican en `dto.toDomain()`, más abajo. No se
+        // repiten aquí: dos llamadas idénticas no dan más seguridad, sólo dos
+        // sitios que mantener en sincronía.
         return dto.toDomain()
     }
 
@@ -120,6 +136,7 @@ object EvidenceArtifactCodec {
         } catch (e: Exception) {
             throw ArtifactDecodeException("JSON no decodificable: ${e.message}", e)
         }
+        // Igual que en CBOR: las cotas viven en `toDomain()`.
         return dto.toDomain()
     }
 
@@ -128,12 +145,19 @@ object EvidenceArtifactCodec {
     // -----------------------------------------------------------------------
 
     /**
-     * Comprueba las cotas de un snapshot DTO ya construido.
+     * Aplica TODAS las cotas a un snapshot DTO ya construido.
+     *
+     * Se llama desde `toDomain()`, que está en el camino de encode y de
+     * decode: `encodeTo*` valida al construir el DTO, y `decodeFrom*` valida
+     * al convertirlo a dominio.
      *
      * `internal` a propósito: un DTO de artefacto no forma parte de la API
      * pública del módulo. Lo público son los bytes.
      */
     internal fun requireWithinLimits(dto: EvidenceSnapshotDto) {
+        require(depthOf(dto) <= MAX_NESTING_DEPTH) {
+            "snapshot excede la profundidad maxima de $MAX_NESTING_DEPTH"
+        }
         require(dto.manifest.size <= MAX_COLLECTION_SIZE) {
             "manifest: ${dto.manifest.size} excede $MAX_COLLECTION_SIZE"
         }
@@ -149,7 +173,75 @@ object EvidenceArtifactCodec {
         for (item in dto.payload) {
             item.requireWithinLimits()
         }
+        for (m in dto.manifest) {
+            m.requireWithinLimits()
+        }
+        for (s in listOf(dto.snapshotId, dto.producer, dto.producerVersion)) {
+            s.requireWithinLength("snapshot")
+        }
+        dto.subject.requireWithinLimits()
+        for (g in dto.gaps) {
+            g.requireWithinLimits()
+        }
+        for (c in dto.correlations) {
+            c.requireWithinLimits()
+        }
     }
+
+    /**
+     * Profundidad real del árbol DTO. Ver `MAX_NESTING_DEPTH`.
+     *
+     * El DTO de evidencia tiene profundidad FIJA y pequeña (anidamiento de
+     * collections y maps, sin recursión): snapshot -> item -> subject/
+     * completeness -> gaps. Por eso el limite no se activa nunca con entradas
+     * legitimas. Se implementa igual porque el dia que un DTO crezca, la cota
+     * tiene que estar ahi, y porque hace explicito que NO es un parametro
+     * muerto.
+     */
+    private fun depthOf(snapshot: EvidenceSnapshotDto): Int = 1 +
+        maxOf(
+            snapshot.subject.depth(),
+            snapshot.manifest.maxOfOrNull { it.depth() } ?: 0,
+            snapshot.payload.maxOfOrNull { it.depth() } ?: 0,
+            snapshot.gaps.maxOfOrNull { it.depth() } ?: 0,
+            snapshot.correlations.maxOfOrNull { CORRELATION_DEPTH } ?: 0,
+        )
+
+    private fun ManifestDto.depth(): Int =
+        1 + (completenessByCapability.values.maxOfOrNull { it.depth() } ?: 0)
+
+    /**
+     * Profundidad de un item.
+     *
+     * `ItemDto` es una interfaz sellada sin `subject` ni `completeness`
+     * comunes, asi que hay que despachar por variante. El `else` no existe:
+     * una quinta variante rompe la compilacion en vez de perder una cota en
+     * silencio.
+     */
+    private fun ItemDto.depth(): Int = when (this) {
+        is ItemDto.FactDto -> 1 + maxOf(subject.depth(), completeness.depth())
+        is ItemDto.ObservationDto -> 1 + maxOf(subject.depth(), completeness.depth())
+        is ItemDto.SignalDto -> 1 + maxOf(subject.depth(), completeness.depth())
+        is ItemDto.HypothesisDto -> 1 + subject.depth()
+    }
+
+    private fun CompletenessDto.depth(): Int = when (this) {
+        is CompletenessDto.PartialDto -> 1 + (gaps.maxOfOrNull { GAP_DEPTH } ?: 0)
+        is CompletenessDto.UnsupportedDto -> 1
+        else -> 0
+    }
+
+    private fun GapDto.depth(): Int = GAP_DEPTH
+
+    private fun SubjectDto.depth(): Int = 1
+
+    private fun CorrelationDto.depth(): Int = CORRELATION_DEPTH
+
+    /** Profundidad de una hoja: no contiene nada anidado. */
+    private const val GAP_DEPTH = 1
+
+    /** Profundidad de una correlación: todos sus campos son escalares. */
+    private const val CORRELATION_DEPTH = 1
 
     /** Fallo de decodificación. Distinto de los fallos de dominio a propósito. */
     class ArtifactDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -230,6 +322,24 @@ internal data class ManifestDto(
     val schemaVersion: String,
     val digest: String,
 ) {
+    fun requireWithinLimits() {
+        for (s in listOf(producerId, producerVersion, subjectRevision, schemaVersion, digest)) {
+            s.requireWithinLength("manifest")
+        }
+        require(requestedCapabilities.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "requestedCapabilities: ${requestedCapabilities.size} excede el limite"
+        }
+        require(producedCapabilities.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "producedCapabilities: ${producedCapabilities.size} excede el limite"
+        }
+        require(completenessByCapability.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "completenessByCapability: ${completenessByCapability.size} excede el limite"
+        }
+        for (capability in completenessByCapability.keys) {
+            capability.requireWithinLength("completenessByCapability key")
+        }
+    }
+
     fun toDomain(): EvidenceSourceManifest = EvidenceSourceManifest(
         producerId = producerId,
         producerVersion = producerVersion,
@@ -252,6 +362,19 @@ internal data class ManifestDto(
             schemaVersion = m.schemaVersion,
             digest = m.digest.hex,
         )
+    }
+}
+
+/**
+     * Comprueba la cota de longitud de una cadena.
+ *
+ * Una cadena de 100 MiB es legal para Kotlin y para CBOR, y es un OOM a
+ * petición en cualquier consumidor. La cota vive aquí y no en el constructor
+ * de cada DTO: es politica de recurso, no forma.
+ */
+private fun String.requireWithinLength(where: String) {
+    require(length <= EvidenceArtifactCodec.MAX_STRING_LENGTH) {
+        "$where: cadena de $length caracteres excede ${EvidenceArtifactCodec.MAX_STRING_LENGTH}"
     }
 }
 
@@ -301,6 +424,17 @@ internal sealed interface ItemDto {
             completeness = completeness.toDomain(),
         )
 
+        override fun requireWithinLimits() {
+            for (s in listOf(id, authority, producerId, producerVersion, revision, capability)) {
+                s.requireWithinLength("Fact")
+            }
+            predicate.requireWithinLength("Fact.predicate")
+            objectValue?.requireWithinLength("Fact.objectValue")
+            artifactDigest?.requireWithinLength("Fact.artifactDigest")
+            completeness.requireWithinLimits()
+            subject.requireWithinLimits()
+        }
+
         companion object {
             fun of(f: EvidenceItem.Fact) = FactDto(
                 id = f.id.value,
@@ -340,6 +474,16 @@ internal sealed interface ItemDto {
             observation = observation,
             completeness = completeness.toDomain(),
         )
+
+        override fun requireWithinLimits() {
+            for (s in listOf(id, authority, producerId, producerVersion, revision, capability)) {
+                s.requireWithinLength("Observation")
+            }
+            observation.requireWithinLength("Observation.observation")
+            artifactDigest?.requireWithinLength("Observation.artifactDigest")
+            completeness.requireWithinLimits()
+            subject.requireWithinLimits()
+        }
 
         companion object {
             fun of(o: EvidenceItem.Observation) = ObservationDto(
@@ -394,6 +538,17 @@ internal sealed interface ItemDto {
             require(thresholds.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
                 "thresholds: ${thresholds.size} excede el limite"
             }
+            for (s in listOf(id, authority, producerId, producerVersion, revision, capability,
+                signalKind, score, algorithmId, algorithmVersion)) {
+                s.requireWithinLength("Signal")
+            }
+            for (k in thresholds.keys) {
+                k.requireWithinLength("Signal.thresholds key")
+                thresholds.getValue(k).requireWithinLength("Signal.thresholds value")
+            }
+            artifactDigest?.requireWithinLength("Signal.artifactDigest")
+            completeness.requireWithinLimits()
+            subject.requireWithinLimits()
         }
 
         companion object {
@@ -441,6 +596,17 @@ internal sealed interface ItemDto {
             confidence = confidence,
         )
 
+        override fun requireWithinLimits() {
+            for (s in listOf(id, authority, producerId, producerVersion, revision, capability)) {
+                s.requireWithinLength("Hypothesis")
+            }
+            claim.requireWithinLength("Hypothesis.claim")
+            reasoning.requireWithinLength("Hypothesis.reasoning")
+            confidence.requireWithinLength("Hypothesis.confidence")
+            artifactDigest?.requireWithinLength("Hypothesis.artifactDigest")
+            subject.requireWithinLimits()
+        }
+
         companion object {
             fun of(h: EvidenceItem.Hypothesis) = HypothesisDto(
                 id = h.id.value,
@@ -476,6 +642,7 @@ private fun provenance(
 @Serializable
 internal sealed interface CompletenessDto {
     fun toDomain(): Completeness
+    fun requireWithinLimits() {}
 
     @Serializable
     @SerialName("Complete")
@@ -493,12 +660,25 @@ internal sealed interface CompletenessDto {
     @SerialName("Unsupported")
     data class UnsupportedDto(val reason: String) : CompletenessDto {
         override fun toDomain(): Completeness = Completeness.Unsupported(reason)
+
+        override fun requireWithinLimits() {
+            reason.requireWithinLength("Completeness.Unsupported.reason")
+        }
     }
 
     @Serializable
     @SerialName("Partial")
     data class PartialDto(val gaps: List<GapDto>) : CompletenessDto {
         override fun toDomain(): Completeness = Completeness.Partial(gaps.map { it.toDomain() })
+
+        override fun requireWithinLimits() {
+            require(gaps.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+                "Partial.gaps: ${gaps.size} excede el limite"
+            }
+            for (g in gaps) {
+                g.requireWithinLimits()
+            }
+        }
     }
 
     companion object {
@@ -517,6 +697,12 @@ internal data class GapDto(
     val reason: String,
     val detail: String? = null,
 ) {
+    fun requireWithinLimits() {
+        capability.requireWithinLength("Gap.capability")
+        reason.requireWithinLength("Gap.reason")
+        detail?.requireWithinLength("Gap.detail")
+    }
+
     fun toDomain(): EvidenceGap = EvidenceGap(
         capability = capability,
         reason = when (reason) {
@@ -545,17 +731,22 @@ internal data class GapDto(
 @Serializable
 internal sealed interface SubjectDto {
     fun toDomain(): EvidenceSubject
+    fun requireWithinLimits() {}
 
     @Serializable
     @SerialName("Module")
     data class ModuleDto(val path: String) : SubjectDto {
         override fun toDomain(): EvidenceSubject = EvidenceSubject.Module(path)
+
+        override fun requireWithinLimits() = path.requireWithinLength("Module.path")
     }
 
     @Serializable
     @SerialName("Symbol")
     data class SymbolDto(val qualifiedName: String) : SubjectDto {
         override fun toDomain(): EvidenceSubject = EvidenceSubject.Symbol(qualifiedName)
+
+        override fun requireWithinLimits() = qualifiedName.requireWithinLength("Symbol.qualifiedName")
     }
 
     @Serializable
@@ -566,18 +757,24 @@ internal sealed interface SubjectDto {
         val column: Int?,
     ) : SubjectDto {
         override fun toDomain(): EvidenceSubject = EvidenceSubject.SourceLocation(file, line, column)
+
+        override fun requireWithinLimits() = file.requireWithinLength("SourceLocation.file")
     }
 
     @Serializable
     @SerialName("Test")
     data class TestDto(val id: String) : SubjectDto {
         override fun toDomain(): EvidenceSubject = EvidenceSubject.Test(id)
+
+        override fun requireWithinLimits() = id.requireWithinLength("Test.id")
     }
 
     @Serializable
     @SerialName("RuntimeSpan")
     data class RuntimeSpanDto(val typedRef: String) : SubjectDto {
         override fun toDomain(): EvidenceSubject = EvidenceSubject.RuntimeSpan(typedRef)
+
+        override fun requireWithinLimits() = typedRef.requireWithinLength("RuntimeSpan.typedRef")
     }
 
     companion object {
@@ -600,6 +797,12 @@ internal data class CorrelationDto(
     val toValue: String,
     val evidence: String,
 ) {
+    fun requireWithinLimits() {
+        for (s in listOf(fromNamespace, fromValue, relation, toNamespace, toValue, evidence)) {
+            s.requireWithinLength("Correlation")
+        }
+    }
+
     fun toDomain(): Correlation = Correlation(
         from = TypedExternalId(ExternalNamespace.valueOf(fromNamespace), fromValue),
         relation = CorrelationRelation.valueOf(relation),

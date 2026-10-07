@@ -141,7 +141,7 @@ independientes idénticos, lista de AAT verdes con comando.
 - `CanonicalEncoder` con orden canónico explícito y separación por longitud.
 - Certificación de mutantes reproducible con `tools/certify_mutants.py`, todos
   muertos y ninguno por un único test: M-E01 (2 tests), M-E02 (3), M-H01 (2),
-  M-R01 (17), M-R02 (4).
+  M-R01 (17), M-R02 (4), M-S01 (2), M-S02 (2).
 - Property tests reales (`EvidenceLawsTest`, `EvidenceArbs`) cubriendo
   invariancia de permutación, roundtrip CBOR/JSON, purity, preservación de
   estructura, autoridad de heurísticos, strings especiales y estabilidad del
@@ -150,7 +150,25 @@ independientes idénticos, lista de AAT verdes con comando.
 - Golden corpus de siete entradas (`assurance-testkit/src/test/resources/golden/`)
   regenerado con `:assurance-testkit:generateGolden` y verificado (no
   regenerado) por `check`.
-- 112 tests verdes con `./gradlew check`.
+- 116 tests verdes con `./gradlew check`.
+
+Bounded decoding, con su historia y sus límites:
+
+- `MAX_NESTING_DEPTH` y `MAX_STRING_LENGTH` estaban **declaradas y nunca
+  leídas**. Ahora se comprueban, en cada DTO y en cada variante de subject.
+- Un error de este corte, corregido por certificación: se creía que las cotas
+  no se ejecutaban al decodificar, y se añadió una segunda llamada a
+  `requireWithinLimits` en `decodeFrom*`. Al certificar, M-S01 sobrevivió y la
+  causa fue que `toDomain()` ya cubría el decode. La segunda llamada era
+  redundante y se retiró.
+- `MAX_COLLECTION_SIZE` se comprueba sobre el DTO ya construido, así que **no
+  evita un OOM**: un test que construía `MAX_COLLECTION_SIZE + 1` items falló
+  con `OutOfMemoryError` antes de que la cota corriera. La salvaguarda real es
+  `MAX_INPUT_BYTES`, sobre los BYTES, antes de deserializar. El test que
+  mentía sobre su nombre se renombró a lo que de verdad demuestra.
+- Consecuencia declarada: la cota de collection **no está certificada a la
+  escala del global**. Certificarla requeriría un proceso aparte con memoria
+  acotada. Se deja constancia en vez de fingir cobertura.
 
 Defecto real encontrado por el property testing, no por los tests de ejemplo:
 `EvidenceSnapshot` admite `EvidenceId` duplicados, y como `sortedWith` es
