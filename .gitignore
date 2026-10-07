@@ -1,0 +1,26 @@
+# Jcode / tooling local
+.jcode/
+*.swp
+*.swo
+.DS_Store
+
+# Gradle / JVM (W0.build, todavia no presente)
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+
+# Artefactos de assurance (content-addressed, nunca en git)
+.assurance/
+
+# Secretos: nunca
+.env
+.env.*
+*.pem
+*.key
+*.p12
