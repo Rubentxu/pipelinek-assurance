@@ -23,7 +23,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOMAIN = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/evidence/Evidence.kt"
 ARTIFACT = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/CanonicalEncoder.kt"
 CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/EvidenceArtifactCodec.kt"
+SUITE_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/SuiteReportArtifactCodec.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
+# Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
+# `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
+# segunda ruta, M-D01 y M-R03 aparecerian como supervivientes con 0 bajas,
+# que es un falso negativo del harness, no un fallo del codigo.
+REPORTS = [
+    REPORT,
+    os.path.join(ROOT, "assurance-artifact/build/reports/tests/test/classes"),
+]
 
 # Cada mutante: (nombre, [(fichero, [(buscar, reemplazar)]), ...])
 #
@@ -106,6 +115,66 @@ MUTANTS = {
             "    require(true) {",
         ),
     ])],
+    # El envelope declara el digest pero el decoder NO lo comprueba. Es el
+    # mutante de integridad: sin esta comparacion, un artefacto alterado en
+    # transito decodifica "bien" y el gate evalua contra contenido que nadie
+    # reviso. Es la razon de existir del campo, asi que su ausencia tiene que
+    # morir por varios tests.
+    "M-D01": [
+        (CODEC, [
+            (
+                """        if (digest != canonical) {
+            throw ArtifactDecodeException(
+                "digest declarado ${digest.take(12)} no coincide con el canónico " +
+                    "${canonical.take(12)} (payload alterado en tránsito)",
+            )
+        }""",
+                "",
+            ),
+        ]),
+        (SUITE_CODEC, [
+            (
+                """        if (digest != canonical) {
+            throw EvidenceArtifactCodec.ArtifactDecodeException(
+                "digest de suite declarado ${digest.take(12)} no coincide con el canónico " +
+                    "${canonical.take(12)} (payload alterado en tránsito)",
+            )
+        }""",
+                "",
+            ),
+            (
+                """        if (digest != canonical) {
+            throw EvidenceArtifactCodec.ArtifactDecodeException(
+                "digest de report declarado ${digest.take(12)} no coincide con el canónico " +
+                    "${canonical.take(12)} (payload alterado en tránsito)",
+            )
+        }""",
+                "",
+            ),
+        ]),
+    ],
+    # El digest vuelve a ser opcional "por compatibilidad hacia atras". Con
+    # `String? = null`, un envelope sin digest pasa a ser indistinguible de uno
+    # integro, y quien verifica tiene que adivinar en vez de comprobar.
+    #
+    # Este mutante es el que Justifico la decision de volver `digest`
+    # obligatorio: el contrato lo lista sin marcarlo opcional, y la
+    # "compatibilidad" que habia era compatibility con un v0 que no existe.
+    "M-D02": [
+        (CODEC, [
+            ("    val digest: String,\n) {\n    init {", "    val digest: String? = null,\n) {\n    init {"),
+        ]),
+    ],
+    # El report serializa sin canonicalizar. El encoder canonico SI ordena
+    # (por eso el digest no cambia), pero el DTO no: dos runners con los mismos
+    # resultados en distinto orden darian artefactos distintos con el MISMO
+    # digest. Es el caso peor de los tres, porque el digest no lo delata.
+    "M-R03": [(SUITE_CODEC, [
+        ("CanonicalEncoder.canonicalResults(report.results).map { ResultDto.of(it) }",
+         "report.results.map { ResultDto.of(it) }"),
+        ("CanonicalEncoder.canonicalArtifacts(report.artifacts).map { ArtifactRefDto.of(it) }",
+         "report.artifacts.map { ArtifactRefDto.of(it) }"),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
@@ -128,12 +197,13 @@ def run_tests():
     # pareceria sobreviviente. Un falso "sobrevive" aqui es peor que un falso
     # positivo, porque frenaria el gate por una mentira.
     subprocess.run(
-        ["./gradlew", ":assurance-testkit:test", "--no-daemon", "--rerun-tasks"],
+        ["./gradlew", ":assurance-testkit:test", ":assurance-artifact:test",
+         "--no-daemon", "--rerun-tasks"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    if not glob.glob(os.path.join(REPORT, "*.html")):
+    if not any(glob.glob(os.path.join(r, "*.html")) for r in REPORTS):
         raise SystemExit(
             "STOP: el informe de tests no se genero. Sin el, la certificacion "
             "no puede afirmar nada. Comprueba que el codigo de test compile."
@@ -141,21 +211,22 @@ def run_tests():
 
 
 def parse_report():
-    """Devuelve [(test, status)] leyendo el informe HTML de Gradle.
+    """Devuelve [(test, status)] leyendo los informes HTML de Gradle.
 
     Cada test es una fila `<tr>` con tres celdas: nombre, duracion, estado.
     """
     results = []
-    for f in glob.glob(os.path.join(REPORT, "*.html")):
-        cls = os.path.basename(f)[:-5].split(".")[-1]
-        body = open(f, encoding="utf-8").read()
-        for row in ROW.findall(body):
-            cells = CELL.findall(row)
-            if len(cells) != 3:
-                continue
-            name = html.unescape(re.sub(r"<[^>]*>", "", cells[0][1])).strip()
-            status = html.unescape(re.sub(r"<[^>]*>", "", cells[2][1])).strip()
-            results.append((f"{cls}>{name}", status))
+    for report in REPORTS:
+        for f in glob.glob(os.path.join(report, "*.html")):
+            cls = os.path.basename(f)[:-5].split(".")[-1]
+            body = open(f, encoding="utf-8").read()
+            for row in ROW.findall(body):
+                cells = CELL.findall(row)
+                if len(cells) != 3:
+                    continue
+                name = html.unescape(re.sub(r"<[^>]*>", "", cells[0][1])).strip()
+                status = html.unescape(re.sub(r"<[^>]*>", "", cells[2][1])).strip()
+                results.append((f"{cls}>{name}", status))
     return results
 
 

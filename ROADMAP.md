@@ -141,16 +141,16 @@ independientes idénticos, lista de AAT verdes con comando.
 - `CanonicalEncoder` con orden canónico explícito y separación por longitud.
 - Certificación de mutantes reproducible con `tools/certify_mutants.py`, todos
   muertos y ninguno por un único test: M-E01 (2 tests), M-E02 (3), M-H01 (2),
-  M-R01 (17), M-R02 (4), M-S01 (2), M-S02 (2).
+  M-R01 (26), M-R02 (7), M-S01 (2), M-S02 (2), M-D01 (2), M-D02 (2), M-R03 (2).
 - Property tests reales (`EvidenceLawsTest`, `EvidenceArbs`) cubriendo
   invariancia de permutación, roundtrip CBOR/JSON, purity, preservación de
   estructura, autoridad de heurísticos, strings especiales y estabilidad del
   digest de suite. Property testing es lo que exige `MILESTONE_GATES.md`
   ("property laws verdes"); no habia ningún uso de `checkAll` antes de esto.
-- Golden corpus de siete entradas (`assurance-testkit/src/test/resources/golden/`)
+- Golden corpus de nueve entradas (`assurance-testkit/src/test/resources/golden/`)
   regenerado con `:assurance-testkit:generateGolden` y verificado (no
   regenerado) por `check`.
-- 116 tests verdes con `./gradlew check`.
+- 140 tests verdes con `./gradlew clean check`.
 
 Bounded decoding, con su historia y sus límites:
 
@@ -182,15 +182,57 @@ canónicos cambiaron, así que el golden se regeneró a conciencia.
 
 Pendiente para cerrar el gate:
 
-- codec JSON/CBOR con roundtrip `encode -> decode -> encode` estable
-  (`ARTIFACT_WIRE_CONTRACTS.md`);
-- corpus golden de codecs y digests archivado;
-- property test de roundtrip, que aún no existe;
-- digests de `report` (solo hay los de snapshot y suite).
+- property test de roundtrip, que aún no existe.
 
-**Nota de deuda:** `Observation` admite `Completeness.Unknown`/`Unsupported`
-mientras que `Fact` no. Es intencionado (una observación incompleta es un estado
-legítimo) pero la asimetría está solo en un test, no en la especificación.
+Codecs de las tres familias (`ARTIFACT_WIRE_CONTRACTS.md`), cerrados en este
+corte:
+
+- `SuiteArtifactCodec` y `ReportArtifactCodec` (`SuiteReportArtifactCodec.kt`),
+  con envelopes y codecs CBOR de `AssuranceSuiteIR`, `AssuranceReport`,
+  `AssertionResult`, `Counterexample` y `UnsupportedReason`.
+- El envelope **declara su digest y el decoder lo comprueba** en las tres
+  familias. Antes el digest se escribía y no se verificaba, y sin digest
+  (`String?`) por una "compatibilidad hacia atrás" que no tenía a quién servir:
+  M0 es el primer codec de evidence, no existe ningún artefacto v0 en
+  circulación. Un envelope sin digest era indistinguible de uno íntegro, y
+  quien verificaba tenía que adivinar en vez de comprobar. El contrato lista
+  `digest` sin marcarlo opcional, así que es obligatorio (fail-closed).
+  Certificado con M-D01 (no verificar) y M-D02 (volverlo opcional).
+- **Defecto real encontrado al escribir los tests**: `ReportDto.of` no
+  canonicalizaba `results`, `gaps` ni `artifacts` como sí hace el encoder
+  canónico. Dos runners con los mismos resultados en distinto orden producían
+  artefactos distintos **con el mismo digest**: el peor caso, porque el digest
+  no lo delata. Corregido exponiendo `canonicalResults` y `canonicalArtifacts`
+  desde `CanonicalEncoder` y usándolos en el DTO (M-R03).
+- **Defecto real de diseño**: `SuiteDto` reutilizaba el campo `apiVersion` del
+  envelope para el `apiVersion` de la IR, y validaba contra
+  `assurance-suite/v1`. Una suite legítima con `apiVersion = "assurance/v1"` no
+  se podía ni codificar. Ahora son dos campos (`apiVersion` del wire y
+  `suiteApiVersion` de la IR) y los dos viajan.
+- Los tests de codec viven en `assurance-artifact`, no en `assurance-testkit`:
+  los DTO son `internal`, y en Kotlin eso es de módulo. La vía desde el testkit
+  era reimplementar la codificación CBOR a mano y falló tres veces por tres
+  supuestos falsos (byte de longitud delante de cada clave, `0x78 0x40` delante
+  del valor del digest, mapas CBOR *indefinidos* sin recuento). Un test que
+  reimplementa el codec acaba probando su propia imaginación; uno que usa el
+  serializer prueba el codec de verdad.
+- El golden pasó de siete a nueve entradas: ahora incluye `suite.digest` y
+  `report.digest`, que antes solo se calculaban en memoria. El
+  `snapshot.digest` canónico **no cambió** al hacer obligatorio el campo
+  `digest` del envelope, que es lo correcto: el digest canónico se calcula
+  sobre el contenido, no sobre el envelope. Solo cambiaron los bytes de
+  `snapshot.json.sha256` y `snapshot.cbor.sha256`.
+
+Deuda pendiente, declarada y no cerrada:
+
+- `MAX_COLLECTION_SIZE` sin certificar a escala global (proceso aparte con
+  memoria acotada).
+- Orden canónico real de claves JSON: el JSON del envelope sale en orden de
+  declaración del DTO, que es estable por construcción pero no es orden
+  canónico por clave. No afecta al digest (que se calcula sobre texto propio),
+  sí a la comparación byte a byte de artefactos JSON.
+- `Observation` admite `Completeness.Unknown`/`Unsupported` mientras que
+  `Fact` no. Es intencionado, pero la asimetría está solo en un test.
 
 ### M1: First useful static assurance vertical
 

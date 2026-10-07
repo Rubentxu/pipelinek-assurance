@@ -306,7 +306,13 @@ class EvidenceCodecRoundtripTest : AnnotationSpec() {
             append("{\"apiVersion\":\"assurance-evidence/v1\",\"kind\":\"EvidenceSnapshot\"")
             append(",\"snapshotId\":\"s\",\"producer\":\"p\",\"producerVersion\":\"1\"")
             append(",\"subject\":{\"type\":\"Module\",\"path\":\"c\"}")
-            append(",\"manifest\":[],\"payload\":[]}")
+            append(",\"manifest\":[],\"payload\":[]")
+            // `digest` es obligatorio desde que el envelope lo declara
+            // (`ARTIFACT_WIRE_CONTRACTS.md` §Family 1). Este envelope lo
+            // lleva, a proposito: el test no va de "digest ausente", va de la
+            // invariante de dominio "sin manifest no hay snapshot". Con el
+            // digest ausente fallaria antes, por el motivo equivocado.
+            append(",\"digest\":\"").append("0".repeat(64)).append("\"}")
         }
 
         val e = shouldThrow<IllegalArgumentException> { EvidenceArtifactCodec.decodeFromJson(json) }
@@ -353,7 +359,12 @@ class EvidenceCodecRoundtripTest : AnnotationSpec() {
             append("\"payload\":[{\"type\":\"Fact\",\"id\":\"ns/s/k/1\",\"subject\":{\"type\":\"Module\",\"path\":\"")
             append(huge)
             append("\"},\"authority\":\"DeterministicAnalyzer\",\"producerId\":\"p\",\"producerVersion\":\"1\"")
-            append(",\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",\"completeness\":{\"type\":\"Complete\"}}]}")
+            append(",\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",\"completeness\":{\"type\":\"Complete\"}}],")
+            // `digest` es obligatorio en el envelope. Va con ceros porque este
+            // envelope nunca llega a la comprobacion de digest: la cota de
+            // longitud se dispara antes, al construir el dominio, y ese es
+            // justamente el mensaje que este test verifica.
+            append("\"digest\":\"").append("0".repeat(64)).append("\"}")
         }
 
         val e = shouldThrow<Exception> { EvidenceArtifactCodec.decodeFromJson(json) }
@@ -386,7 +397,8 @@ class EvidenceCodecRoundtripTest : AnnotationSpec() {
             append("\"revision\":\"r\",\"capability\":\"c\",\"predicate\":\"x\",")
             append("\"completeness\":{\"type\":\"Unsupported\",\"reason\":\"")
             append(huge)
-            append("\"}}]}")
+            append("\"}}],")
+            append("\"digest\":\"").append("0".repeat(64)).append("\"}")
         }
 
         val e = shouldThrow<IllegalArgumentException> { EvidenceArtifactCodec.decodeFromJson(json) }

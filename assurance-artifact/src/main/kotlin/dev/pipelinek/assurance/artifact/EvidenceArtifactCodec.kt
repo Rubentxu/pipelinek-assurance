@@ -121,10 +121,7 @@ object EvidenceArtifactCodec {
         } catch (e: Exception) {
             throw ArtifactDecodeException("CBOR no decodificable: ${e.message}", e)
         }
-        // Las cotas ya se aplican en `dto.toDomain()`, más abajo. No se
-        // repiten aquí: dos llamadas idénticas no dan más seguridad, sólo dos
-        // sitios que mantener en sincronía.
-        return dto.toDomain()
+        return dto.toVerifiedDomain()
     }
 
     fun decodeFromJson(text: String): EvidenceSnapshot {
@@ -136,8 +133,29 @@ object EvidenceArtifactCodec {
         } catch (e: Exception) {
             throw ArtifactDecodeException("JSON no decodificable: ${e.message}", e)
         }
-        // Igual que en CBOR: las cotas viven en `toDomain()`.
-        return dto.toDomain()
+        return dto.toVerifiedDomain()
+    }
+
+    /**
+     * Decodifica a dominio y comprueba el digest declarado.
+     *
+     * El orden importa y NO es arbitrario: primero `toDomain()` (que corre
+     * cotas e invariantes de dominio), después el digest. Si el digest se
+     * comprobara antes, un artefacto manipulado con una cota violada fallaría
+     * con el mensaje equivocado, y el diagnostico diria "integridad" cuando el
+     * problema real era un string de 2 GiB. El mensaje tiene que nombrar la
+     * causa.
+     */
+    private fun EvidenceSnapshotDto.toVerifiedDomain(): EvidenceSnapshot {
+        val snapshot = toDomain()
+        val canonical = CanonicalEncoder.digestSnapshot(snapshot).hex
+        if (digest != canonical) {
+            throw ArtifactDecodeException(
+                "digest declarado ${digest.take(12)} no coincide con el canónico " +
+                    "${canonical.take(12)} (payload alterado en tránsito)",
+            )
+        }
+        return snapshot
     }
 
     // -----------------------------------------------------------------------
@@ -179,6 +197,10 @@ object EvidenceArtifactCodec {
         for (s in listOf(dto.snapshotId, dto.producer, dto.producerVersion)) {
             s.requireWithinLength("snapshot")
         }
+        // El digest es una cadena que viene de fuera: se acota igual que
+        // cualquier otra, para que un envelope con un digest de 2 GiB se
+        // rechace por cota y no por coincidencia.
+        dto.digest.requireWithinLength("snapshot.digest")
         dto.subject.requireWithinLimits()
         for (g in dto.gaps) {
             g.requireWithinLimits()
@@ -263,6 +285,26 @@ internal data class EvidenceSnapshotDto(
     val payload: List<ItemDto>,
     val gaps: List<GapDto> = emptyList(),
     val correlations: List<CorrelationDto> = emptyList(),
+    /**
+     * Digest canónico del snapshot. OBLIGATORIO.
+     *
+     * `ARTIFACT_WIRE_CONTRACTS.md` §Family 1 lista `digest` entre los campos
+     * del envelope sin marcarlo opcional, y `SECURITY_AND_TRUST.md` manda
+     * fail-closed: "unknown required field semantics -> refuse".
+     *
+     * Por eso NO es nullable. Una versión anterior de este codec lo aceptaba
+     * ausente "por compatibilidad hacia atrás", allocating una compatibilidad
+     * que no tiene a quién servir: M0 es el primer codec de evidence, no
+     * existe ningún artefacto v0 en circulación al que haya que seguir
+     * leyendo. La compatibilidad inventada no cuesta un warning, cuesta
+     * integridad: un artefacto sin digest pasa a ser indistinguible de uno
+     * íntegro, y quien verifique tiene que adivinar en vez de comprobar.
+     *
+     * Si el campo falta, el decoder falla por `MissingFieldException` y el
+     * codec lo convierte en `ArtifactDecodeException`. Ausente y corrupto son
+     * estados distintos, y ambos se rechazan, pero por mensajes distintos.
+     */
+    val digest: String,
 ) {
     init {
         // Fail-closed de schema: una versión desconocida no se adivina.
@@ -306,6 +348,7 @@ internal data class EvidenceSnapshotDto(
                 gaps = CanonicalEncoder.canonicalGaps(snapshot.gaps).map { GapDto.of(it) },
                 correlations = CanonicalEncoder.canonicalCorrelations(snapshot.correlations)
                     .map { CorrelationDto.of(it) },
+                digest = CanonicalEncoder.digestSnapshot(snapshot).hex,
             )
         }
     }

@@ -16,6 +16,7 @@ import dev.pipelinek.assurance.domain.evidence.Provenance
 import dev.pipelinek.assurance.domain.evidence.RevisionRef
 import dev.pipelinek.assurance.domain.evidence.SnapshotId
 import dev.pipelinek.assurance.domain.evidence.TypedExternalId
+import dev.pipelinek.assurance.engine.ArtifactRef
 import dev.pipelinek.assurance.engine.AssuranceReport
 import dev.pipelinek.assurance.engine.AssertionResult
 import dev.pipelinek.assurance.engine.AssuranceSuiteIR
@@ -99,6 +100,24 @@ object CanonicalEncoder {
     /** Orden canónico de manifests. Ver [canonicalItems]. */
     fun canonicalSources(sources: List<EvidenceSourceManifest>): List<EvidenceSourceManifest> =
         sources.sortedWith(totalOrder({ it.producerId }) { encodeManifest(it) })
+
+    /**
+     * Orden canónico de resultados de report. Ver [canonicalItems].
+     *
+     * Mismo criterio que `digestReport` usa para el campo `results`: por
+     * nombre de clase y luego por clave del resultado, con desempate por la
+     * representacion canonica. Sin este desempate, dos `Inconclusive` con los
+     * mismos gaps en distinto orden darian artefactos distintos con el mismo
+     * contenido.
+     */
+    fun canonicalResults(results: List<AssertionResult>): List<AssertionResult> =
+        results.sortedWith(
+            totalOrder<AssertionResult>({ it::class.simpleName ?: "" }) { encodeResult(it) },
+        )
+
+    /** Orden canónico de referencias a artefactos. Ver [canonicalItems]. */
+    fun canonicalArtifacts(artifacts: List<ArtifactRef>): List<ArtifactRef> =
+        artifacts.sortedWith(totalOrder({ it.logicalRole }) { encodeArtifactRef(it) })
 
     /** Orden canónico de gaps. Ver [canonicalItems]. */
     fun canonicalGaps(gaps: List<EvidenceGap>): List<EvidenceGap> =
@@ -187,27 +206,21 @@ object CanonicalEncoder {
             appendField("suiteDigest", report.suiteDigest.hex)
             appendField(
                 "results",
-                report.results.sortedWith(
-                    compareBy(
-                        { it::class.simpleName },
-                        { resultKey(it) },
-                    ),
-                ).joinToString("\n") { encodeResult(it) },
+                canonicalResults(report.results).joinToString("\n") { encodeResult(it) },
             )
             appendField(
                 "gaps",
-                report.gaps.sortedWith(compareBy({ it.capability }, { it.reason.toString() }))
-                    .joinToString("\n") { g ->
-                        buildString {
-                            appendField("capability", g.capability)
-                            appendField("reason", g.reason.toString())
-                            appendField("detail", g.detail ?: "-")
-                        }
-                    },
+                canonicalGaps(report.gaps).joinToString("\n") { g ->
+                    buildString {
+                        appendField("capability", g.capability)
+                        appendField("reason", g.reason.toString())
+                        appendField("detail", g.detail ?: "-")
+                    }
+                },
             )
             appendField(
                 "artifacts",
-                report.artifacts.sortedBy { it.logicalRole }.joinToString("\n") { a ->
+                canonicalArtifacts(report.artifacts).joinToString("\n") { a ->
                     buildString {
                         appendField("logicalRole", a.logicalRole)
                         appendField("mediaType", a.mediaType)
@@ -217,8 +230,7 @@ object CanonicalEncoder {
             )
             appendField(
                 "correlations",
-                report.correlations
-                    .sortedWith(compareBy({ it.from.namespace.name }, { it.from.value }, { it.to.value }))
+                canonicalCorrelations(report.correlations)
                     .joinToString("\n") { encodeCorrelation(it) },
             )
         },
@@ -438,6 +450,12 @@ object CanonicalEncoder {
         appendField("capability", g.capability)
         appendField("reason", g.reason.toString())
         appendField("detail", g.detail ?: "-")
+    }
+
+    private fun encodeArtifactRef(a: ArtifactRef): String = buildString {
+        appendField("logicalRole", a.logicalRole)
+        appendField("mediaType", a.mediaType)
+        appendField("digest", a.digest.hex)
     }
 
     private fun encodeCorrelation(c: Correlation): String = buildString {
