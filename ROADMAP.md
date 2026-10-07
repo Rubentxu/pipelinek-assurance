@@ -130,6 +130,32 @@ real que autorar; hasta entonces el IR se construye a mano.
 **Evidencia mínima del recibo:** property tests verdes, corpus golden, dos digests
 independientes idénticos, lista de AAT verdes con comando.
 
+**Estado (observado, 2026-10-07):** **Gate M0 ABIERTO.** Cerrado:
+
+- ADTs de `Evidence` y álgebra de assurance completos en `assurance-domain` y
+  `assurance-engine`.
+- `Digest` con SHA-256 real (`Digest.ofUtf8`), verificado contra los vectores
+  FIPS 180-4 (`""`, `"abc"`, la cadena de 56 bytes). Antes `Digest.of` solo
+  hex-encodaba sin hashear y el fixture usaba un LGC con forma de hash: ambos
+  producian 64 hex chars que parecian un digest y no lo eran.
+- `CanonicalEncoder` con orden canónico explícito y separación por longitud.
+- Certificación de mutantes reproducible con `tools/certify_mutants.py`:
+  M-E01 (2 tests), M-E02 (2), M-H01 (2), M-R01 (7). Todos mueren, ninguno por
+  un único test.
+- 49 tests verdes con `./gradlew build`.
+
+Pendiente para cerrar el gate:
+
+- codec JSON/CBOR con roundtrip `encode -> decode -> encode` estable
+  (`ARTIFACT_WIRE_CONTRACTS.md`);
+- corpus golden de codecs y digests archivado;
+- property test de roundtrip, que aún no existe;
+- digests de `report` (solo hay los de snapshot y suite).
+
+**Nota de deuda:** `Observation` admite `Completeness.Unknown`/`Unsupported`
+mientras que `Fact` no. Es intencionado (una observación incompleta es un estado
+legítimo) pero la asimetría está solo en un test, no en la especificación.
+
 ### M1: First useful static assurance vertical
 
 **Valor:** arquitectura como test con evidencia sintética, sin CogniCode todavía.

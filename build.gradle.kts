@@ -20,8 +20,11 @@ subprojects {
                 jvmTarget.set(JvmTarget.JVM_21)
                 // Explicit opt-in por modulo. El core funcional no usa nada
                 // experimental; los tests si (property testing).
+                // -jvm-default=enable es el equivalente moderno de la antigua
+                // -Xjvm-default=all: comportamiento de interface method por
+                // defecto en Kotlin 2.4.
                 freeCompilerArgs.addAll(
-                    "-Xjvm-default=all",
+                    "-jvm-default=enable",
                 )
             }
         }
@@ -39,3 +42,4 @@ subprojects {
         }
     }
 }
+
