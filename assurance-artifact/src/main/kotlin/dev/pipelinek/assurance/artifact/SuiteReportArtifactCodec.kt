@@ -258,24 +258,34 @@ internal data class SuiteDto(
     )
 
     companion object {
-        fun of(suite: AssuranceSuiteIR) = SuiteDto(
-            apiVersion = SuiteArtifactCodec.API_VERSION,
-            kind = "AssuranceSuite",
-            suiteApiVersion = suite.apiVersion,
-            suiteId = suite.suiteId.value,
-            suiteVersion = suite.suiteVersion,
-            // Orden canónico (AAT-16): una lista sin ordenar rompe la paridad
-            // de digest entre runners, que es el Exit de M9.
-            requiredEvidence = suite.requiredEvidence.distinct().sorted(),
-            lenses = suite.lenses
-                .sortedBy { it.lensId.value }
-                .map { LensDto.of(it) },
-            assertions = suite.assertions
-                .sortedBy { it.id.value }
-                .map { AssertionDto.of(it) },
-            metadata = suite.metadata.toSortedMap(),
-            digest = CanonicalEncoder.digestSuite(suite).hex,
-        )
+        fun of(suite: AssuranceSuiteIR): SuiteDto {
+            // La canonicalización la hace UNA sola función, la del
+            // `CanonicalEncoder`, no una copia local con los mismos
+            // `sortedBy`. Estaba duplicada aquí y en
+            // `canonicalizeSuite`, y sólo la de aquí ejecutaba en
+            // producción: la otra era código que sólo usaban los tests.
+            //
+            // Dos copias del criterio son una forma elegante de perder la
+            // paridad de digest, porque las dos compilan, las dos parecen
+            // correctas y sólo una manda. Es el mismo modo de fallo que
+            // `correlations`, donde el digest ordenaba una cosa y el codec
+            // otra: dos autoridades que ordenan y no se hablan.
+            val canonica = CanonicalEncoder.canonicalizeSuite(suite)
+            return SuiteDto(
+                apiVersion = SuiteArtifactCodec.API_VERSION,
+                kind = "AssuranceSuite",
+                suiteApiVersion = canonica.apiVersion,
+                suiteId = canonica.suiteId.value,
+                suiteVersion = canonica.suiteVersion,
+                // Orden canónico (AAT-16): una lista sin ordenar rompe la
+                // paridad de digest entre runners, que es el Exit de M9.
+                requiredEvidence = canonica.requiredEvidence,
+                lenses = canonica.lenses.map { LensDto.of(it) },
+                assertions = canonica.assertions.map { AssertionDto.of(it) },
+                metadata = canonica.metadata,
+                digest = CanonicalEncoder.digestSuite(suite).hex,
+            )
+        }
     }
 }
 
