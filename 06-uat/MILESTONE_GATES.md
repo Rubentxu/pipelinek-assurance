@@ -2,11 +2,23 @@
 
 ## Gate M0
 
-- domain/api tests verdes;
-- property laws verdes;
-- M-E01/M-E02/M-R01 muertos;
-- no I/O dependency fitness;
-- canonical golden corpus estable.
+**Estado: CERRADO (2026-10-08, commit `b1cfbc5`).** Evidencia observada:
+
+- domain/api tests verdes — `clean check` BUILD SUCCESSFUL, 169 tests,
+  0 fallos, 0 skipped;
+- property laws verdes — `SuiteReportLawsTest` (22 leyes), `EvidenceLawsTest`,
+  `EpistemicLawsTest`, `CanonicalJsonOrderTest`;
+- M-E01/M-E02/M-R01 muertos — certificate los tres; ademas M-H01, M-R02,
+  M-R03, M-R04, M-J01, M-S01, M-S02, M-D01, M-D02. Doce en total, y ninguno
+  muere por un único test (M-R04 pasó de 1 a 2 al añadir la ley que compara
+  bytes en vez del valor decodificado);
+- no I/O dependency fitness — fitness tests en `assurance-domain`, sin fs,
+  red, coroutines ni CLI;
+- canonical golden corpus estable — verificado por `check`, no regenerado en
+  la corrida de cierre. El golden sí se regeneró a conciencia antes, cuando el
+  orden canónico JSON movió `snapshot.json.sha256`.
+
+Cerrado este gate, la precondición de M1 queda satisfecha.
 
 ## Gate M1
 

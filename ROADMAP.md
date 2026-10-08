@@ -200,7 +200,7 @@ roundtrip`). Lo que faltaba no era la técnica, era la cobertura: evidence tení
 ley, suite y report no. Confundir "no hay roundtrip de suite" con "no hay
 roundtrip" es un error de lectura, no de código.
 
-Leyes de roundtrip de suite y report (`SuiteReportLawsTest`, 21 leyes):
+Leyes de roundtrip de suite y report (`SuiteReportLawsTest`, 22 leyes):
 
 - La ley de roundtrip **no** es `decode(encode(x)) == x`, porque es falsa: el
   codec canoniza las colecciones al decodificar. `decode(encode(x))` devuelve
