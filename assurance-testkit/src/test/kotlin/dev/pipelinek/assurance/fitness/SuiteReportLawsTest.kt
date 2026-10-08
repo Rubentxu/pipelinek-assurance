@@ -126,6 +126,39 @@ class SuiteReportLawsTest : AnnotationSpec() {
         }
     }
 
+    @Test
+    suspend fun LAW_report_correlation_permutation_yields_the_same_artifact() {
+        // M-R04. Ésta es la ley que hace que el defecto no vuelva solo.
+        //
+        // El fallo real era: `ReportArtifactCodec` canonicalizaba `results`,
+        // `gaps` y `artifacts`, pero NO `correlations`, mientras que
+        // `digestReport` sí las ordenaba con `canonicalCorrelations`. Dos
+        // informes con las mismas correlaciones en distinto orden producían
+        // artefactos byte a byte DISTINTOS con el MISMO digest.
+        //
+        // Eso es el peor caso posible, y explica por qué no lo cazó la ley de
+        // invariancia del digest: el digest era correcto. Todo lo que un
+        // checksum puede comprobar, estaba bien. Lo que estaba mal era la
+        // REPRESENTACIÓN, que el digest no cubre por definición.
+        //
+        // Por eso esta ley compara BYTES y no digests. Y por eso usa la
+        // pareja permutada del GENERADOR y no una permutación fija: un
+        // ejemplo hardcodeado pasa por el motivo equivocado en cuanto el
+        // codificador cambia su representación, que es justo lo que pasó
+        // aquí.
+        law(iterations = 300, arb = EvidenceArbs.reportPermutationPair()) { (a, b) ->
+            // El digest: correcto, y por eso no habría detectado nada.
+            CanonicalEncoder.digestReport(a) shouldBe CanonicalEncoder.digestReport(b)
+
+            // Los BYTES: esto es lo que estaba roto. Digest igual, artefacto
+            // distinto. El mismo digest para dos artefactos distintos es una
+            // colisión que se infringe a sí mismo, y ningún checksum la
+            // delata por definición.
+            ReportArtifactCodec.encodeToCbor(a) shouldBe
+                ReportArtifactCodec.encodeToCbor(b)
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Report — CBOR
     // -------------------------------------------------------------------------
