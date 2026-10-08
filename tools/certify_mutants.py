@@ -24,6 +24,7 @@ DOMAIN = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/eviden
 ARTIFACT = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/CanonicalEncoder.kt"
 CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/EvidenceArtifactCodec.kt"
 SUITE_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/SuiteReportArtifactCodec.kt"
+ENGINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/Assurance.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -197,6 +198,43 @@ MUTANTS = {
     "M-J01": [(CODEC, [
         ("return CanonicalJson.encodeCanonical(EvidenceSnapshotDto.serializer(), dto)",
          "return json.encodeToString(EvidenceSnapshotDto.serializer(), dto)"),
+    ])],
+    # Los tres AAT que el exit criteria de M0 declaraba verdes y que no
+    # tenian ninguna ejecucion. Se descubrio al cerrar el gate: M0 se estaba
+    # certificando con tres reglas de su exit criteria que nunca se habian
+    # comprobado una sola vez.
+    #
+    # M-A01 es el caso raro y por eso existe: la regla se cumple hoy de forma
+    # VACUA, porque no hay ningun EvidenceProvider en el repo. Sin mutante, un
+    # test que pasa sobre conjunto vacio es indistinguible de un test que no
+    # mira nada. El mutante DECLARA el provider que la regla prohibe, y exige
+    # que la ley lo detecte. Sin esto, "AAT-6 verde" significa "no hay nada
+    # que mirar", que no es lo mismo que "la regla se cumple".
+    "M-A01": [(ENGINE, [
+        ("""sealed interface AssertionResult {""",
+         """interface EvidenceProvider
+
+sealed interface AssertionResult {
+    @Suppress("unused")
+    fun isPassed(): Boolean = (this as? Passed) != null
+"""),
+    ])],
+    # Sin `sealed`, el `when` sobre AssertionResult deja de ser exhaustivo en
+    # tiempo de compilacion. El defecto no es un fallo de ejecucion: el
+    # compilador acepta el `when` con un `else`, y un subtype nuevo pasa
+    # inadvertido. El atajo booleano es la segunda mitad del mismo defecto.
+    "M-A02": [(ENGINE, [
+        ("sealed interface AssertionResult {", "interface AssertionResult {"),
+    ])],
+    # El encoder de suite IR deja de ordenar `lenses`. El digest sigue
+    # ordenando por su cuenta, asi que M-R01/M-R02 no lo cazan: por eso hace
+    # falta uno para el IR y no solo para el snapshot.
+    "M-A03": [(ARTIFACT, [
+        ("""        lenses = suite.lenses
+            .sortedBy { it.lensId.value }
+            .map { lens ->""",
+         """        lenses = suite.lenses
+            .map { lens ->"""),
     ])],
 }
 
