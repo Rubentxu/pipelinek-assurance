@@ -204,13 +204,13 @@ MUTANTS = {
     # certificando con tres reglas de su exit criteria que nunca se habian
     # comprobado una sola vez.
     #
-    # M-A01 es el caso raro y por eso existe: la regla se cumple hoy de forma
+    # M-V01 es el caso raro y por eso existe: la regla se cumple hoy de forma
     # VACUA, porque no hay ningun EvidenceProvider en el repo. Sin mutante, un
     # test que pasa sobre conjunto vacio es indistinguible de un test que no
     # mira nada. El mutante DECLARA el provider que la regla prohibe, y exige
     # que la ley lo detecte. Sin esto, "AAT-6 verde" significa "no hay nada
     # que mirar", que no es lo mismo que "la regla se cumple".
-    "M-A01": [(ENGINE, [
+    "M-V01": [(ENGINE, [
         ("""sealed interface AssertionResult {""",
          """interface EvidenceProvider
 
@@ -223,13 +223,13 @@ sealed interface AssertionResult {
     # tiempo de compilacion. El defecto no es un fallo de ejecucion: el
     # compilador acepta el `when` con un `else`, y un subtype nuevo pasa
     # inadvertido. El atajo booleano es la segunda mitad del mismo defecto.
-    "M-A02": [(ENGINE, [
+    "M-V02": [(ENGINE, [
         ("sealed interface AssertionResult {", "interface AssertionResult {"),
     ])],
     # El encoder de suite IR deja de ordenar `lenses`. El digest sigue
     # ordenando por su cuenta, asi que M-R01/M-R02 no lo cazan: por eso hace
     # falta uno para el IR y no solo para el snapshot.
-    "M-A03": [(ARTIFACT, [
+    "M-V03": [(ARTIFACT, [
         ("""        lenses = suite.lenses
             .sortedBy { it.lensId.value }
             .map { lens ->""",

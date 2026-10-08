@@ -145,7 +145,7 @@ por un único test. Cerrado:
 - Certificación de mutantes reproducible con `tools/certify_mutants.py`, quince
   mutantes, todos muertos y **ninguno por un único test**: M-E01 (3), M-E02 (3),
   M-H01 (2), M-R01 (29), M-R02 (9), M-S01 (2), M-S02 (2), M-D01 (4), M-D02 (4),
-  M-R03 (4), M-R04 (2), M-J01 (3), M-A01 (2), M-A02 (2), M-A03 (2). Recuento
+  M-R03 (4), M-R04 (2), M-J01 (3), M-V01 (2), M-V02 (2), M-V03 (2). Recuento
   observado, no estimado. Nota: el conteo exacto de `killed` por mutante varía
   entre corridas por el sampling de los property tests; lo que no varía es que
   ninguno baja de 2.
@@ -220,11 +220,11 @@ Los tres casos no son el mismo problema, y por eso producen tres leyes distintas
 - **AAT-6** (ningún `EvidenceProvider` retorna `AssertionResult`) se cumple hoy
   de forma ** vacua**: no existe ningún `EvidenceProvider` en el repo, y un
   `forall` sobre conjunto vacío es cierto. Eso no certifica nada, certifica que
-  no hay nada que mirar. Por eso lleva mutante propio (M-A01) que **declara** el
+  no hay nada que mirar. Por eso lleva mutante propio (M-V01) que **declara** el
   provider prohibido y exige que la ley lo detecte. Sin mutante, "AAT-6 verde" y
   "el test no mira nada" son la misma observación.
 
-**Defecto real encontrado de rebote.** Al añadir la segunda ley de M-A03
+**Defecto real encontrado de rebote.** Al añadir la segunda ley de M-V03
 (comparar bytes, no digest), se vio que **no la cazaba**. La causa no era la ley:
 era que `SuiteDto.of` tenía su propia copia del criterio de orden canónico con
 `sortedBy` locales, mientras `canonicalizeSuite` tenía otra. Sólo la del codec

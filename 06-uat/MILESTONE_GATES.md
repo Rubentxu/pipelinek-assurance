@@ -10,7 +10,7 @@ Evidencia observada:
 - property laws verdes — `SuiteReportLawsTest`, `EvidenceLawsTest`,
   `EpistemicLawsTest`, `CanonicalJsonOrderTest`;
 - M-E01/M-E02/M-R01 muertos — certificate los tres; ademas M-H01, M-R02,
-  M-R03, M-R04, M-J01, M-S01, M-S02, M-D01, M-D02, M-A01, M-A02, M-A03.
+  M-R03, M-R04, M-J01, M-S01, M-S02, M-D01, M-D02, M-V01, M-V02, M-V03.
   Quince en total, y ninguno muere por un único test;
 - no I/O dependency fitness — fitness tests en `assurance-domain`, sin fs,
   red, coroutines ni CLI;
@@ -22,7 +22,7 @@ Evidencia observada:
 exit criteria de M0 declara son 1, 2, 6, 8, 9, 16, 17 y 20. Verificados uno a
 uno, **AAT-6, AAT-8 y AAT-16 no tenían ninguna ejecución**: el gate se estaba
 certificando con tres reglas de su propio exit criteria que nadie había
-comprobado. Ahora los tres tienen ley y mutante propio (M-A01, M-A02, M-A03).
+comprobado. Ahora los tres tienen ley y mutante propio (M-V01, M-V02, M-V03).
 
 AAT-6 merece la nota: se cumple hoy de forma ** vacua, porque no existe ningún
 `EvidenceProvider` en el repo. Por eso su mutante *declara* el provider
