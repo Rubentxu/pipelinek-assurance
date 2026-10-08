@@ -531,15 +531,52 @@ cosa poisoned el catálogo en silencio.
 mutantes exigidos por el hito mueren y ninguno por un único test: M-A01 por 3,
 M-A02 por 4, M-A03 por 4, M-H01 por 2.
 
+*La lens falló en su primer uso y AAT-005 la dejó roja.* Filtraba por
+`Fact` antes que por `capability`, así que un `Signal` de la misma capability no
+encontraba nada y devolvía `MissingCapability`: "no hay evidencia". Es al revés.
+Había evidencia, lo que había era del tipo que la lens no admite, y esa
+distinción es la que un operador necesita para no reportar "falta el analyser"
+cuando el analyser estaba y respondió con una heurística.
+
+La comprobación vive en la lens y no en la assertion, y no es una elección de
+gusto: la assertion no ve la evidencia, sólo la proyección. Si la lens admitiera
+una heurística, la assertion recibiría un grafo indistinguible del bueno.
+
+Se añadió también la segunda mitad de AAT-19, que la ley del dominio no cubría:
+`Signal` está atado a `HeuristicAnalyzer` por construcción (M-H01), pero `Fact`
+no está atado a nada, y un `Fact` heurístico se construye hoy. Sin esa
+comprobación, AAT-19 tenía un agujero por el lado del contenedor y no sólo por el
+de la autoridad.
+
+**Estado verificado tras los cinco commits de M1:**
+`clean check` `BUILD SUCCESSFUL`, 219 tests, 0 fallos, 0 skipped. M-A01 por 3,
+M-A02 por 4, M-A03 por 4, M-H01 por 2: los cuatro mutantes que el hito exige
+mueren, y ninguno por un único test.
+
 **Lo que M1 aún NO tiene, y por tanto NO cierra el gate:**
 
-- `HexagonalArchitectureLens` como tal (la proyección del grafo a evidencia).
 - CLI mínimo: `assure report`, `assure explain`, `assure evidence path`.
-- UAT-005: la ley de autoridad determinista, que la ley de `Signal` del dominio
-  ya implementa pero sin ejecución certificada que la ate a una assertion.
-- UAT-022: la primera ejecución del self-model sobre el grafo, que la ley del
-  fixture ya cubre en `assurance-artifact` pero que no existe como UAT con su
-  propia ejecución.
+- UAT-022 como UAT con su propia ejecución: la ley del fixture ya evalúa el
+  self-model en `assurance-artifact`, pero no existe el comando ni el recibo que
+  el catálogo de UAT describe.
+- `assure-cli` como módulo, que el self-model ya declara en su capa
+  `Infrastructure` y que todavía no existe en `settings.gradle.kts`.
+
+**Un límite del self-model que hay que tener presente al usarlo.** El self-model
+declara `assure-cli` en `Infrastructure`, y ese módulo no existe todavía. El
+gate propio pasa verde y no lo caza, porque el self-model es **declarado a mano**
+y no extraído: compara la arquitectura que alguien escribió contra la política, no
+contra el repo. Es la diferencia entre UAT-022 (que pide exactamente eso, validar
+la arquitectura declarada) y UAT-023 (que introduce una dependencia prohibida de
+verdad y espera rojo).
+
+Se deja escrito en vez de quitar `assure-cli` del fixture porque las dos cosas
+son verdad a la vez: el módulo está previsto para M1 y aún no existe, y un
+self-model que declara lo que el repo *tendrá* no es un defecto de la
+política. Lo que sí sería un defecto es que el self-model presentara esa
+declaración como si fuera evidencia observada del repo, y no lo hace: el nombre
+del fichero y el KDoc dicen "sintético" las dos veces. Cuando el grafo pase a
+extraerse, esta divergencia se convierte en un gap y no en un silencio.
 
 ### M2: CogniCode evidence integration
 
