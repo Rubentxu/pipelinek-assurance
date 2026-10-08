@@ -457,6 +457,49 @@ depende del provider; el ejemplo sí.
 **Evidencia mínima del recibo:** fixtures golden, witnesses de los tres mutantes, digest del
 suite IR, primer report propio del repo.
 
+**Estado tras dos commits (`c60c156`, `b3fceda`): entregado y verificado.**
+
+- `DependencyGraph` canónico por construcción: constructor privado y una sola
+  fábrica. El invariante "el grafo es canónico" estaba escrito en el KDoc y no
+  era cierto: la normalización vivía en un constructor secundario con los mismos
+  tipos que el primario, Kotlin no los distingue, y nunca se llamaba.
+- Assertions `noDependency` y `acyclic`, sin lens todavía. El STOP de M1 dice que si
+  una lens necesita conocer el provider para proyectar, el IR está mal; la assertion
+  recibe un `DependencyGraph` y por eso se prueba sin lens. La lens llega cuando
+  exista el provider sintético.
+- Witness mínimo y reproducible byte a byte, con prueba explícita de que dos
+  evaluaciones del mismo grafo dan el mismo texto.
+- `clean check`: `BUILD SUCCESSFUL`, 193 tests, 0 fallos, 0 skipped.
+- Los tres mutantes M-A01, M-A02 y M-A03 mueren, y ninguno por un único test
+  (2, 4 y 4 respectivamente).
+
+**Dos hallazgos que se registran porque cambian lo que se cree que estaba hecho.**
+
+*M-A01 sobrevivió al catálogo entero y el culpable fue código muerto, no un test
+débil.* La assertion iteraba sobre las aristas prohibidas y pedía el camino más
+corto de `edge.from` a `edge.to`. Como `(from, to)` era una arista del propio
+grafo, el BFS la veía en la primera expansión y devolvía siempre `[from, to]`. El
+`sortedBy { camino.size }` que elegía el testigo ordenaba una lista de constantes
+iguales: era un no-op con apariencia de selector. La assertion se reescribió para
+iterar sobre módulos y capas, que es lo que UAT-003 llama "witness path exacto".
+
+*Los IDs M-A01 y M-A02 se habían reutilizado contra el catálogo.* El harness los
+definió según el código que se acababa de escribir, que es justo lo que la sección
+de colisiones de `MUTATION_CATALOG.md` advertía: un ID reutilizado acaba
+describiendo el código que salió en vez del defecto que había que cazar. El catálogo
+es la autoridad y el harness se alineó a él: M-A01 es domain-purity (el domain pasa
+a depender de un adapter) y M-A02 es eliminar una arista antes de SCC.
+
+**Lo que M1 aún NO tiene, y por tanto NO cierra el gate:**
+
+- `HexagonalArchitectureLens` como tal, y el fixture de dependency graph en disco.
+- CLI mínimo: `assure report`, `assure explain`, `assure evidence path`.
+- UAT-005 (la ley de autoridad determinista) y UAT-022 (primera ejecución con el
+  self-model sintético).
+- Self-model sintético del layout real del repo (S1).
+- AAT-7 y AAT-19.
+- M-H01, que el roadmap exige para este hito y todavía no existe.
+
 ### M2: CogniCode evidence integration
 
 **Valor:** probar repos reales sin duplicar el analyzer.

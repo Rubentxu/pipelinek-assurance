@@ -70,3 +70,51 @@ certificado es exactamente el tipo de cosa que pasa sin que nadie la mire.
 Regla: **el ID se asigna una vez y no se reutiliza**. Si dos familias de
 mutantes necesitan el mismo prefijo, la segunda cambia de prefijo, no la
 primera.
+
+## M-A01: un mutante que sobrevivió porque el código era muerto
+
+M-A01 mataba "quitar el recorrido de infracciones de `noDependency`". Sobrevivió
+al catálogo entero: 0 de 193 tests lo mataban.
+
+La primera hipótesis, la fácil, es que el test es débil. Es la hipótesis que
+hay que descartar antes de tocar nada, porque "añadir un test que mate al
+mutante" y "arreglar el código" dan el mismo resultado verde y un relato distinto.
+
+La hipótesis real era otra: **el código que el mutante atacaba no decidía
+nada**. La assertion iteraba sobre las aristas prohibidas y pedía el camino
+más corto de `edge.from` a `edge.to`. Como `(from, to)` era una arista del
+propio grafo, el BFS la veía en la primera expansión y devolvía siempre
+`[from, to]`. Veinte líneas de búsqueda para calcular su propia entrada.
+
+El síntoma delator fue el `sortedBy { camino.size }` que elegía el testigo:
+ordenaba una lista donde todas las longitudes eran 2. No era un selector de
+"la infracción mínima", era un no-op con apariencia de selector.
+
+**La regla que sale de aquí:** un mutante que sobrevive a todo el catálogo
+no se cura añadiendo tests. Se pregunta primero si el código que ataca está
+vivo, y un buen detector de código muerto es el propio selector que no
+selecciona nada: un `sortedBy`, un `minOf`, un `firstOrNull` sobre una
+colección donde todos los elementos empatan. Si un comparator tiene un solo
+valor posible, el comparator es decoración.
+
+Mutantes **equivalentes** (el código cambia pero el comportamiento
+observable no) sí son un caso legítimo y distinto: no se pueden matar y no
+deben registrarlos como supervivientes sin decirlo. La forma honesta de
+tratarlos es ponerlos en una lista de "equivalentes conocidos" con su
+razón, no declararlos muertos por la vía de que el harness no los cuenta.
+M-A02 fue uno de ellos en su primera forma (convertir el BFS del ciclo en
+DFS no cambiaba ningún resultado en los grafos del catálogo) y se resolvió
+reescribiendo el mutante para atacar el comportamiento que el catálogo ya
+describía: no la búsqueda, sino perder una arista antes de calcular el
+ciclo.
+
+## `clean check` de M1, y lo que todavía no cierra el gate
+
+`clean check`: `BUILD SUCCESSFUL`, 193 tests, 0 fallos, 0 skipped. Los tres
+mutantes arquitectónicos mueren y ninguno por un único test: M-A01 por 2,
+M-A02 por 4, M-A03 por 4.
+
+M1 **no** está cerrado. Faltan la lens, el fixture en disco, el CLI mínimo,
+UAT-005, UAT-022, el self-model sintético, AAT-7, AAT-19 y M-H01. La lista
+está en `ROADMAP.md`; aquí sólo se deja constancia de que el trabajo hecho
+hasta ahora es el núcleo de las assertions, no el hito entero.
