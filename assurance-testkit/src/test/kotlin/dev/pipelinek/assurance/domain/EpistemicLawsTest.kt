@@ -287,4 +287,70 @@ class EpistemicLawsTest : AnnotationSpec() {
             dev.pipelinek.assurance.domain.evidence.Digest.ofUtf8(input).hex shouldBe expected
         }
     }
+
+    /**
+     * La matriz de completud de `EVIDENCE_MODEL.md` es la LEY, no un ejemplo.
+     *
+     * Los dos tests anteriores ya fijan la asimetría en casos concretos: un
+     * `Fact` con `Unknown` revienta y una `Observation` con `Unsupported` se
+     * acepta. Lo que no fijaban es que la matriz sea completa: si alguien
+     * añade un quinto valor de `Completeness`, esos dos tests siguen en verde y
+     * la tabla de la especificación queda desactualizada sin que nada lo note.
+     *
+     * Este test recorre TODOS los valores de `Completeness` y comprueba, para
+     * cada uno, exactamente lo que la tabla dice que ocurre. Si la tabla y el
+     * código discrepan, falla aquí en vez de fallar en producción.
+     *
+     * Por qué está escrito como recorrido y no como cuatro `shouldThrow`: un
+     * caso concreto sigue teniendo la forma de "probamos lo que se nos ocurrió",
+     * y esta matriz se escribió precisamente para que no dependa de la
+     * Imagination de quien escribe el test.
+     */
+    @Test
+    fun the_completeness_matrix_of_the_spec_is_the_one_the_code_enforces() {
+        // La tabla de "La asimetría Fact / Observation en `Completeness`",
+        // transcrita a código. Que sea una transcripción es el punto: si la
+        // tabla de la especificación y estas dos líneas discrepan, el test
+        // falla Y el sitio del fallo es el sitio del error.
+        val matriz = mapOf(
+            Completeness.Complete to true,
+            Completeness.Partial(
+                listOf(EvidenceGap("ns/sub/gap/1", EvidenceGap.GapReason.Lost)),
+            ) to true,
+            Completeness.Unknown to false,
+            Completeness.Unsupported("sin provider") to false,
+        )
+
+        // El dominio tiene exactamente estos valores y ni uno más. Si alguien
+        // añade un quinto, esta aserción falla: un valor nuevo entra por la
+        // puerta de atrás sin que la tabla diga si es admisible.
+        matriz.keys.map { it::class }.toSet() shouldBe
+            Completeness::class.sealedSubclasses.map { it }.toSet()
+
+        for ((completeness, admiteElFact) in matriz) {
+            if (admiteElFact) {
+                fact(completeness).completeness shouldBe completeness
+            } else {
+                shouldThrow<IllegalArgumentException> { fact(completeness) }
+            }
+            // `Observation` admite los cuatro, siempre. Si alguna vez no lo
+            // hiciera, la asimetría documentada sería mentira.
+            observation(completeness).completeness shouldBe completeness
+        }
+    }
+
+    private fun fact(completeness: Completeness): EvidenceItem.Fact = EvidenceFixtures.fact(
+        "synthetic/matrix/fact/1",
+        completeness = completeness,
+    )
+
+    private fun observation(completeness: Completeness): EvidenceItem.Observation =
+        EvidenceItem.Observation(
+            id = EvidenceId("synthetic/matrix/observation/1"),
+            subject = EvidenceSubject.RuntimeSpan("span-matrix"),
+            authority = EvidenceAuthority.RuntimeObserver,
+            provenance = EvidenceFixtures.provenance("RuntimeInvocations"),
+            observation = "visto en esta ejecucion",
+            completeness = completeness,
+        )
 }

@@ -28,4 +28,11 @@ dependencies {
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.kotest.property)
     testImplementation(libs.junit.jupiter)
+    // `assurance-artifact` declara kotlinx.serialization como `implementation`,
+    // asi que no llega aqui. El test de orden canonico de JSON NECESITA el
+    // parser real: leer el orden de las claves con un parser escrito a mano
+    // produce un diagnostico equivocado cuando falla, que es peor que no
+    // tener test. Es `testImplementation` y no `api` a proposito: el testkit
+    // no promete JSON a nadie.
+    testImplementation(libs.kotlinx.serialization.json)
 }

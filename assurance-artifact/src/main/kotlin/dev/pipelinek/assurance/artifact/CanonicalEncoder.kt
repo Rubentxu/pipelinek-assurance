@@ -187,6 +187,60 @@ object CanonicalEncoder {
     fun digestSuite(suite: AssuranceSuiteIR): Digest = Digest.ofUtf8(encodeSuite(suite))
 
     /**
+     * Forma canónica de una suite: la misma que [encodeSuite] serializa.
+     *
+     * Existe porque `decode(encode(x))` NO devuelve `x` cuando `x` llega con sus
+     * colecciones desordenadas: devuelve la forma canónica de `x`. Sin esta
+     * función, la ley de roundtrip tiene dos salidas válidas, escribir
+     * `decode(encode(x)) == x` (falso) o escribir `== canonical(x)` (verdadero
+     * pero con el criterio duplicado en el test, donde puede divergir del
+     * codificador sin que nadie lo note). Exponer el criterio una vez y
+     * reutilizarlo deja el test sin espacio de interpretación.
+     *
+     * `requiredEvidence`, `inputCapabilities` y `completenessRequirements`
+     * también pierden duplicados: el digest los cuenta una vez, así que un
+     * artefacto con `"a", "a"` y otro con `"a"` son el mismo informe.
+     */
+    fun canonicalizeSuite(suite: AssuranceSuiteIR): AssuranceSuiteIR = suite.copy(
+        requiredEvidence = suite.requiredEvidence.distinct().sorted(),
+        lenses = suite.lenses
+            .sortedBy { it.lensId.value }
+            .map { lens ->
+                lens.copy(
+                    inputCapabilities = lens.inputCapabilities.distinct().sorted(),
+                    arguments = lens.arguments.toSortedMap(),
+                )
+            },
+        assertions = suite.assertions
+            .sortedBy { it.id.value }
+            .map { a ->
+                a.copy(
+                    operands = a.operands.toSortedMap(),
+                    completenessRequirements = a.completenessRequirements.distinct().sorted(),
+                    admittedAuthorities = a.admittedAuthorities.toSortedSet(),
+                )
+            },
+        metadata = suite.metadata.toSortedMap(),
+    )
+
+    /**
+     * Forma canónica de un report. Ver [canonicalizeSuite] para por qué esto
+     * existe y por qué no es un detalle interno del codec.
+     *
+     * El orden es el de `canonicalResults`, `canonicalGaps`,
+     * `canonicalArtifacts` y `canonicalCorrelations`, los mismos que usa
+     * [digestReport]. Si divergieran, dos informes con el mismo digest
+     * codificarían a bytes distintos, que es el peor caso posible: el digest no
+     * lo delata.
+     */
+    fun canonicalizeReport(report: AssuranceReport): AssuranceReport = report.copy(
+        results = canonicalResults(report.results),
+        gaps = canonicalGaps(report.gaps),
+        artifacts = canonicalArtifacts(report.artifacts),
+        correlations = canonicalCorrelations(report.correlations),
+    )
+
+    /**
      * Digest canónico de un report.
      *
      * No incluye el `evaluationId` ni los digests de entrada: son funciones del

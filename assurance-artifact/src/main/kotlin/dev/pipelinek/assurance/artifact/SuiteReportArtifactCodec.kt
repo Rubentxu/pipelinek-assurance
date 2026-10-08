@@ -396,7 +396,14 @@ internal data class ReportDto(
             results = CanonicalEncoder.canonicalResults(report.results).map { ResultDto.of(it) },
             gaps = CanonicalEncoder.canonicalGaps(report.gaps).map { GapDto.of(it) },
             artifacts = CanonicalEncoder.canonicalArtifacts(report.artifacts).map { ArtifactRefDto.of(it) },
-            correlations = report.correlations.map {
+            // `correlations` estaba sin canonicalizar. No era cosmético: el
+            // digest SÍ las ordena (`canonicalCorrelations`), así que dos
+            // informes con las mismas correlaciones en distinto orden producían
+            // artefactos byte-a-byte DISTINTOS con el MISMO digest. El digest
+            // no lo delata, que es el peor caso posible en un artefacto
+            // firmado. Lo encontró la ley de forma canónica, no un test de
+            // ejemplo: hace falta generar la colección desordenada.
+            correlations = CanonicalEncoder.canonicalCorrelations(report.correlations).map {
                 CorrelationDto.of(it)
             },
             digest = CanonicalEncoder.digestReport(report).hex,

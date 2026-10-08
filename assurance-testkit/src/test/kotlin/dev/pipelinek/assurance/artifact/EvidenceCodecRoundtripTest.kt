@@ -454,14 +454,44 @@ class EvidenceCodecRoundtripTest : AnnotationSpec() {
 
     @Test
     fun decoded_snapshot_with_no_manifest_is_refused() {
-        val json = EvidenceArtifactCodec.encodeToJson(rich).replace(
-            "\"manifest\":[{\"producerId\":\"synthetic\"",
-            "\"manifest\":[{\"producerId\":\"synthetic\",\"__pad\":1,\"pad\":\"",
-        )
+        // DEFECTO REAL que este test llevaba tiempo sin detectar. Buscaba el
+        // fragmento `"manifest":[{"producerId":"synthetic"` en el JSON, que es
+        // el orden que kotlinx emite segun el orden de DECLARACION del DTO.
+        // Al pasar el envelope a orden canónico, `manifest` deja de ir primero
+        // y el `.replace()` ya no encontraba nada: devolvia el texto intacto, y
+        // el decoder lo aceptaba porque era un snapshot perfectamente válido.
+        //
+        // El test pasaba por el motivo equivocado, y hacia pasar por el motivo
+        // equivocado. Dos cosas que arreglar:
+        //
+        // 1. NO se manipula por substring. Se parsea, se quita el manifest y se
+        //    vuelve a serializar. Un test que depende del orden de las claves
+        //    está probando el serializador, no el decoder.
+        // 2. El fallo esperado se NOMBRA. `shouldThrow<Exception>` acepta
+        //    cualquier excepción, incluido un NPE del propio test. El campo
+        //    `manifest` es obligatorio en el DTO, así que quitarlo falla en
+        //    la deserialización (`ArtifactDecodeException`), antes incluso de
+        //    llegar a la invariante de dominio. Lo que importa es que NUNCA
+        //    devuelva un snapshot: o falla al deserializar, o falla al
+        //    construir el dominio, y en ningún caso decodifica.
+        val sinManifest = kotlinx.serialization.json.buildJsonObject {
+            val arbol = kotlinx.serialization.json.Json.parseToJsonElement(
+                EvidenceArtifactCodec.encodeToJson(rich),
+            ) as kotlinx.serialization.json.JsonObject
+            for ((clave, valor) in arbol) {
+                if (clave == "manifest") continue
+                put(clave, valor)
+            }
+        }.toString()
 
-        // El manipulado anterior rompe el JSON; lo que importa es que el decoder
-        // falla y no devuelve un snapshot a medias.
-        shouldThrow<Exception> { EvidenceArtifactCodec.decodeFromJson(json) }
+        // Y una guarda: el JSON manipulado tiene que ser DISTINTO del original,
+        // o el test vuelve a estar probando un snapshot sano.
+        sinManifest shouldNotBe EvidenceArtifactCodec.encodeToJson(rich)
+
+        val e = shouldThrow<EvidenceArtifactCodec.ArtifactDecodeException> {
+            EvidenceArtifactCodec.decodeFromJson(sinManifest)
+        }
+        e.message shouldContain "manifest"
     }
 
     @Test

@@ -96,7 +96,11 @@ object EvidenceArtifactCodec {
     fun encodeToJson(snapshot: EvidenceSnapshot): String {
         val dto = EvidenceSnapshotDto.of(snapshot)
         requireWithinLimits(dto)
-        return json.encodeToString(EvidenceSnapshotDto.serializer(), dto)
+        // Orden canónico de claves, no orden de declaración del DTO. Ver
+        // `CanonicalJson`: la diferencia no la detecta el digest (que se
+        // calcula sobre `encodeSnapshot`, no sobre este texto), y por eso hay
+        // que hacerla explícita aquí en vez de confiar en el serializador.
+        return CanonicalJson.encodeCanonical(EvidenceSnapshotDto.serializer(), dto)
     }
 
     // -----------------------------------------------------------------------

@@ -175,6 +175,29 @@ MUTANTS = {
         ("CanonicalEncoder.canonicalArtifacts(report.artifacts).map { ArtifactRefDto.of(it) }",
          "report.artifacts.map { ArtifactRefDto.of(it) }"),
     ])],
+    # Mismo defecto que M-R03 pero en `correlations`, que estaba SIN
+    # canonicalizar mientras el digest SI las ordenaba. Lo encontro la ley de
+    # forma canonica de `SuiteReportLawsTest`, no un test de ejemplo: hacer
+    # falta GENERAR la coleccion desordenada para que aparezca.
+    #
+    # Va como mutante aparte y no como una tercera sustitucion de M-R03 porque
+    # son defectos independientes: arreglar uno no arregla el otro, y un
+    # mutante que cubre dos causas a la vez no dice cual de las dos sigue viva.
+    "M-R04": [(SUITE_CODEC, [
+        ("correlations = CanonicalEncoder.canonicalCorrelations(report.correlations).map {",
+         "correlations = report.correlations.map {"),
+    ])],
+    # Volver al orden de DECLARACION de kotlinx en el JSON del envelope.
+    # El digest no lo detecta (se calcula sobre `encodeSnapshot`, no sobre el
+    # JSON), asi que este mutante es invisible para todo lo que ya existia:
+    # solo lo cazan los tests que miran el orden de las claves del texto.
+    #
+    # Sin el, "orden canónico" seria una intencion del commit en vez de una
+    # propiedad verificable, que es exactamente como vuelve el defecto.
+    "M-J01": [(CODEC, [
+        ("return CanonicalJson.encodeCanonical(EvidenceSnapshotDto.serializer(), dto)",
+         "return json.encodeToString(EvidenceSnapshotDto.serializer(), dto)"),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
@@ -237,6 +260,31 @@ def main():
 
     name = sys.argv[1]
     targets = MUTANTS[name]
+
+    # STOP si el arbol de trabajo esta sucio. El harness hace COPIAS de
+    # seguridad de los ficheros que va a mutar y los restaura al final. Si
+    # alguien edita uno de esos ficheros mientras corre, la restauracion
+    # escribe la copia VIEJA encima del trabajo nuevo y lo pierde sin avisar.
+    #
+    # Ya pasó una vez en este repo: la certificacion de los mutantes se lanzo
+    # en segundo plano, se corrigio `SuiteReportArtifactCodec.kt` mientras
+    # corria, y al terminar el harness dejo el fichero con las mutaciones
+    # inyectadas. Dos tests de digestalterado empezaron a "pasar" porque el
+    # fix habia desaparecido, y el sintoma (un digest corrupto que se acepta)
+    # es exactamente el fallo que el gate existe para detectar.
+    #
+    # Un harness que puede perder trabajo no es un harness: es un hazard.
+    if subprocess.run(
+        ["git", "status", "--porcelain", "--"] + sorted({p for p, _ in targets}),
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    ).stdout.decode().strip():
+        print(
+            f"STOP: los ficheros a mutar tienen cambios sin commitear. "
+            f"Commit o stash antes de certificar {name}: el harness restaura "
+            f"copias y perderia el trabajo no commiteado."
+        )
+        return 3
+
     backups = {}
     for path, _ in targets:
         backups[path] = tempfile.NamedTemporaryFile(delete=False, suffix=".bak")

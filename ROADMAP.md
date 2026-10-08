@@ -182,7 +182,53 @@ canónicos cambiaron, así que el golden se regeneró a conciencia.
 
 Pendiente para cerrar el gate:
 
-- property test de roundtrip, que aún no existe.
+- **Nada.** El property test de roundtrip se cerró en este corte, con las tres
+  familias y sus subtipos. Ver "Leyes de roundtrip de suite y report" más abajo.
+
+Corrección de una afirmación previa: este apartado decía "property test de
+roundtrip, que aún no existe". Era **falsa**, y la forma de esa falsedad importa.
+`EvidenceLawsTest` ya tenía cuatro leyes de roundtrip (`LAW_cbor_roundtrip_
+preserves_the_digest`, `LAW_json_roundtrip_preserves_the_digest`,
+`LAW_double_roundtrip_is_a_fixed_point`, `LAW_every_item_kind_survives_the_
+roundtrip`). Lo que faltaba no era la técnica, era la cobertura: evidence tenía
+ley, suite y report no. Confundir "no hay roundtrip de suite" con "no hay
+roundtrip" es un error de lectura, no de código.
+
+Leyes de roundtrip de suite y report (`SuiteReportLawsTest`, 21 leyes):
+
+- La ley de roundtrip **no** es `decode(encode(x)) == x`, porque es falsa: el
+  codec canoniza las colecciones al decodificar. `decode(encode(x))` devuelve
+  la forma canónica de `x`. Escribir `== x` da una ley roja que hay que
+  "arreglar" debilitándola hasta que pasa, y el resultado es un test mudo.
+  Por eso `CanonicalEncoder` expone ahora `canonicalizeSuite` y
+  `canonicalizeReport`: el criterio de canonicalización vive en el codificador,
+  no duplicado en el test donde puede divergir sin que nadie lo note.
+- **Defecto real encontrado por la ley de forma canónica, no por un test de
+  ejemplo**: `ReportArtifactCodec` canonicalizaba `results`, `gaps` y
+  `artifacts`, pero **no** `correlations`, mientras que `digestReport` sí las
+  ordenaba con `canonicalCorrelations`. Dos informes con las mismas
+  correlaciones en distinto orden producían artefactos byte-a-byte DISTINTOS
+  con el MISMO digest. Es el peor caso posible, porque el digest no lo delata.
+  Corregido, y certificado con M-R04.
+  Lo encontró el property test y no un test de ejemplo por una razón concreta:
+  hace falta **generar** la colección desordenada. Un test de ejemplo con dos
+  correlaciones en orden fijo no lo habría visto nunca.
+- Subtipos que se funden conservando clase, conteo y digest: hay leyes
+  separadas para `Counterexample`, `UnsupportedReason` y `GapReason`. Un
+  decoder que funde todos los `Counterexample` en `Cycle` tendría un roundtrip
+  "perfecto" sobre cualquier aserción gruesa y produciría informes que dicen
+  algo distinto de lo que midieron.
+- Leyes sobre el **generador**, no sobre el codec: `LAW_generator_covers_every_
+  result_variant`, `..._counterexample_variant`, `..._unsupported_reason`,
+  `..._gap_reason` y `LAW_generator_produces_empty_reports`. Sin ellas, "todas
+  las leyes verdes" no significa "todo está probado": alguien añade un subtipo
+  nuevo, cablea su DTO, y el property test sigue verde porque el generador
+  nunca produce ese subtipo. Verde por no haber mirado.
+
+Generadores (`EvidenceArbs`): `richSuite`, `suitePermutationPair`, `report`,
+`reportPermutationPair`, `result`, `errorResult`. El `suite()` anterior sólo
+variaba el `metadata`: servía para la ley de permutación del digest, y como
+generador de roundtrip habría sido una ley más estrecha de lo que parecía.
 
 Codecs de las tres familias (`ARTIFACT_WIRE_CONTRACTS.md`), cerrados en este
 corte:
@@ -223,16 +269,66 @@ corte:
   sobre el contenido, no sobre el envelope. Solo cambiaron los bytes de
   `snapshot.json.sha256` y `snapshot.cbor.sha256`.
 
-Deuda pendiente, declarada y no cerrada:
+Deuda pendiente, declarada y no cerrada. **Dos de las tres Resultaron no ser
+deuda**, y decirlo es parte del resultado:
 
-- `MAX_COLLECTION_SIZE` sin certificar a escala global (proceso aparte con
-  memoria acotada).
-- Orden canónico real de claves JSON: el JSON del envelope sale en orden de
-  declaración del DTO, que es estable por construcción pero no es orden
-  canónico por clave. No afecta al digest (que se calcula sobre texto propio),
-  sí a la comparación byte a byte de artefactos JSON.
-- `Observation` admite `Completeness.Unknown`/`Unsupported` mientras que
-  `Fact` no. Es intencionado, pero la asimetría está solo en un test.
+- ~~`MAX_COLLECTION_SIZE` sin certificar a escala global (proceso aparte con
+  memoria acotada)~~ — **cerrada, y la afirmación estaba mal planteada.** La
+  cota se comprueba sobre el DTO ya construido, así que por sí sola no evita un
+  OOM: eso es cierto y está escrito en el KDoc de `EvidenceArtifactCodec`. Pero
+  la salvaguarda real ya existe y está certificada en el proceso normal de
+  tests: `MAX_INPUT_BYTES` se comprueba sobre los BYTES, antes de deserializar,
+  y `max_input_bytes_cuts_before_deserializing` reserva 64 MiB + 1 y verifica
+  que el rechazo ocurre por cota y no por CBOR inválido. Ese test ya corre en
+  `check`, con memoria acotada por el heap de Gradle.
+  Lo que NO se ha hecho es un proceso aparte con `-Xmx` explícito. No se
+  considera deuda: la pregunta que la originaba ("¿una cota comprobada tarde
+  evita el OOM?") tiene respuesta certificada, y la que la sustituye ("¿64 MiB
+  son suficientes en un heap de 256 MiB?") es una pregunta de configuración del
+  entorno, no del código.
+- Orden canónico real de claves JSON: **cerrada.** `kotlinx.serialization`
+  emite las claves en orden de DECLARACIÓN del DTO, que es estable pero no
+  canónico: estable significa "igual en esta versión del compilador", canónico
+  significa "igual ante cualquier implementación que serialice el mismo dato".
+  Ahora `CanonicalJson.encodeCanonical` serializa con el serializer del codec y
+  reordena el árbol recursivamente por nombre de clave en orden UTF-16, que es
+  el mismo criterio que usa el resto del codificador.
+  **Lo que NO lo detecta es el digest**: `digestSnapshot` se calcula sobre
+  `encodeSnapshot`, texto propio con orden explícito, no sobre el JSON del
+  envelope. El envelope lleva el digest de un lado y el JSON del otro, así que
+  pueden discrepar sin que nada se entere. Por eso hace falta un mutante
+  propio, M-J01: volver al orden de declaración es invisible para todo lo que
+  existía antes.
+  El golden se regeneró: cambió `snapshot.json.sha256` y nada más, que es lo
+  correcto. El digest canónico no se movió, porque no depende del JSON.
+- **Segundo defecto real, encontrado por el orden canónico**:
+  `decoded_snapshot_with_no_manifest_is_refused` manipulaba el JSON con un
+  `.replace()` sobre el fragmento `"manifest":[{"producerId":"synthetic"`, que
+  es el orden de declaración de kotlinx. Al pasar a orden canónico el
+  `.replace()` dejó de encontrar nada, devolvió el texto intacto, y el test
+  siguió en verde porque el decoder aceptaba... un snapshot perfectamente
+  válido. El test llevaba tiempo pasando por el motivo equivocado.
+  Ahora parsea el JSON, quita el manifest, lo re-serializa, comprueba que el
+  texto resultante es DISTINTO del original, y espera `ArtifactDecodeException`
+  en vez de `shouldThrow<Exception>` (que aceptaba cualquier excepción,
+  incluido un NPE del propio test).
+  Lo general, y vale para todo el repo: **un test que manipula un artefacto por
+  substring está probando el serializador, no el decoder**. El orden de las
+  claves no es un detalle de implementación: es parte del contrato del
+  artefacto, y un test que lo asume sin decirlo está probando algo distinto de
+  lo que dice.
+- ~~`Observation` admite `Completeness.Unknown`/`Unsupported` mientras que
+  `Fact` no. Es intencionado, pero la asimetría está solo en un test.~~ —
+  **cerrada por partida doble, y la afirmación era falsa en su premisa.** La
+  asimetría no estaba "solo en un test": está documentada con tabla y
+  justificación epistemológica en `03-specifications/EVIDENCE_MODEL.md`
+  ("La asimetría Fact / Observation en `Completeness`"), y `EpistemicLawsTest`
+  la fijaba ya por dos vías independientes (fixture y construcción directa).
+  Lo que faltaba era que la tabla fuera **ley y no ejemplo**, así que se ha
+  añadido `the_completeness_matrix_of_the_spec_is_the_one_the_code_enforces`:
+  recorre los cuatro valores de `Completeness`, comprueba para cada uno
+  exactamente lo que la tabla dice, y falla si aparece un quinto valor. Con
+  eso, la especificación y el código no pueden divergir en silencio.
 
 ### M1: First useful static assurance vertical
 
