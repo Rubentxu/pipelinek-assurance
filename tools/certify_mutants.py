@@ -25,6 +25,7 @@ ARTIFACT = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/
 CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/EvidenceArtifactCodec.kt"
 SUITE_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/SuiteReportArtifactCodec.kt"
 ENGINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/Assurance.kt"
+HEX = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/HexagonalAssertions.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -225,6 +226,40 @@ sealed interface AssertionResult {
     # inadvertido. El atajo booleano es la segunda mitad del mismo defecto.
     "M-V02": [(ENGINE, [
         ("sealed interface AssertionResult {", "interface AssertionResult {"),
+    ])],
+    # Los tres mutantes arquitectonicos del primer vertical (M1). Los tres
+    # atacan la MISMA idea por tres capas distintas: que la respuesta tiene
+    # que ser la minima y reproducible. Un mutante que devuelve "una"
+    # infraccion en vez de la minima no rompe nada visible: el gate sigue
+    # fallando, solo que con menos informacion.
+    #
+    # M-A01: `noDependency` deja de recorrer todas las infracciones y se
+    # queda con la primera en orden canonico. Sin este mutante, la ley que
+    # exige "el camino mas corto" no esta probando nada, porque con una sola
+    # infraccion `first` y `min` coinciden siempre.
+    "M-A01": [(HEX, [
+        ("""    val infracciones = graph.edges.filter { edge ->
+        !HexagonalPolicy.permitida(graph.layers.getValue(edge.from), graph.layers.getValue(edge.to))
+    }""",
+         """    val infracciones = graph.edges.filter { edge ->
+        !HexagonalPolicy.permitida(graph.layers.getValue(edge.from), graph.layers.getValue(edge.to))
+    }.take(1)"""),
+    ])],
+    # M-A02: la busqueda del ciclo minimo se queda con el primer ciclo que
+    # encuentra en BFS, en vez del mas pequeno. El BFS sobre caminos ya da el
+    # minimo, asi que el mutante tiene que romper ESO: recorre en DFS, que
+    # devuelve el primero que cierra y no el mas corto.
+    "M-A02": [(HEX, [
+        ("        val camino = cola.removeFirst()",
+         "        val camino = cola.removeLast()"),
+    ])],
+    # M-A03: el ciclo completo A -> B -> C -> A pasa por NO ser ciclo. Quita
+    # el caso de cierre en el arranque del camino, que es justo el que detecta
+    # el ciclo canonico del catalogo. Sin esta arista de vuelta, cada nodo
+    # tiene grado de salida 1 y la topologia PARECE un arbol.
+    "M-A03": [(HEX, [
+        ("""                siguiente == camino.first() && camino.size >= 2 -> return camino.normalizado()""",
+         """                siguiente == camino.first() && camino.size >= 2 -> Unit"""),
     ])],
     # El encoder de suite IR deja de ordenar `lenses`. El digest sigue
     # ordenando por su cuenta, asi que M-R01/M-R02 no lo cazan: por eso hace
