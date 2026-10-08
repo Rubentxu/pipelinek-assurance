@@ -130,9 +130,10 @@ real que autorar; hasta entonces el IR se construye a mano.
 **Evidencia mínima del recibo:** property tests verdes, corpus golden, dos digests
 independientes idénticos, lista de AAT verdes con comando.
 
-**Estado (observado, 2026-10-08):** **Gate M0 CERRADO.** Evidencia de cierre:
-`clean check` BUILD SUCCESSFUL, 169 tests, 0 fallos, 0 skipped; doce mutantes
-muertos, ninguno por un único test. Cerrado:
+**Estado (observado, 2026-10-08):** **Gate M0 CERRADO**, con una corrección al
+propio cierre, explicada más abajo. Evidencia de cierre: `clean check` BUILD
+SUCCESSFUL, 174 tests, 0 fallos, 0 skipped; quince mutantes muertos, ninguno
+por un único test. Cerrado:
 
 - ADTs de `Evidence` y álgebra de assurance completos en `assurance-domain` y
   `assurance-engine`.
@@ -141,11 +142,13 @@ muertos, ninguno por un único test. Cerrado:
   hex-encodaba sin hashear y el fixture usaba un LGC con forma de hash: ambos
   producian 64 hex chars que parecian un digest y no lo eran.
 - `CanonicalEncoder` con orden canónico explícito y separación por longitud.
-- Certificación de mutantes reproducible con `tools/certify_mutants.py`, doce
+- Certificación de mutantes reproducible con `tools/certify_mutants.py`, quince
   mutantes, todos muertos y **ninguno por un único test**: M-E01 (3), M-E02 (3),
-  M-H01 (2), M-R01 (29), M-R02 (8), M-S01 (2), M-S02 (2), M-D01 (4), M-D02 (4),
-  M-R03 (4), M-R04 (2), M-J01 (3). Recuento observado en esta corrida, no
-  estimado.
+  M-H01 (2), M-R01 (29), M-R02 (9), M-S01 (2), M-S02 (2), M-D01 (4), M-D02 (4),
+  M-R03 (4), M-R04 (2), M-J01 (3), M-A01 (2), M-A02 (2), M-A03 (2). Recuento
+  observado, no estimado. Nota: el conteo exacto de `killed` por mutante varía
+  entre corridas por el sampling de los property tests; lo que no varía es que
+  ninguno baja de 2.
 - Property tests reales (`EvidenceLawsTest`, `EvidenceArbs`) cubriendo
   invariancia de permutación, roundtrip CBOR/JSON, purity, preservación de
   estructura, autoridad de heurísticos, strings especiales y estabilidad del
@@ -154,7 +157,7 @@ muertos, ninguno por un único test. Cerrado:
 - Golden corpus de nueve entradas (`assurance-testkit/src/test/resources/golden/`)
   regenerado con `:assurance-testkit:generateGolden` y verificado (no
   regenerado) por `check`.
-- 169 tests verdes con `./gradlew clean check`, 0 fallos, 0 skipped.
+- 174 tests verdes con `./gradlew clean check`, 0 fallos, 0 skipped.
 
 Bounded decoding, con su historia y sus límites:
 
@@ -190,6 +193,50 @@ Pendiente para cerrar el gate:
 
 - **Nada.** El property test de roundtrip se cerró en este corte, con las tres
   familias y sus subtipos. Ver "Leyes de roundtrip de suite y report" más abajo.
+
+**Corrección al propio cierre del gate.** Este gate se declaró cerrado y se
+pusheó (`b1cfbc5`, `c416521`) antes de verificar el exit criteria completo. Al
+ir uno por uno a comprobar qué AAT eran verdad, salió que **AAT-6, AAT-8 y AAT-16
+no tenían ninguna ejecución**: no existía ningún test que los comprobara.
+AAT-1, AAT-2, AAT-9, AAT-17 y AAT-20 sí.
+
+Es decir: el gate se certificaba con tres reglas de su propio exit criteria que
+nunca se habían comprobado una sola vez. "Los AAT están verdes" era una
+afirmación heredada del exit criteria, no una observación. El commit anterior no
+era falso sobre lo que midió, pero era incompleto, y eso importa más que
+haberlo escrito en el documento.
+
+Los tres casos no son el mismo problema, y por eso producen tres leyes distintas:
+
+- **AAT-16** (orden canónico del IR) sólo se comprueba generando la entrada
+  desordenada. Con la fixture de una sola lens la permutación es la identidad y
+  la ley pasa sin comprobar nada: hay que construir una suite con varias. Es el
+  tercer aviso del mismo modo de fallo (los otros dos, `correlations` y el
+  manifest por substring).
+- **AAT-8** (`AssertionResult` exhaustivo) necesita dos leyes: que siga
+  `sealed`, y que los subtipos sean los cinco declarados **contra una lista
+  explícita**. Comparar contra lo que la reflexión encuentre daría verde justo
+  al añadir el sexto subtipo, que es cuando tiene que ponerse rojo.
+- **AAT-6** (ningún `EvidenceProvider` retorna `AssertionResult`) se cumple hoy
+  de forma ** vacua**: no existe ningún `EvidenceProvider` en el repo, y un
+  `forall` sobre conjunto vacío es cierto. Eso no certifica nada, certifica que
+  no hay nada que mirar. Por eso lleva mutante propio (M-A01) que **declara** el
+  provider prohibido y exige que la ley lo detecte. Sin mutante, "AAT-6 verde" y
+  "el test no mira nada" son la misma observación.
+
+**Defecto real encontrado de rebote.** Al añadir la segunda ley de M-A03
+(comparar bytes, no digest), se vio que **no la cazaba**. La causa no era la ley:
+era que `SuiteDto.of` tenía su propia copia del criterio de orden canónico con
+`sortedBy` locales, mientras `canonicalizeSuite` tenía otra. Sólo la del codec
+ejecutaba en producción; la otra era código que sólo usaban los tests.
+
+Eso es el mismo fallo que M-R04 ya había encontrado con `correlations` — dos
+autoridades que ordenan y no se hablan — con una diferencia: allí la segunda
+estaba desincronizada, aquí estaba **muerta**, y todo test que la ejercitaba daba
+un verde que no describía el código que corre. Corregido: el codec delega en
+`canonicalizeSuite`. El golden no se movió, porque las dos copias ordenaban
+igual; lo que cambia es que ahora hay un solo sitio donde el criterio vive, y
+por tanto un solo sitio donde puede divergir.
 
 Corrección de una afirmación previa: este apartado decía "property test de
 roundtrip, que aún no existe". Era **falsa**, y la forma de esa falsedad importa.

@@ -21,6 +21,9 @@
 | M-J01 | envelope JSON vuelve al orden de declaración de kotlinx | orden canónico JSON |
 | M-S01 | decoder no aplica las cotas al construir el dominio | bounded decoding |
 | M-S02 | cota de longitud de cadena ausente | bounded decoding |
+| M-A01 | un EvidenceProvider retorna AssertionResult | AAT-6 |
+| M-A02 | AssertionResult deja de ser sealed | AAT-8 |
+| M-A03 | canonicalizeSuite deja de ordenar lenses | AAT-16 |
 
 ## Redundancia, y por qué se importa
 
