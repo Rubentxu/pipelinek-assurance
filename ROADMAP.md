@@ -500,15 +500,46 @@ describiendo el código que salió en vez del defecto que había que cazar. El c
 es la autoridad y el harness se alineó a él: M-A01 es domain-purity (el domain pasa
 a depender de un adapter) y M-A02 es eliminar una arista antes de SCC.
 
+**Añadido después, en dos commits más:** `DependencyGraphFixtureCodec` en texto
+plano, y el self-model sintético del layout real del repo.
+
+*El self-model corrigió la política antes de que nadie le pidiera un informe.*
+`assurance-artifact` depende de `assurance-engine` y los dos son `Application`.
+La política prohibía `Application -> Application` "porque el centro no depende
+de nada, ni de sí mismo", pero tenía `Adapters -> Adapters` e
+`Infrastructure -> Infrastructure` como legales porque son dependencias
+normales de cualquier proyecto. La misma dependencia dentro de la capa era legal
+en los bordes e ilegal en el centro, sin ninguna razón de arquitectura detrás:
+esas dos filas no se pensaron. La política se reescribió como regla única y
+entera, "no se depende de una capa más externa", y los prohibidos pasaron de ocho
+a seis. `Domain -> Domain` también pasa a ser legal por el mismo motivo: dos
+entidades del dominio colaboran todo el tiempo.
+
+Esto es exactamente para lo que el exit criteria pide el self-model: si el
+grafo declarado del repo no pasa la propia assertion, o la política está mal o
+la declaración miente, y aquí la política estaba mal.
+
+*El mutante M-A01 dejó de aplicar y el harness lo dijo.* Mutaba
+`Layer.Domain to emptySet()`, que desapareció al unificar la regla. El harness
+falló con "no se encontró el patrón" en vez de devolver un verde o un
+superviviente. Es la conducta correcta: un parche que ya no aplica no es un
+mutante muerto, es un mutante inexistente, y contabilizarlo como cualquier otra
+cosa poisoned el catálogo en silencio.
+
+**Estado verificado tras los cuatro commits de M1:**
+`clean check` `BUILD SUCCESSFUL`, 208 tests, 0 fallos, 0 skipped. Los cuatro
+mutantes exigidos por el hito mueren y ninguno por un único test: M-A01 por 3,
+M-A02 por 4, M-A03 por 4, M-H01 por 2.
+
 **Lo que M1 aún NO tiene, y por tanto NO cierra el gate:**
 
-- `HexagonalArchitectureLens` como tal, y el fixture de dependency graph en disco.
+- `HexagonalArchitectureLens` como tal (la proyección del grafo a evidencia).
 - CLI mínimo: `assure report`, `assure explain`, `assure evidence path`.
-- UAT-005 (la ley de autoridad determinista) y UAT-022 (primera ejecución con el
-  self-model sintético).
-- Self-model sintético del layout real del repo (S1).
-- AAT-7 y AAT-19.
-- M-H01, que el roadmap exige para este hito y todavía no existe.
+- UAT-005: la ley de autoridad determinista, que la ley de `Signal` del dominio
+  ya implementa pero sin ejecución certificada que la ate a una assertion.
+- UAT-022: la primera ejecución del self-model sobre el grafo, que la ley del
+  fixture ya cubre en `assurance-artifact` pero que no existe como UAT con su
+  propia ejecución.
 
 ### M2: CogniCode evidence integration
 
