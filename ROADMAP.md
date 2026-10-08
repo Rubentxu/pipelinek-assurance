@@ -432,6 +432,23 @@ sintético).
   modelo está mezclando categorías: STOP;
 - si el witness no es reproducible sin leer logs, la lens no está fallando con evidencia.
 
+**Pendiente que el propio exit criteria declara, registrado antes de empezar.**
+De los tres mutantes arquitectónicos del primer vertical, dos tenían ID
+(M-A01, M-A02) y el tercero no: el ciclo A -> B -> C -> A. Se registra ahora
+como `M-A03` en `08-testing/MUTATION_CATALOG.md`, **antes** de construir el
+vertical, porque un ID que se inventa durante la implementación acaba
+describiendo el código que salió en vez del defecto que había que cazar. El
+ciclo completo es el caso más icónico de "ciclo que parece no serlo": sin la
+arista de vuelta cada nodo tiene grado de salida 1 y la topología parece un
+árbol.
+
+**Colisión de IDs, corregida.** Los tres AAT de M0 que resultaron sin ejecución
+se numeraron al principio `M-A01..M-A03`, y colisionaron con los dos
+arquitectónicos que M1 ya usaba. El catálogo llegó a tener dos filas con el
+mismo ID y significados distintos. Un ID duplicado es peor que un ID ausente:
+hace que "M-A01 muerto" sea una frase ambigua, y la ambigüedad en un certificado
+es el tipo de defecto que no se detecta solo. Renombrados a `M-V01..M-V03`.
+
 **Nota de alcance sobre UAT-005:** en M1 se certifica la **ley** (una assertion que exige
 autoridad determinista no admite un `Signal` heurístico) con evidencia sintética. La instancia
 real con un smell SRP de CogniCode o Detekt llega en M5 y se re-certifica allí. La ley no
