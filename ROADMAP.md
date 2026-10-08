@@ -130,7 +130,9 @@ real que autorar; hasta entonces el IR se construye a mano.
 **Evidencia mínima del recibo:** property tests verdes, corpus golden, dos digests
 independientes idénticos, lista de AAT verdes con comando.
 
-**Estado (observado, 2026-10-07):** **Gate M0 ABIERTO.** Cerrado:
+**Estado (observado, 2026-10-08):** **Gate M0 CERRADO.** Evidencia de cierre:
+`clean check` BUILD SUCCESSFUL, 169 tests, 0 fallos, 0 skipped; doce mutantes
+muertos, ninguno por un único test. Cerrado:
 
 - ADTs de `Evidence` y álgebra de assurance completos en `assurance-domain` y
   `assurance-engine`.
@@ -139,9 +141,11 @@ independientes idénticos, lista de AAT verdes con comando.
   hex-encodaba sin hashear y el fixture usaba un LGC con forma de hash: ambos
   producian 64 hex chars que parecian un digest y no lo eran.
 - `CanonicalEncoder` con orden canónico explícito y separación por longitud.
-- Certificación de mutantes reproducible con `tools/certify_mutants.py`, todos
-  muertos y ninguno por un único test: M-E01 (2 tests), M-E02 (3), M-H01 (2),
-  M-R01 (26), M-R02 (7), M-S01 (2), M-S02 (2), M-D01 (2), M-D02 (2), M-R03 (2).
+- Certificación de mutantes reproducible con `tools/certify_mutants.py`, doce
+  mutantes, todos muertos y **ninguno por un único test**: M-E01 (3), M-E02 (3),
+  M-H01 (2), M-R01 (29), M-R02 (8), M-S01 (2), M-S02 (2), M-D01 (4), M-D02 (4),
+  M-R03 (4), M-R04 (2), M-J01 (3). Recuento observado en esta corrida, no
+  estimado.
 - Property tests reales (`EvidenceLawsTest`, `EvidenceArbs`) cubriendo
   invariancia de permutación, roundtrip CBOR/JSON, purity, preservación de
   estructura, autoridad de heurísticos, strings especiales y estabilidad del
@@ -150,7 +154,7 @@ independientes idénticos, lista de AAT verdes con comando.
 - Golden corpus de nueve entradas (`assurance-testkit/src/test/resources/golden/`)
   regenerado con `:assurance-testkit:generateGolden` y verificado (no
   regenerado) por `check`.
-- 140 tests verdes con `./gradlew clean check`.
+- 169 tests verdes con `./gradlew clean check`, 0 fallos, 0 skipped.
 
 Bounded decoding, con su historia y sus límites:
 
@@ -168,7 +172,9 @@ Bounded decoding, con su historia y sus límites:
   mentía sobre su nombre se renombró a lo que de verdad demuestra.
 - Consecuencia declarada: la cota de collection **no está certificada a la
   escala del global**. Certificarla requeriría un proceso aparte con memoria
-  acotada. Se deja constancia en vez de fingir cobertura.
+  acotada. Se deja constancia en vez de fingir cobertura. El matiz que la
+  concernía (que la salvaguarda real es el corte por bytes, no el de colección)
+  está desarrollado más abajo, en la nota sobre `MAX_COLLECTION_SIZE`.
 
 Defecto real encontrado por el property testing, no por los tests de ejemplo:
 `EvidenceSnapshot` admite `EvidenceId` duplicados, y como `sortedWith` es
