@@ -273,6 +273,7 @@ class DependencyGraphFixtureCodecTest : AnnotationSpec() {
               assurance-engine -> assurance-domain
               assurance-testkit -> assurance-artifact
               assurance-testkit -> assurance-engine
+              assure-cli -> assurance-domain
               assure-cli -> assurance-artifact
               assure-cli -> assurance-engine
         """.trimIndent()

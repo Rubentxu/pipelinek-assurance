@@ -548,35 +548,72 @@ no está atado a nada, y un `Fact` heurístico se construye hoy. Sin esa
 comprobación, AAT-19 tenía un agujero por el lado del contenedor y no sólo por el
 de la autoridad.
 
-**Estado verificado tras los cinco commits de M1:**
-`clean check` `BUILD SUCCESSFUL`, 219 tests, 0 fallos, 0 skipped. M-A01 por 3,
+**Estado verificado tras el sexto commit de M1:**
+`clean check` `BUILD SUCCESSFUL`, **236 tests**, 0 fallos, 0 skipped. M-A01 por 3,
 M-A02 por 4, M-A03 por 4, M-H01 por 2: los cuatro mutantes que el hito exige
-mueren, y ninguno por un único test.
+mueren, y ninguno por un único test. Los 17 tests nuevos son los del CLI.
 
-**Lo que M1 aún NO tiene, y por tanto NO cierra el gate:**
+**CLI y UAT-022, cerrados con ejecución propia.**
 
-- CLI mínimo: `assure report`, `assure explain`, `assure evidence path`.
-- UAT-022 como UAT con su propia ejecución: la ley del fixture ya evalúa el
-  self-model en `assurance-artifact`, pero no existe el comando ni el recibo que
-  el catálogo de UAT describe.
-- `assure-cli` como módulo, que el self-model ya declara en su capa
-  `Infrastructure` y que todavía no existe en `settings.gradle.kts`.
+`assure-cli` existe como módulo, registrado en `settings.gradle.kts` y con
+`application` para poder ejecutarlo. Los tres comandos de WP-004 están:
 
-**Un límite del self-model que hay que tener presente al usarlo.** El self-model
-declara `assure-cli` en `Infrastructure`, y ese módulo no existe todavía. El
-gate propio pasa verde y no lo caza, porque el self-model es **declarado a mano**
-y no extraído: compara la arquitectura que alguien escribió contra la política, no
-contra el repo. Es la diferencia entre UAT-022 (que pide exactamente eso, validar
-la arquitectura declarada) y UAT-023 (que introduce una dependencia prohibida de
-verdad y espera rojo).
+```text
+assure report <ref>              veredicto de las dos assertions sobre el grafo
+assure explain <finding>         por qué hace falta el snapshot, sin inventar explicación
+assure evidence path <finding>   evidencia que sustenta el counterexample
+```
 
-Se deja escrito en vez de quitar `assure-cli` del fixture porque las dos cosas
-son verdad a la vez: el módulo está previsto para M1 y aún no existe, y un
-self-model que declara lo que el repo *tendrá* no es un defecto de la
-política. Lo que sí sería un defecto es que el self-model presentara esa
-declaración como si fuera evidencia observada del repo, y no lo hace: el nombre
-del fichero y el KDoc dicen "sintético" las dos veces. Cuando el grafo pase a
-extraerse, esta divergencia se convierte en un gap y no en un silencio.
+`assure report 08-testing/self-model.graph` sale con exit 0 y
+`"kind":"AssertionPass"`, `"passed":"2"`, `"total":"2"`. El repositorio se
+analiza a sí mismo con su propio binario. **OBSERVED**, no inferido.
+
+El self-model **bajó a disco**: `08-testing/self-model.graph`. Antes vivía
+sólo como constante dentro de las leyes del codec, y eso no era ejecución propia
+de UAT-022, era una constante con tests alrededor. Ahora es un artefacto que la
+CLI lee, y por tanto hay una entrada y una salida.
+
+**Tres defectos reales que salieron al construir el CLI**, ninguno visible antes:
+
+1. `assure evidence path` devolvía exit 2 siempre. El dispatcher comparaba
+   `args[0]` contra el literal `"evidence path"`, que son dos palabras, así que
+   nunca coincidía. El CLI anunciaba en cada envelope un comando que él mismo
+   rechazaba. Se resolvió por prefijo más largo contra el registry, que además
+   ata el dispatcher al contrato: no hay dos listas de comandos que puedan
+   divergir en silencio.
+2. Un fixture ilegible **reventaba con una excepción** en vez de fallar cerrado.
+   La causa fue `runCatching { } .map { }`: `Result.map` ejecuta su bloque fuera
+   del `try`, así que la excepción del codec se escapaba. Fail-closed significa
+   envelope con exit 1, y significa también que un pipeline que sólo mira el
+   exit code no se come un crash.
+3. `assure report 08-testing/self-model.graph` respondía "fixture ilegible" a un
+   fichero que sí existe, porque Gradle pone el directorio del módulo como
+   working dir. Se fija la raíz del repo en la task `run`.
+
+**La ley HATEOAS es comprobable, y se comprueba ejecutando.** Cada acción que
+el envelope emite se despacha de verdad en el test y tiene que salir con exit
+distinto de USAGE. Eso distingue la ley de un patrón decorativo: si mañana
+alguien registra un comando sin implementarlo, o emite una acción a un comando
+que no existe, el test cae. El caso `Passed` es la única excepción y también
+tiene su test: un veredicto que pasa no ofrece acciones, porque no hay nada que
+seguir y ofrecerlo sería mandar al agente a un callejón sin salida.
+
+**Límite del self-model que sigue en pie, y ahora es menos cómodo.** El
+self-model **declara** `assure-cli` en `Infrastructure`, y ya no es una promesa:
+el módulo existe y el propio test del CLI comprueba que `assure-cli/build.gradle.kts`
+está en disco. Pero sigue siendo **declarado a mano**, no extraído: compara la
+arquitectura que alguien escribió contra la política, no contra el repo. El
+nombre de un módulo puede existir en el fixture y seguir sin corresponder a la
+arquitectura real. Esa es exactamente la diferencia entre UAT-022 (validar la
+arquitectura declarada) y UAT-023 (introducir una dependencia prohibida de verdad
+y esperar rojo). Un gate que se autoaprobaría porque su fixture coincide consigo
+mismo no vale nada, así que esto está escrito aquí y no escondido.
+
+**Nota sobre `explain`.** El comando existe y responde, pero **no explica**:
+explicar un contraejemplo exige volver a evaluar el grafo, y eso exige el
+snapshot, que no está en el contrato de M1. Devuelve `ExplainUnavailable` con el
+motivo y una acción a `report` en vez de fabricar una explicación. Un comando que
+inventa su propia explicación es peor que uno que admite que le falta un dato.
 
 ### M2: CogniCode evidence integration
 

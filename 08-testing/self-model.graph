@@ -1,0 +1,30 @@
+# Self-model de pipelinek-assurance.
+#
+# Este fichero es la entrada de UAT-022: el repositorio se analiza a si mismo
+# y valida sus propias capas con la lens hexagonal.
+#
+# Es DECLARADO, no EXTRAIDO. Cada arista de aqui abajo se escribio a mano para
+# que M1 pueda certificar la ley con evidencia determinista antes de que exista
+# el provider que extrae el grafo real. Esa limitacion es real y esta escrita
+# en ROADMAP.md; un self-model extraido la sustituye en M2 (UAT-023).
+#
+# Que sea declarado no lo vuelve menos util: sigue siendo la unica fuente que
+# la CLI lee en disco, y por tanto es lo que convierte la certificacion de la
+# ley en ejecucion propia en vez de una constante dentro de un test.
+
+modules
+  assurance-domain @ Domain
+  assurance-artifact @ Application
+  assurance-engine @ Application
+  assurance-testkit @ Adapters
+  assure-cli @ Infrastructure
+
+edges
+  assurance-artifact -> assurance-domain
+  assurance-artifact -> assurance-engine
+  assurance-engine -> assurance-domain
+  assurance-testkit -> assurance-artifact
+  assurance-testkit -> assurance-engine
+  assure-cli -> assurance-domain
+  assure-cli -> assurance-artifact
+  assure-cli -> assurance-engine

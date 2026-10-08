@@ -17,4 +17,5 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+application = { id = "application" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
