@@ -234,12 +234,21 @@ sealed interface AssertionResult {
     # fallando, solo que con menos informacion.
     #
     # M-A01: el domain pasa a depender de un adapter. Es el mutante de
-    # "domain-purity" del catalogo: no cambia la forma del witness, cambia la
-    # VEREDICTO. Sin el, la assertion que prohibe `Domain -> *` podría
-    # funcionar correctamente y aun asi dejar pasar el defecto mas grave posible.
+    # "domain-purity" del catalogo: no cambia la forma del witness, cambia el
+    # VEREDICTO. Sin el, la assertion que prohibe que `Domain` dependa de
+    # `Adapters` podria funcionar correctamente y aun asi dejar pasar el
+    # defecto mas grave posible.
+    #
+    # El parche se apoya en la fila de `Adapters`, que es la unica cuya
+    # version mutada "parece" menos restrictiva. La version anterior mutaba
+    # `Layer.Domain to emptySet()`, que dejo de existir al unificar la regla
+    # en "no se depende de una capa mas externa", y el harness se quejo con
+    # "no se encontro el patron" en vez de dar un verde falso. Es exactamente
+    # el fallo que un mutante debe delatar en vez de ocultar: un parche que
+    # ya no aplica no es un mutante, es una mentira.
     "M-A01": [(HEX, [
-        ("""        Layer.Domain to emptySet(),""",
-         """        Layer.Domain to setOf(Layer.Domain),"""),
+        ("""        Layer.Domain to setOf(Layer.Domain),""",
+         """        Layer.Domain to setOf(Layer.Domain, Layer.Adapters),"""),
     ])],
     # M-A02: se elimina una arista ANTES de buscar el ciclo. El catalogo lo
     # describe como "eliminar una arista antes de SCC". El efectoObservable no
