@@ -103,6 +103,24 @@ class SuiteReportLawsTest : AnnotationSpec() {
     }
 
     @Test
+    suspend fun LAW_suite_permutation_yields_the_same_cbor_bytes() {
+        // Segunda ley para M-A03, y es la que importa: el mutante quita el
+        // `sortedBy` de `canonicalizeSuite`, y la ley de digest NO lo caza,
+        // porque `digestSuite` ordena por su cuenta. El digest era correcto y
+        // el artefacto no, que es el mismo modo de fallo que `correlations` y
+        // que ya ha aparecido dos veces en este repo.
+        //
+        // Aquí se comparan BYTES, no valores ni digests. Con un valor, la
+        // diferencia se perdería en la canonicalización posterior; con un
+        // digest, la diferencia es invisible por construcción.
+        law(iterations = 300, arb = EvidenceArbs.suitePermutationPair()) { (a, b) ->
+            val ba = SuiteArtifactCodec.encodeToCbor(a)
+            val bb = SuiteArtifactCodec.encodeToCbor(b)
+            ba.contentEquals(bb) shouldBe true
+        }
+    }
+
+    @Test
     suspend fun LAW_suite_digest_is_invariant_under_permutation() {
         // La suite es un conjunto de lenses y assertions, no una secuencia: dos
         // suites con las mismas lenses en distinto orden son la MISMA suite y
