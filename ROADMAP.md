@@ -422,7 +422,17 @@ sintético).
   registrarlo con ID estable en `08-testing/MUTATION_CATALOG.md`**, porque hoy el catálogo sólo
   cubre dos de los tres;
 - un `Signal` heurístico no tumba una assertion `Mandatory` que exige autoridad determinista;
-- AAT-7 y AAT-19 verdes.
+- **AAT-7 y AAT-19 verdes**, que son:
+  - AAT-7: ninguna `Lens` escribe filesystem/network;
+  - AAT-19: la evidencia heurística no puede satisfacer una assertion que exige
+    `Deterministic` sin coacción o admisión explícita.
+
+  *(Corrección de una lectura equivocada durante la certificación: un grep por
+  `## AAT-` no las encuentra porque `06-uat/AAT_FITNESS.md` las declara como lista
+  numerada, no como secciones. Los dos IDs existen y significan lo que el roadmap
+  asumía. Se deja escrito porque la conclusión opuesta, "no existen", era mía y
+  era falsa, y un exit criteria que se corrige por un error de lectura también
+  merece quedarse registrado.)*
 
 **STOP de este hito:**
 

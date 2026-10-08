@@ -48,9 +48,28 @@ import dev.pipelinek.assurance.engine.ProofRef
  *    que hay.
  *  - `Adapters -> Application` es legal, y `Application -> Adapters` no.
  *
- * Lo que sí se prohíbe en hexagonal es el sentido **hacia adentro**:
+ * La regla es una sola y se dice entera: **no se depende de una capa más
+ * externa**. Todo lo demás es legal, incluida la capa propia.
  *
- *  - `Domain` no depende de nada, ni siquiera de sí mismo;
+ * Eso da la matriz completa, y es la primera versión coherente. Las dos
+ * anteriores la escribieron por partes y se quedaron a medias:
+ *
+ *  - Se añadieron `Adapters -> Adapters` e `Infrastructure -> Infrastructure` como
+ *    legales porque son dependencias normales de cualquier proyecto, y con
+ *    razón. Pero se dejaron `Domain -> Domain` y `Application -> Application`
+ *    como prohibidas "porque el centro no depende de nada". Eso es
+ *    incoherente: la misma dependencia dentro de la capa es legal en los
+ *    bordes e ilegal en el centro, y no hay ninguna razón de arquitectura
+ *    detrás, sólo que esas dos filas no se pensaron.
+ *  - El self-model de este repo es lo que lo destapó, y no por una casualidad:
+ *    `assurance-artifact` depende de `assurance-engine`, y los dos son
+ *    `Application`. Escribí el fixture con los dos como Application porque los
+ *    dos son lógica de aplicación, y la assertion lo marcó como defecto. O la
+ *    política era incorrecta o el self-model mentía, y el self-model decía la
+ *    verdad: el codec de artefactos necesita el grafo del engine.
+ *
+ * Lo que sí se prohíbe en hexagonal es el sentido **hacia afuera**:
+ *
  *  - `Application` no depende de `Adapters` ni de `Infrastructure`;
  *  - **`Adapters` no depende de `Infrastructure`.** Ésta es la que la ley
  *    4x4 cazó: la matriz la tenía como legal porque "un adaptador llama a un
@@ -59,13 +78,18 @@ import dev.pipelinek.assurance.engine.ProofRef
  *    concreto, lo que necesita es un puerto. Permitir la dependencia deja que
  *    la infraestructura se cuele en los adaptadores y el centro pierde el
  *    sentido.
- *  - `Infrastructure` sí depende de las tres capas anteriores y de sí misma.
+ *  - `Domain` no depende de ninguna de las otras tres.
+ *
+ * `Domain -> Domain` sí es legal: dos entidades del dominio colaboran, y
+ * prohibirlas produce grafos que no existen. Un grafo irreal hace que la
+ * assertion falle por cosas que no son defectos, que es la forma más cara de
+ * perder la confianza en el gate.
  */
 object HexagonalPolicy {
     /** Capas de las que se puede depender, por capa de origen. */
     val permitidas: Map<Layer, Set<Layer>> = mapOf(
-        Layer.Domain to emptySet(),
-        Layer.Application to setOf(Layer.Domain),
+        Layer.Domain to setOf(Layer.Domain),
+        Layer.Application to setOf(Layer.Domain, Layer.Application),
         Layer.Adapters to setOf(Layer.Domain, Layer.Application, Layer.Adapters),
         Layer.Infrastructure to setOf(
             Layer.Domain,

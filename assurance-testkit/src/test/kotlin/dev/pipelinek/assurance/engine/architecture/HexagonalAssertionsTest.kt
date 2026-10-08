@@ -153,26 +153,28 @@ class HexagonalAssertionsTest : AnnotationSpec() {
         // declara ilegal, y nada más". Un par legal no necesita listarse; un
         // par ilegal que se olvide sí se escapa.
         //
-        // Y se rompió exactamente así la primera vez: la lista tenía cinco
-        // filas y faltaba `Adapters -> Infrastructure`, que la política SÍ
-        // prohíbe. La ley se puso roja y resultó que la lista era la que
-        // estaba incompleta, no la política. La diferencia importa: una ley
-        // que se pone roja por su propia lista se corrige rápido; una ley
-        // que no existe deja el hueco indefinidamente.
-        // Las ocho dependencias que hexagonal prohíbe. Se listan TODAS, incluidas
-        // las de una capa consigo misma (`Domain -> Domain`,
-        // `Application -> Application`), porque `Domain` y `Application` no
-        // pueden depender de nada: no tienen un "otro domain" al que mirar.
+        // Y se rompió exactamente así dos veces, y las dos veces fue la lista
+        // la que estaba incompleta, no la política.
         //
-        // `Adapters -> Adapters` e `Infrastructure -> Infrastructure` sí son
-        // legales, y esa asimetría es el punto: un par con la misma capa es
-        // ilegal en el centro y legal en los bordes.
+        // La lista se escribe A MANO, y esa es la decisión con más
+        // consecuencias del test. Si se derivara de `HexagonalPolicy`, la ley
+        // sería tautológica: compararía la política contra sí misma y daría
+        // verde siempre, incluso cuando la política cambia. Al revés, alguien
+        // que cambie la matriz tiene que cambiar también esta lista, y si no
+        // cambia la ley se pone roja. Ese es el coste que se paga a cambio de
+        // que la ley signifique algo.
+        //
+        // Ahora son SEIS pares prohibidos, no ocho. Esta lista tenía ocho
+        // porque la política prohibía `Domain -> Domain` y
+        // `Application -> Application`, y el self-model del repo destapó que
+        // eso era incorrecto: `assurance-artifact` depende de
+        // `assurance-engine` y los dos son Application. La regla real es "no
+        // se depende de una capa más externa", y la dependencia dentro de la
+        // capa es legal en las cuatro.
         val prohibidas = setOf(
-            Layer.Domain to Layer.Domain,
             Layer.Domain to Layer.Application,
             Layer.Domain to Layer.Adapters,
             Layer.Domain to Layer.Infrastructure,
-            Layer.Application to Layer.Application,
             Layer.Application to Layer.Adapters,
             Layer.Application to Layer.Infrastructure,
             Layer.Adapters to Layer.Infrastructure,
@@ -187,13 +189,31 @@ class HexagonalAssertionsTest : AnnotationSpec() {
     }
 
     @Test
-    fun la_politica_prohibe_toda_dependencia_del_domain() {
-        // La regla que más se repite y la que peor falla en la práctica: el
-        // domain no depende de nada, ni siquiera de sí mismo. Se comprueba
-        // aparte porque la matriz 4x4 de arriba ya la cubre, y porque esta
-        // es la afirmación que un lector quiere ver sin traducir.
+    fun la_politica_prohibe_que_el_domain_dependa_de_las_otras_tres_capas() {
+        // La afirmación que un lector quiere ver sin traducir: el domain no
+        // depende de nada que no sea domain.
+        //
+        // Esta ley antes decía "ni siquiera de sí mismo", que era la versión
+        // con `Domain -> Domain` prohibido. Se corrigió al unificar la regla
+        // en "no se depende de una capa más externa", y merece decir por qué
+        // no es una pérdida de rigor: dos entidades del dominio colaboran
+        // todo el tiempo, y una política que lo prohíbe produce un grafo irreal
+        // sobre el que la assertion falla por cosas que no son defectos. Un
+        // gate que se pone rojo por arquitectura normal deja de leerse.
         for (hacia in Layer.entries) {
-            HexagonalPolicy.permitida(Layer.Domain, hacia) shouldBe false
+            HexagonalPolicy.permitida(Layer.Domain, hacia) shouldBe (hacia == Layer.Domain)
+        }
+    }
+
+    @Test
+    fun la_dependencia_dentro_de_la_misma_capa_es_legal_en_las_cuatro() {
+        // La consecuencia directa de la regla única, y la que el self-model
+        // de este repo ejercita de verdad: `assurance-artifact` (Application)
+        // depende de `assurance-engine` (Application). Si esta ley se rompe,
+        // el gate propio del repo se pone rojo por una dependencia interna
+        // legítima, que es el peor sitio posible para un falso positivo.
+        for (capa in Layer.entries) {
+            HexagonalPolicy.permitida(capa, capa) shouldBe true
         }
     }
 
