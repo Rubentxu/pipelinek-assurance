@@ -388,4 +388,71 @@ class HexagonalAssertionsTest : AnnotationSpec() {
         Triple("infra-cli", Layer.Infrastructure, listOf("adapter-artifact")),
     )
 
+    // -- El hueco que dejó M-A01 ---------------------------------------------
+    //
+    // M-A01 sobrevivió al catálogo entero, y el diagnóstico NO es "el test
+    // es débil" sino que el código atacado era código muerto. La versión
+    // anterior iteraba sobre las ARISTAS prohibidas y pedía el camino más
+    // corto de `edge.from` a `edge.to`. Como `(from, to)` era una arista del
+    // propio grafo, el BFS la veía en la primera expansión y devolvía
+    // SIEMPRE `[from, to]`. Todas las infracciones empataban a 2 saltos, así
+    // que el `sortedBy { camino.size }` no elegía nada: sortaba una lista de
+    // constantes iguales.
+    //
+    // El test de abajo mata el mutante de verdad: sin recorrido completo, la
+    // arista de dos saltos no aparece en la lista de infracciones, y el
+    // camino de tres saltos (que SÍ depende del recorrido) tampoco.
+    @Test
+    fun UAT_003_el_witness_es_el_camino_mas_corto_HASTA_LA_CAPA_PROHIBIDA_no_la_arista_mas_corta() {
+        // `domain-a` es domain: todo lo que no sea domain está prohibido.
+        // Alcanza `app-c` en DOS saltos (`domain-a -> adapter-b -> app-c`) y
+        // `infra-d` en TRES. El testigo tiene que ser el de dos saltos.
+        //
+        // La capa de destino se elige por el criterio del código: entre las
+        // prohibidas para `Domain`, se recorre en orden alfabético de nombre,
+        // y `Adapters` gana a `Application` e `Infrastructure`. No es el
+        // destino "más cercano" en el grafo, es el primero canónico, y esa
+        // distinción importa: si el destino se eligiera por proximidad, el
+        // witness cambiaría según cómo se nombren las capas, que es
+        // exactamente la propiedad que no se quiere en evidencia determinista.
+        val grafo = DependencyGraph.of(
+            Triple("app-c", Layer.Application, emptyList()),
+            Triple("infra-d", Layer.Infrastructure, emptyList()),
+            Triple("adapter-b", Layer.Adapters, listOf("app-c")),
+            Triple("domain-a", Layer.Domain, listOf("adapter-b")),
+        )
+
+        val fallo = noDependency(snapshotId = snap, evidenceIds = evidencia).evaluate(grafo)
+            .shouldBeInstanceOf<AssertionResult.Failed>().counterexample
+            .shouldBeInstanceOf<Counterexample.DependencyPath>()
+
+        fallo.fromLayer shouldBe "Domain"
+        // La capa prohibida canónicamente primera para `Domain` es `Adapters`,
+        // y a ella se llega en dos saltos.
+        fallo.toLayer shouldBe "Adapters"
+        fallo.path shouldBe listOf("domain-a", "adapter-b")
+    }
+
+    @Test
+    fun UAT_003_entre_dos_destinos_igual_de_cercanos_se_elige_el_canónico() {
+        // `adapter-a` puede alcanzar `infra-b` y `infra-c`, ambos de
+        // `Infrastructure`, y ambos a un solo salto. Los dos son infracciones
+        // idénticas en longitud, así que sólo el desempate canónico decide.
+        // Sin desempate, el witness dependería del orden de `modules`, que es
+        // canónico pero no de una lectura evidente: dos ejecuciones sobre
+        // grafos con el mismo conjunto y distinto orden de entrada podrían
+        // reportar `infra-c` y `infra-b`.
+        val grafo = DependencyGraph.of(
+            Triple("adapter-a", Layer.Adapters, listOf("infra-c", "infra-b")),
+            Triple("infra-b", Layer.Infrastructure, emptyList()),
+            Triple("infra-c", Layer.Infrastructure, emptyList()),
+        )
+
+        val fallo = noDependency(snapshotId = snap, evidenceIds = evidencia).evaluate(grafo)
+            .shouldBeInstanceOf<AssertionResult.Failed>().counterexample
+            .shouldBeInstanceOf<Counterexample.DependencyPath>()
+
+        fallo.toLayer shouldBe "Infrastructure"
+        fallo.path shouldBe listOf("adapter-a", "infra-b")
+    }
 }

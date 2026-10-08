@@ -233,25 +233,22 @@ sealed interface AssertionResult {
     # infraccion en vez de la minima no rompe nada visible: el gate sigue
     # fallando, solo que con menos informacion.
     #
-    # M-A01: `noDependency` deja de recorrer todas las infracciones y se
-    # queda con la primera en orden canonico. Sin este mutante, la ley que
-    # exige "el camino mas corto" no esta probando nada, porque con una sola
-    # infraccion `first` y `min` coinciden siempre.
+    # M-A01: el domain pasa a depender de un adapter. Es el mutante de
+    # "domain-purity" del catalogo: no cambia la forma del witness, cambia la
+    # VEREDICTO. Sin el, la assertion que prohibe `Domain -> *` podría
+    # funcionar correctamente y aun asi dejar pasar el defecto mas grave posible.
     "M-A01": [(HEX, [
-        ("""    val infracciones = graph.edges.filter { edge ->
-        !HexagonalPolicy.permitida(graph.layers.getValue(edge.from), graph.layers.getValue(edge.to))
-    }""",
-         """    val infracciones = graph.edges.filter { edge ->
-        !HexagonalPolicy.permitida(graph.layers.getValue(edge.from), graph.layers.getValue(edge.to))
-    }.take(1)"""),
+        ("""        Layer.Domain to emptySet(),""",
+         """        Layer.Domain to setOf(Layer.Domain),"""),
     ])],
-    # M-A02: la busqueda del ciclo minimo se queda con el primer ciclo que
-    # encuentra en BFS, en vez del mas pequeno. El BFS sobre caminos ya da el
-    # minimo, asi que el mutante tiene que romper ESO: recorre en DFS, que
-    # devuelve el primero que cierra y no el mas corto.
+    # M-A02: se elimina una arista ANTES de buscar el ciclo. El catalogo lo
+    # describe como "eliminar una arista antes de SCC". El efectoObservable no
+    # es que el ciclo desaparezca del grafo, sino que el witness que sale ya
+    # no describe el ciclo que existe: es la forma silenciosa de perder
+    # evidencia sin perder el fallo.
     "M-A02": [(HEX, [
-        ("        val camino = cola.removeFirst()",
-         "        val camino = cola.removeLast()"),
+        ("""                siguiente == camino.first() && camino.size >= 2 -> return camino.normalizado()""",
+         """                siguiente == camino.first() && camino.size >= 2 -> return camino.drop(1).normalizado()"""),
     ])],
     # M-A03: el ciclo completo A -> B -> C -> A pasa por NO ser ciclo. Quita
     # el caso de cierre en el arranque del camino, que es justo el que detecta

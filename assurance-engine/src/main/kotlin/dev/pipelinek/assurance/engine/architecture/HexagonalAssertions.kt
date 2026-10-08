@@ -95,45 +95,86 @@ fun noDependency(
     snapshotId: String,
     evidenceIds: List<EvidenceId>,
 ): AssuranceAssertion<DependencyGraph> = AssuranceAssertion { graph ->
-    // Se recorren TODAS las aristas prohibidas y se queda con la que tenga el
-    // CAMINO MÁS CORTO hasta su destino.
+    // Un módulo es infractor si su capa tiene alguna capa prohibida como
+    // destino, y el defecto es que LLEGUE a ella. Se busca el camino más
+    // corto desde el módulo infractor hasta el módulo prohibido más cercano.
     //
-    // Con `firstOrNull` se reportaba la primera arista prohibida en orden
-    // canónico, y el `path` era el camino más corto desde ESA arista, que
-    // puede no llevar a ninguna parte: en el fixture, la arista
-    // `infra-a -> infra-b` no es prohibida (infra -> infra es legal) pero su
-    // camino a `infra-b` sí existe, y el witness acababa describiendo una
-    // ruta legal como si fuera la infracción. Un witness que no es el defecto
-    // es peor que no tener witness: hace que el gate falle por algo que no
-    // está roto.
-    val infracciones = graph.edges.filter { edge ->
-        !HexagonalPolicy.permitida(graph.layers.getValue(edge.from), graph.layers.getValue(edge.to))
+    // La primera versión iteraba sobre las ARISTAS prohibidas y pedía el
+    // camino más corto de `edge.from` a `edge.to`. Eso es degenerado: si
+    // `(from, to)` es una arista del grafo, el BFS la ve en la primera
+    // expansión y devuelve siempre `[from, to]`. Veinte líneas de búsqueda
+    // para calcular su propia entrada, y el `sortedBy { camino.size }` que
+    // elegía el testigo era código muerto: todas las infracciones empataban.
+    //
+    // Lo que UAT-003 llama "witness path exacto" es el camino más corto entre
+    // el módulo infractor y la capa prohibida, y ese camino puede tener saltos
+    // de verdad: `domain-a -> adapter-b -> infra-c` es una infracción aunque no
+    // exista ninguna arista que vaya de `domain` a `infra`.
+    val infractores = graph.modules.filter { modulo ->
+        val desde = graph.layers.getValue(modulo)
+        Layer.entries.any { hacia -> !HexagonalPolicy.permitida(desde, hacia) }
+    }
+    val prohibidasDesde = infractores.associateWith { modulo ->
+        val desde = graph.layers.getValue(modulo)
+        Layer.entries.filter { hacia -> !HexagonalPolicy.permitida(desde, hacia) }
+            .toSet()
     }
 
-    if (infracciones.isEmpty()) {
+    val candidatos: List<Infraccion> = buildList {
+        for (modulo in infractores) {
+            // Destinos prohibidos para ESTE módulo, ordenados para que el
+            // recorrido sea idéntico con independencia de nada externo.
+            for (capaDestino in prohibidasDesde.getValue(modulo).sortedBy { it.name }) {
+                // Módulos que están en la capa prohibida, alcanzables desde
+                // `modulo`. Se elige el de camino MÁS CORTO, y si empatan se
+                // escoge el canónico para que el witness no dependa del
+                // orden de exploración.
+                //
+                // Aquí NO se hace el caso "destino adyacente" por separado:
+                // una versión anterior optimizaba el caso de la arista directa
+                // y añadía `[modulo, destino]` sin comprobar que la arista
+                // existiera. Eso declaraba infracción entre dos módulos sin
+                // ninguna arista que los uniera, que es fabricar un defecto.
+                // El BFS ya devuelve el camino de un salto si la arista está.
+                val masCerca = graph.modules
+                    .asSequence()
+                    // El destino tiene que ser OTRO módulo. `caminoMasCorto`
+                    // devuelve `[nodo]` cuando origen y destino coinciden, que
+                    // tiene longitud 1 y gana cualquier comparación de
+                    // longitud. Sin este filtro, un módulo de `Application`
+                    // se declaraba infracor de sí mismo con un "camino" de
+                    // cero saltos, y el grafo sano fallaba.
+                    .filter { it != modulo }
+                    .filter { graph.layers.getValue(it) == capaDestino }
+                    .map { it to caminoMasCorto(graph, desde = modulo, hasta = it) }
+                    .filter { (_, camino) -> camino != null }
+                    .sortedWith(compareBy({ it.second!!.size }, { it.first }))
+                    .firstOrNull()
+
+                val elegido = masCerca ?: continue
+                add(
+                    Infraccion(
+                        desde = modulo,
+                        hacia = capaDestino,
+                        destino = elegido.first,
+                        camino = elegido.second!!,
+                    ),
+                )
+            }
+        }
+    }
+
+    if (candidatos.isEmpty()) {
         AssertionResult.Passed(ProofRef(snapshotId, evidenceIds, assertionId))
     } else {
-        // Tipo explícito en vez de un `Triple` anidado: el anidado no
-        // destructura sin que el compilador tenga que adivinar, y un
-        // `first()` sobre una colección de tamaño desconocido devuelve `Any?`.
-        val candidatos: List<Infraccion> = infracciones.map { edge ->
-            Infraccion(
-                edge = edge,
-                desde = graph.layers.getValue(edge.from),
-                hacia = graph.layers.getValue(edge.to),
-                camino = caminoMasCorto(graph, desde = edge.from, hasta = edge.to)
-                    ?: listOf(edge.from, edge.to),
-            )
-        }
-        // Orden estable: primero por longitud del camino, luego por la arista
-        // en orden canónico. Sin el desempate, dos infracciones con caminos de
-        // la misma longitud darían el witness más o menos al azar según el
-        // orden de exploración.
+        // Orden estable: primero por longitud del camino, luego por módulo y
+        // destino en orden canónico. Sin el desempate, dos infracciones con
+        // caminos de la misma longitud darían el witness más o menos al azar
+        // según el orden de exploración.
         val elegida = candidatos
-            .sortedWith(compareBy({ it.camino.size }, { it.edge.from }, { it.edge.to }))
+            .sortedWith(compareBy({ it.camino.size }, { it.desde }, { it.destino }))
             .first()
 
-        val edge = elegida.edge
         val desde = elegida.desde
         val hacia = elegida.hacia
         val camino = elegida.camino
@@ -141,17 +182,18 @@ fun noDependency(
         AssertionResult.Failed(
             Counterexample.DependencyPath(
                 assertionId = assertionId,
-                subjectRefs = listOf(typedRef(edge.from), typedRef(edge.to)),
+                subjectRefs = listOf(typedRef(camino.first()), typedRef(camino.last())),
                 evidenceRefs = evidenceIds,
-                explanation = "La capa $desde no puede depender de $hacia: " +
-                    "${edge.from} -> ${edge.to}",
+                explanation = "La capa $desde no puede alcanzar la capa $hacia: " +
+                    "${camino.joinToString(" -> ")}",
                 reproductionHints = listOf(
                     "ruta minima: ${camino.joinToString(" -> ")}",
                     "capas: ${camino.joinToString(" -> ") { graph.layers.getValue(it).name }}",
+                    "capa prohibida desde $desde: ${prohibidasDesde.getValue(desde).sortedBy { it.name }.joinToString(", ") { it.name }}",
                 ),
                 path = camino,
-                fromLayer = desde.name,
-                toLayer = hacia.name,
+                fromLayer = graph.layers.getValue(camino.first()).name,
+                toLayer = graph.layers.getValue(camino.last()).name,
             ),
         )
     }
@@ -197,9 +239,9 @@ fun acyclic(
 
 /** Una arista prohibida, con su contexto, antes de elegir cuál se reporta. */
 private data class Infraccion(
-    val edge: DependencyEdge,
-    val desde: Layer,
+    val desde: String,
     val hacia: Layer,
+    val destino: String,
     val camino: List<String>,
 )
 
