@@ -26,6 +26,10 @@
 | M-V01 | un EvidenceProvider retorna AssertionResult | AAT-6 |
 | M-V02 | AssertionResult deja de ser sealed | AAT-8 |
 | M-V03 | canonicalizeSuite deja de ordenar lenses | AAT-16 |
+| M-10-01 | ConnascenceLens: strength 6 aceptado (rango 0..5) | M10 Connascence |
+| M-10-02 | SolidLens: DIP violation no detectada (rank check desactivado) | M10 DIP |
+| M-10-03 | ConsistencyLens: contradicción no detectada (filter false) | M10 Consistency |
+| M-10-04 | SeamLens: TODOS los módulos clasificados como seam | M10 Seam |
 
 ## Redundancia, y por qué se importa
 

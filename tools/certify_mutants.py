@@ -27,6 +27,10 @@ SUITE_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifa
 ENGINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/Assurance.kt"
 HEX = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/HexagonalAssertions.kt"
 BASELINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/BaselineAndDiff.kt"
+CONNASCENCE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/ConnascenceLens.kt"
+SOLID = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/SolidLens.kt"
+CONSISTENCY = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/ConsistencyLens.kt"
+SEAM = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/SeamLens.kt"
 PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assurance/plugin/AssuranceVerifyStep.kt"
 CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
@@ -40,6 +44,7 @@ REPORTS = [
     os.path.join(ROOT, "assurance-artifact/build/reports/tests/test/classes"),
     os.path.join(ROOT, "assurance-providers/build/reports/tests/test/classes"),
     os.path.join(ROOT, "pipelinek-assurance-plugin/build/reports/tests/test/classes"),
+    os.path.join(ROOT, "assurance-engine/build/reports/tests/test/classes"),
 ]
 
 # Cada mutante: (nombre, [(fichero, [(buscar, reemplazar)]), ...])
@@ -361,6 +366,31 @@ sealed interface AssertionResult {
                 declaredGaps = emptyList(),
             )"""),
     ])],
+    # M10 — un mutante por cada lens nueva declarada en el catálogo.
+    # Cada uno ataca la lógica de filtrado/clasificación de su lens.
+    #
+    # M-10-01: ConnascenceLens acepta strength 6 (rango válido 0..5).
+    "M-10-01": [(CONNASCENCE, [(
+        """        require(strength in 0..5) { "strength fuera de rango: $strength" }""",
+        """        require(strength in 0..6) { "strength fuera de rango: $strength" }"""),
+    ])],
+    # M-10-02: SolidLens DIP — la condición de violación se desactiva.
+    "M-10-02": [(SOLID, [(
+        """            if (fromLayer.rank < toLayer.rank) {""",
+        """            if (false) {"""),
+    ])],
+    # M-10-03: ConsistencyLens — el filtro que detecta contradicciones
+    # no matchea (filter false).
+    "M-10-03": [(CONSISTENCY, [(
+        """            .filter { it !in declaredEdges }""",
+        """            .filter { false }"""),
+    ])],
+    # M-10-04: SeamLens — la condición de "no es Adapters/Infrastructure"
+    # se invierte, clasificando TODOS los módulos como seam.
+    "M-10-04": [(SEAM, [(
+        """            if (layer !in externalLayers) continue""",
+        """            if (false) continue"""),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
@@ -390,6 +420,7 @@ def run_tests():
          ":assurance-artifact:test",
          ":assurance-providers:test",
          ":pipelinek-assurance-plugin:test",
+         ":assurance-engine:test",
          "--no-daemon", "--rerun-tasks"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,
