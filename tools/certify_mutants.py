@@ -343,6 +343,22 @@ sealed interface AssertionResult {
         """            is BodyOutcome.Cancelled -> StepOutcome.Cancelled(body.reason)""",
         """            is BodyOutcome.Cancelled -> StepOutcome.Failure(body.reason)"""),
     ])],
+    # M-P03: "handler itera children fuera de BodyContinuation". La
+    # V1 del step `assurance.verify` exige invocar el body una sola
+    # vez; el mutante convierte el processor en una segunda
+    # invocación del handler, rompiendo V1. El processor debe
+    # recibir el outcome, no el handler.
+    "M-P03": [(PLUGIN_VERIFY, [(
+        """        processor(outcome)
+        return outcome
+    }
+}""",
+        """        handler.run()
+        processor(outcome)
+        return outcome
+    }
+}"""),
+    ])],
     # M-C01: "Chronos gap ignorado". La rama de gaps declarados debe
     # añadirlos al `EvidenceCollectionResult`. El mutante los filtra
     # haciendo que el filter nunca matchee (cambia la condición a

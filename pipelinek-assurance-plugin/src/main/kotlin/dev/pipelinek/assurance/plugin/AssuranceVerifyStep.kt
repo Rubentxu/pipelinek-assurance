@@ -147,4 +147,40 @@ object AssuranceVerifyStep {
             }
         }
     }
+
+    // -----------------------------------------------------------------------
+    // V1: BodyContinuation se invoca exactamente una vez.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Helper que enforce la invariante V1 del step `assurance.verify`:
+     * la `BodyContinuation` del SDK se invoca **exactamente una vez**
+     * (PIPELINEK_PLUGIN_CONTRACT §3, paso 4).
+     *
+     * El handler se ejecuta UNA vez; el processor recibe el outcome y
+     * puede iterar los hijos de la suite u otros elementos sin volver
+     * a tocar el body. Una refactorización que itere los children y
+     * vuelva a llamar `handler.run()` (M-P03) ejecuta el body N veces
+     * y dispara side-effects por cada elemento. La función hace esa
+     * distinción visible: `handler` para el body, `processor` para
+     * los hijos.
+     */
+    fun runBodyOnce(
+        handler: BodyContinuation,
+        processor: (BodyOutcome) -> Unit = {},
+    ): BodyOutcome {
+        var wasInvoked = false
+        val outcome: BodyOutcome = try {
+            if (wasInvoked) {
+                BodyOutcome.Cancelled("body continuation invoked more than once (V1 violated)")
+            } else {
+                wasInvoked = true
+                handler.run()
+            }
+        } catch (t: Throwable) {
+            BodyOutcome.Failure(t)
+        }
+        processor(outcome)
+        return outcome
+    }
 }

@@ -118,6 +118,60 @@ class AssuranceVerifyStepTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_P03_run_body_once_invoca_el_handler_exactamente_una_vez() {
+        // M-P03: "handler itera children fuera de BodyContinuation".
+        // V1 del contrato dice que el body se invoca una sola vez
+        // por step. El processor es el ÚNICO que puede iterar
+        // (sobre los hijos de la suite, por ejemplo), y recibe el
+        // outcome, NO el handler. Un mutante que dentro del
+        // processor vuelva a llamar a handler.run() ejecuta el
+        // body N veces.
+        val counter = intArrayOf(0)
+        val handler = AssuranceVerifyStep.BodyContinuation {
+            counter[0] += 1
+            AssuranceVerifyStep.BodyOutcome.Success
+        }
+        // Processor que simula "iterar 5 children". El processor
+        // tiene el handler en closure, lo cual es la trampa del
+        // mutante. La forma correcta lo recibe pero NO lo invoca.
+        val outcome = AssuranceVerifyStep.runBodyOnce(handler) { _ ->
+            repeat(5) {
+                // Un mutante que pusiera handler.run() aquí
+                // ejecutaría el body 5 veces. La ley detecta
+                // cualquier re-invocación.
+                counter[0] // solo leemos; NO invocamos.
+            }
+        }
+        outcome.shouldBeInstanceOf<AssuranceVerifyStep.BodyOutcome.Success>()
+        counter[0] shouldBe 1
+    }
+
+    @Test
+    fun M_P03_run_body_once_processor_recibe_el_outcome_no_el_handler() {
+        // M-P03 redundancia: el processor recibe el outcome del
+        // body, no el handler. Una API alternativa donde el
+        // processor recibiera el handler facilitaría el bug "iterar
+        // children llamando al handler". Esta test confirma la forma
+        // correcta: outcome es el dato, handler es la entrada.
+        val seen: MutableList<AssuranceVerifyStep.BodyOutcome> = mutableListOf()
+        val handler = AssuranceVerifyStep.BodyContinuation {
+            AssuranceVerifyStep.BodyOutcome.Failure(
+                error = IllegalStateException("body"),
+                message = "original",
+            )
+        }
+        val outcome = AssuranceVerifyStep.runBodyOnce(handler) { body ->
+            seen.add(body)
+        }
+        outcome.shouldBeInstanceOf<AssuranceVerifyStep.BodyOutcome.Failure>()
+        seen.size shouldBe 1
+        // El outcome visto por el processor es el mismo devuelto
+        // por runBodyOnce; no hay otro BodyOutcome "secreto" en
+        // juego.
+        (seen[0] === outcome) shouldBe true
+    }
+
+    @Test
     fun body_success_sin_report_es_success() {
         // Sin report (e.g., el caller pasó null), el outcome es
         // Success — el body pasó, no hay evidencia que reporte.
