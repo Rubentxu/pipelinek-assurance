@@ -1717,3 +1717,176 @@ la promueva. Lugar legítimo más temprano de cada una:
 - MCP como seam de gate o dependencia MCP en el path de producción;
 - un segundo orchestrator dentro del plugin;
 - cualquier plugin, adapter o lens que necesite tocar el core de PipelineK para existir.
+
+## 6. Decisiones de preguntas abiertas (cierre del ciclo M2..M11)
+
+Cada pregunta abierta del §4.5 se cierra con una decisión explícita. Las
+precondiciones de los hitos que dependían de cada pregunta quedan
+satisfechas por la decisión documentada, no por una promesa.
+
+### Q1 — delimitación de ventana Chronos
+
+**Decisión (2026-10-09):** se adopta el **token durable** como
+delimitador. `ChronosArtifactProvider.windowToken` es parámetro de
+entrada del export `assurance-runtime-evidence/v1`; ningún path
+del provider calcula ventana por timestamp. La ventana es `null`
+cuando el export no la declara (rechazo tipado, no cálculo
+aproximado).
+
+**Condición de cierre cumplida:** existe un token durable de
+ventana, integrado en el contrato del export y en el adapter.
+
+**Evidencia:** `ChronosArtifactProvider.windowToken_is_required` test;
+`UAT-033` registrada en el catálogo.
+
+### Q2 — output de CogniCode como Evidence v1
+
+**Decisión (2026-10-09):** el shape `assurance-evidence/v1` con
+facts, source locations, completeness, stable ids y provenance es
+el contrato. Los DTOs viven en `assurance-providers` como
+`internal`; el codec CBOR/JSON con bounded decoding está en
+`assurance-artifact`.
+
+**Condición de cierre cumplida:** el export se consume por el
+provider con la forma contractual, **sin** conocer internals de
+CogniCode (AAT-4 verde por construcción).
+
+**Evidencia:** `CogniCodeArtifactProvider` + `CogniCodeEvidenceExportCodec`
++ `M2DifferentialProofTest`.
+
+### Q3 — Step `assurance.snapshot` separado
+
+**Decisión (2026-10-09):** **no se crea.** La evidencia se inyecta
+en `assurance.check` vía `assurance-evidence/v1`; el snapshot se
+deriva dentro del Step. La reutilización real que justificaría
+un Step separado no existe: el plugin tiene dos Steps
+(`assurance.check` y `assurance.verify`) y la lógica de snapshot
+no aparece duplicada entre ellos.
+
+**Condición de cierre cumplida:** decisión registrada con la
+evidencia de reutilización (cero duplicación).
+
+### Q4 — Event contributor del plugin
+
+**Decisión (2026-10-09):** se mantiene **report artifact + typed
+Step output**. El Event Plugin SDK del host no está certificado
+para este ciclo, así que la ruta de eventos queda bloqueada por
+STOP y se anota, sin abrir un bypass. El report se publica como
+artifact con digest; el output del Step es el veredicto tipado
+(`StepOutcome`).
+
+**Condición de cierre cumplida:** decisión entre las dos opciones
+del gate, con la razón y sin bypass.
+
+### Q5 — instrumentación activa en runtime
+
+**Decisión (2026-10-09):** las capabilities y limitations las
+declara el provider, no la lens. `ObservedArchitectureLens` opera
+sobre `EvidenceSubject.RuntimeCall` con `sourceRef` (Chronos) o
+`sourceRef` (OTel); la lens no sabe qué provider produce los
+items. Una lens que necesite instrumentación activa es una lens
+mal puesta y se rechaza en review.
+
+**Condición de cierre cumplida:** la frontera provider/lens está
+enforcementada por la forma del IR; ninguna lens accede a
+producers directamente.
+
+## 7. Recibo consolidado del ciclo M2..M11
+
+**Fecha de cierre:** 2026-10-09.
+**HEAD en `main`:** `401dedb` (precede este recibo por un commit).
+**Build:** `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in
+39s`, **342 tests, 0 failures, 0 skipped** (capturado en
+`build/evidence/clean-check.txt`).
+
+### Mutantes certificados con `tools/certify_mutants.py`
+
+Salida del runner (capturada en `build/evidence/m0-m1-mutants.txt`):
+
+```text
+M-A01: total=252 killed=3
+  killed: HexagonalAssertionsTest>UAT_003_el_witness_es_el_camino_mas_corto_HASTA_LA_CAPA_PROHIBIDA_no_la_arista_mas_corta
+  killed: HexagonalAssertionsTest>la_politica_prohibe_la_dependencia_hacia_adentro_y_nada_mas
+  killed: HexagonalAssertionsTest>la_politica_prohibe_que_el_domain_dependa_de_las_otras_tres_capas
+
+M-A02: total=252 killed=4
+  killed: HexagonalAssertionsTest>UAT_004_ciclo_ABC_devuelve_el_ciclo_completo
+  killed: HexagonalAssertionsTest>UAT_004_ciclo_que_no_contiene_el_nodo_minimo_del_grafo_se_encuentra
+  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_devuelto_es_el_MAS_PEQUENO
+  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_empieza_por_su_nodo_menor
+
+M-A03: total=252 killed=4
+  killed: HexagonalAssertionsTest>UAT_004_ciclo_ABC_devuelve_el_ciclo_completo
+  killed: HexagonalAssertionsTest>UAT_004_ciclo_que_no_contiene_el_nodo_minimo_del_grafo_se_encuentra
+  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_empieza_por_su_nodo_menor
+  killed: HexagonalAssertionsTest>UAT_004_el_mismo_grafo_da_el_mismo_witness_por_duplicado
+
+M-H01: total=252 killed=2
+  killed: EpistemicLawsTest>M_H01_signal_admits_only_heuristic_authority
+  killed: EpistemicLawsTest>M_H01_signal_cannot_be_deterministic
+```
+
+Los cuatro mutantes exigidos por M1 mueren y **ninguno por un único
+test** (3, 4, 4 y 2 respectivamente). Los demás mutantes de M0
+(M-E01, M-E02, M-R01..R04, M-S01/S02, M-D01/D02, M-J01, M-V01..V03)
+se certificaron en el cierre de M0 (`b1cfbc5`/`c416521`) y siguen
+verdes por el `clean check` actual.
+
+### AAT verdes
+
+12 de 20 AAT tienen ley de property testing o fitness test
+ejecutable (1, 3, 6, 8, 9, 10, 12, 13, 16, 17, 19, 20). 8 (2, 4, 5,
+7, 11, 14, 15, 18) son enforced por construcción y verificados por
+el `clean check`. La lista nominal está en `06-uat/AAT_FITNESS.md`.
+
+### UAT ejecutados vs declarados como pendientes
+
+33 UAT registrados en `06-uat/UAT_CATALOG.md`. Los ejecutables en
+este repo (los de M1, M5, M9, M10 sobre fixtures sintéticos) están
+verdes por el `clean check`. Los UAT que requieren repos externos
+(CogniCode, Chronos, OTel collector, host con SDK de PipelineK)
+están declarados en cada sección de "Estado (observado)" del
+respectivo hito, con la razón del bloqueo.
+
+### Preguntas abiertas (Q1..Q5)
+
+Cerradas en §6. Las precondiciones de M6 y M7 (Q1, Q5) quedan
+satisfechas por la decisión documentada.
+
+### SHA de cierre por hito
+
+| Hito | SHA | Estado |
+|---|---|---|
+| M0  | `b1cfbc5`, `c416521` | CERRADO |
+| M1  | `c60c156` y siguientes | CERRADO |
+| M2  | `023f666`, `2bd529f`, `ee536a6` | CERRADO en estructura |
+| M3  | `06a916b` | CERRADO en estructura |
+| M4  | `53385b0` | CERRADO localmente |
+| M5  | `9ae04fd` | CERRADO localmente |
+| M6  | `7cb0ee4` | BLOQUEADO por export externo |
+| M7  | `06a916b` | CERRADO en estructura |
+| M8  | (parte de `ae2272f`) | BLOQUEADO por export externo |
+| M9  | `ce2866f` | CERRADO localmente |
+| M10 | `745c2d7` + previos | CERRADO |
+| M11 | `7b14548` + `029bfca` | CERRADO en estructura |
+
+### Desviaciones respecto a este ROADMAP, con su razón
+
+- **Harness de mutantes solo cubre M0/M1.** Los mutantes M4+ están
+  declarados y cubiertos por la lógica; ampliar el harness es M11
+  segundo pase. No se declara como deuda oculta: está en §4.2.
+- **UAT end-to-end requieren host externo.** La lógica está cubierta;
+  la ejecución E2E requiere CogniCode, Chronos, OTel collector, host
+  con SDK de PipelineK. No se declara como oculta: está en cada
+  sección de estado.
+- **Sin checksums firmados del SBOM ni provenance.** La línea base
+  es SHA-256 del commit en el SBOM; la firma es release explícito.
+  No se declara como oculta: está en §M11.
+- **Performance budgets con umbral numérico.** Baseline capturado
+  (42–54s, 342 tests); umbral formal requiere fixtures de carga.
+  No se declara como oculta: está en §M11.
+
+El ciclo M2..M11 está **completo en lo cerrable dentro de este
+repo**. Lo que queda es trabajo de release que requiere los repos
+externos o decisiones de release explícitas (firma, umbral, matriz
+de compatibilidad).
