@@ -1794,45 +1794,53 @@ producers directamente.
 ## 7. Recibo consolidado del ciclo M2..M11
 
 **Fecha de cierre:** 2026-10-09.
-**HEAD en `main`:** `401dedb` (precede este recibo por un commit).
+**HEAD en `main`:** `86033c4` (cabeza del ciclo de cierre).
 **Build:** `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in
-39s`, **342 tests, 0 failures, 0 skipped** (capturado en
+36s`, **350 tests, 0 failures, 0 skipped** (capturado en
 `build/evidence/clean-check.txt`).
 
 ### Mutantes certificados con `tools/certify_mutants.py`
 
-Salida del runner (capturada en `build/evidence/m0-m10-mutants.txt`):
+Salida del runner tras `clean check` (capturada en
+`build/evidence/m0-m10-mutants.txt`):
 
 ```text
-M-A01: total=274 killed=3   (domain-purity)
-M-A02: total=274 killed=4   (eliminar arista antes de SCC)
-M-A03: total=274 killed=4   (ciclo ABC pasa por no serlo)
-M-H01: total=274 killed=2   (heuristic signal como deterministic)
-M-B01: total=274 killed=2   (NEW clasificado EXISTING)
-M-P01: total=274 killed=1   (assurance failure sobrescribe body failure)
-M-P02: total=274 killed=1   (cancellation capturada como Failure)
-M-C01: total=274 killed=2   (Chronos gap ignorado)
-M-O01: total=274 killed=2   (OTel missing span como success)
+M-A01:   total=333 killed=3   (domain-purity)
+M-A02:   total=333 killed=4   (eliminar arista antes de SCC)
+M-A03:   total=333 killed=4   (ciclo ABC pasa por no serlo)
+M-H01:   total=333 killed=2   (heuristic signal como deterministic)
+M-B01:   total=333 killed=2   (NEW clasificado EXISTING)
+M-P01:   total=333 killed=1   (AVISO redundancia)
+M-P02:   total=333 killed=1   (AVISO redundancia)
+M-C01:   total=333 killed=2   (Chronos gap ignorado)
+M-O01:   total=333 killed=2   (OTel missing span como success)
+M-10-01: total=333 killed=3   (ConnascenceLens: strength 6 aceptado)
+M-10-02: total=333 killed=3   (SolidLens: DIP violation no detectada)
+M-10-03: total=333 killed=3   (ConsistencyLens: contradiccion no detectada)
+M-10-04: total=333 killed=3   (SeamLens: TODOS los modulos clasificados)
 ```
 
-Todos los mutantes de M0..M8 mueren. M-P01 y M-P02 mueren por un
-solo test (la advertencia "AVISO: redundancia insuficiente" se
-mantiene hasta que exista un segundo test que cubra la rama
-específica del mutante con un caso distinto al actual).
+13 mutantes certificados. 11 mueren por 2 o más tests
+(redundancia OK). 2 (M-P01, M-P02) mueren por 1 test
+(AVISO redundancia insuficiente): un mutante ortogonal
+que distinga la rama en otro caso está pendiente.
 
 Los demás mutantes de M0 (M-E01, M-E02, M-R01..R04, M-S01/S02,
 M-D01/D02, M-J01, M-V01..V03) se certificaron en el cierre de M0
 (`b1cfbc5`/`c416521`) y siguen verdes por el `clean check` actual.
 
-**Ampliaciones del harness en este pase:**
+**Ampliaciones del harness en este ciclo:**
 
-- `run_tests()` ahora incluye `:assurance-providers:test` y
-  `:pipelinek-assurance-plugin:test`. Sin esa ampliación, los
-  mutantes de M4+ atacaban código cuyo test nunca se ejecutaba
-  en la corrida del harness, y el conteo de kills daba 0 aunque
-  la lógica estuviera cubierta. El defecto se documenta en §8.
+- `run_tests()` ahora incluye `:assurance-providers:test`,
+  `:pipelinek-assurance-plugin:test` y `:assurance-engine:test`.
 - Nuevos mutantes en el harness: M-B01, M-P01, M-P02, M-C01,
-  M-O01. Cada uno con su patrón de parcheo sobre el código real.
+  M-O01, M-10-01..M-10-04. Cada uno con su patrón de parcheo
+  sobre el código real.
+- Bug detectado y corregido: `decodeExport` de Chronos siempre
+  devolvía `completenessByCapability = emptyMap()`, así que la
+  lógica de gaps del provider nunca se ejercitaba. El test
+  `M_C01_un_gap_parcial_sin_items_produce_declared_gap` lo
+  expuso.
 
 ### AAT verdes
 
