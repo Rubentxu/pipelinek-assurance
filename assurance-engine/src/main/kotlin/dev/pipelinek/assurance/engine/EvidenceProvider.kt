@@ -246,18 +246,32 @@ data class RawEvidenceGap(
     val detail: String? = null,
 )
 
-enum class RawGapReason {
+/**
+ * Razón cruda de un gap antes de la normalización a `EvidenceGap.GapReason`.
+ *
+ * `PartialProduced` lleva la fracción de cobertura como String (`"3/5"`,
+ * `"0/3"`) para que el servicio de aplicación pueda reportar el progreso
+ * sin reinterpretar la lista de items. El dominio tiene
+ * `EvidenceGap.GapReason.PartialProduced(val coveredFraction: String)` y la
+ * forma cruda espeja esa.
+ *
+ * `sealed interface` y no `enum` por la misma razón que el dominio: una
+ * variante con dato (`PartialProduced(coveredFraction)`) y tres sin dato.
+ * Forzar enum obligaría a meter el String como propiedad externa del gap,
+ * y eso es justo el acoplamiento que la frontera cruda/normalizada evita.
+ */
+sealed interface RawGapReason {
     /** El provider no soporta esta capability. */
-    Unsupported,
+    data object Unsupported : RawGapReason
 
     /** El provider la soporta pero produjo cobertura parcial. */
-    PartialProduced,
+    data class PartialProduced(val coveredFraction: String) : RawGapReason
 
     /** No se sabe si se soporta. */
-    Unknown,
+    data object Unknown : RawGapReason
 
     /** La evidencia se perdió después de producirse. */
-    Lost,
+    data object Lost : RawGapReason
 }
 
 /**

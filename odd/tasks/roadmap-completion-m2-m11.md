@@ -59,7 +59,12 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 
 ### Módulos nuevos
 
-- `assurance-providers`: SPI concreto y adapters. Depende de `assurance-domain`, `assurance-engine`, `assurance-artifact`. NO depende de PipelineK. Existe por la frontera "produces EvidenceSnapshot desde artefactos externos".
+- `assurance-providers` (M2): adapters de evidence providers. Depende de `assurance-domain`, `assurance-engine`, `assurance-artifact`. NO depende de PipelineK. Existe por la frontera "produce EvidenceSnapshot desde artefactos externos". Justificación contra "no anadir modulos hasta que una frontera real lo exija":
+  - AAT-2 prohíbe implementaciones de provider en `assurance-engine`.
+  - AAT-4 prohíbe imports de internals de CogniCode en `assurance-artifact`.
+  - `assure-cli` es Infrastructure, no adapters.
+  - M5 preve añadir más providers (Detekt SARIF, JUnit XML) al mismo módulo, evidencia de cohesión.
+- `pipelinek-assurance-plugin` (M3): único módulo que puede depender del SDK de PipelineK. AAT-3 + AAT-10 + AAT-11.
 
 ### Acceptance criteria
 
