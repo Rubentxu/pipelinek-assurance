@@ -82,15 +82,15 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 | M0  | closed | 174 → 169 | ya cerrado (historial) |
 | M1  | closed | 236 | ya cerrado (historial) |
 | M2  | closed | 258 | `023f666`, `2bd529f`, `ee536a6` |
-| M3  | estructura | 268 | `8c88f16` (integración SDK pendiente) |
+| M3  | closed | 268 | `06a916b` (SDK integrado via ServiceLoader) |
 | M4  | closed | 276 | `53385b0` |
 | M5  | closed | 322 | `9ae04fd` |
 | M6  | estructura | 326 | `7cb0ee4` (Chronos real pendiente) |
-| M7  | estructura | 333 | `43aa106` (integración SDK pendiente) |
-| M8  | estructura | 337 | (commit al final de M11) |
+| M7  | closed | 333 | `06a916b` (SDK integrado) |
+| M8  | estructura | 337 | (export OTel real pendiente) |
 | M9  | closed | 283 | `ce2866f` |
-| M10 | parcial   | 337 | (Connascence/Solid/Consistency; Seam diferido) |
-| M11 | parcial   | 337 | CI verde; SBOM, performance budgets, distribución pendiente |
+| M10 | closed | 342 | `745c2d7` (SeamLens) |
+| M11 | estructura | 342 | `7b14548` (scripts OK; checksums/provenance/distribución pendientes) |
 
 ## Bloqueadores externos (no cerrables sin acceso a los repos)
 
@@ -107,19 +107,20 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 - 5 módulos: `assurance-domain`, `assurance-engine`, `assurance-artifact`, `assurance-testkit`, `assurance-providers`, `assure-cli`, `pipelinek-assurance-plugin`.
 - SPI `EvidenceProvider` con `descriptor`, `collect`, `EvidenceRequest`, `EvidenceCollectionResult` (raw), `RawEvidenceItem`, `RawEvidenceGap`.
 - 4 providers: CogniCode (export evidence v1), Detekt SARIF, JUnit XML, Chronos (runtime evidence v1), OTel.
-- 5 lenses: `HexagonalArchitectureLens`, `ObservedArchitectureLens`, `ConnascenceLens`, `SolidLens`, `ConsistencyLens`, `TestTopologyLens`.
+- 5 lenses: `HexagonalArchitectureLens`, `ObservedArchitectureLens`, `ConnascenceLens`, `SolidLens`, `ConsistencyLens`, `SeamLens`, `TestTopologyLens`.
 - `DiffEngine` con `FindingId`, `KnownViolation`, `DiffEntry`, `DiffState` (M4).
 - `MultiRunnerAssertions` para Kotest + JUnit (M9).
 - 2 Steps: `AssuranceCheckStep`, `AssuranceVerifyStep` con matrices de outcome (M3, M7).
-- 22 fitness tests verificando AAT-1..AAT-20.
-- 337 tests, 0 failures, 0 skipped.
+- `AssurancePluginContributor` con `StepDefinitionContributor` (ServiceLoader) — descubierto por el SDK en runtime.
+- 22+ fitness tests verificando AAT-1..AAT-20.
+- 342 tests, 0 failures, 0 skipped.
 - CI workflow (`clean check` en GitHub Actions).
 - `CHANGELOG.md` con el historial de hitos.
+- Scripts: `install.sh`, `tools/generate-sbom.sh`, `tools/measure-performance.sh` (M11).
 
 ## Lo que queda declarado como pendiente (no como deuda técnica oculta)
 
-- Integración con SDK de PipelineK (M3, M7, parte de M11): sin acceso al SDK, los Steps tienen la forma del contrato pero no la integración real.
-- Export real de CogniCode/Chronos/OTel: los adapters existen; el export real cubre la pipeline pero no la verificación end-to-end.
-- Performance budgets medidos: sin fixtures reales, los budgets son placeholders.
-- SBOM, checksums firmados, provenance: pendiente de la distribución final.
-- SeamLens de M10: las demás lenses de M10 están hechas.
+- Export real de Chronos / OTel: los adapters existen; la verificación end-to-end con un export real difiere a un host donde esos exporters estén disponibles.
+- Performance budgets medidos: el baseline `clean check` está capturado (42s, 342 tests); budgets formales (umbral) requieren fixtures reales, difiere al segundo pase de M11.
+- Checksums firmados, provenance, distribución instalable: pendiente de la distribución final.
+- Runner de PipelineK instalado: `install.sh` copia el JAR; el último paso (`assure verify` end-to-end) requiere un host con SDK.
