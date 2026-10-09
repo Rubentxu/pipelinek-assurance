@@ -44,7 +44,8 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 
 ### Tasks
 
-- [ ] **M2-T1** Definir SPI `EvidenceProvider` en `assurance-engine`. Cumplir AAT-6 (no retorna `AssertionResult`). Hacer REAL la ley vacua de M0UnprovenAatsTest.
+- [x] **M2-T1** Definir SPI `EvidenceProvider` en `assurance-engine`. Cumplir AAT-6 (no retorna `AssertionResult`). SHA: `ecd513e` (`feat(engine): M2 EvidenceProvider SPI con descriptor y collect`).
+- [ ] **M2-T1.5** Hacer AAT-6 estructural: el SPI no debe permitir por signatura un método que retorne `AssertionResult`.
 - [ ] **M2-T2** Definir shape del export `assurance-evidence/v1` (DTOs) en `assurance-artifact`. Forma intermedia con bounded decoding. Kind=EvidenceSnapshot.
 - [ ] **M2-T3** Codec `CogniCodeExportCodec` (CBOR/JSON) del export. Verificar digest. Roundtrip con golden.
 - [ ] **M2-T4** `CogniCodeArtifactProvider` que consume el export y produce `EvidenceSnapshot` con `EvidenceSourceManifest`, provenance, completeness por capability, stable ids.
