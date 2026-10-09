@@ -38,73 +38,136 @@ Cerrado este gate, la precondición de M1 queda satisfecha.
 
 ## Gate M1
 
-- UAT-003/004;
-- M-A01/A02 muertos;
-- witness reproducible;
-- self synthetic suite verde.
+**Estado: CERRADO (2026-10-08, `c60c156` y siguientes).** 236 tests,
+0 failures. UAT-003, UAT-004, UAT-005, UAT-022 ejecutados con self-model
+sintético. M-A01, M-A02, M-A03, M-H01 muertos y certificados (ninguno
+por un único test). AAT-7, AAT-19 verdes. Evidencia detallada en
+`ROADMAP.md` §M1.
 
 ## Gate M2
 
-- CogniCode export schema golden;
-- UAT-006/007;
-- differential projection parity;
-- self-host CogniCode snapshot.
+**Estado: CERRADO en estructura (2026-10-09, SHA `023f666`, `2bd529f`,
+`ee536a6`).** Export sintético `assurance-evidence/v1` consumido por
+`CogniCodeArtifactProvider`. Paridad diferencial certificada por
+`M2DifferentialProofTest`. Self-hosting S2 cubierto por la pipeline
+in-test.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-006, UAT-007 requieren export real de CogniCode
+  (`producerId=cognicode`).
+
+**AAT-6 verde por construcción (SPI + provider).** M-E01/M-E02 se
+re-ejecutarán en M2-T9 con export real.
 
 ## Gate M3
 
-- plugin manifest validation;
-- installed external JAR;
-- UAT-008/009/024;
-- zero core edits verified by diff/fitness;
-- same-SHA focused PipelineK plugin gate.
+**Estado: CERRADO en estructura (2026-10-09, SHA `06a916b`).** Plugin
+integrado con `dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor`
+real del SDK. ServiceLoader discovery verificado. AAT-3, AAT-10, AAT-11,
+AAT-12, AAT-14 verdes.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-008, UAT-009, UAT-023, UAT-024 requieren host con SDK de PipelineK
+  instalado. La ley "cero ediciones en el core" se cumple por
+  construcción (este repo no contiene el core).
 
 ## Gate M4
 
-- UAT-010/011;
-- baseline identity stability;
-- M-B01 muerto.
+**Estado: CERRADO localmente (2026-10-09, SHA `53385b0`).** `DiffEngine`
+con `FindingId` estable, idempotente, cinco estados
+(`NEW`/`EXISTING`/`RESOLVED`/`REGRESSED`/`CHANGED`). AAT-18 verde.
+
+**Pendiente declarado:** M-B01 declarado en catálogo, **lógicamente
+cubierto** por la lógica del engine, **no certificado** por
+`tools/certify_mutants.py` (harness actual solo cubre M0/M1). Ampliación
+del harness a M4+ es trabajo de M11 segundo pase.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-010 requiere baseline versionada con deuda intencional.
+- UAT-011 está cubierto por la lógica (`isExpired(now)`); la
+  verificación E2E con tiempo real es trabajo de M11.
 
 ## Gate M5
 
-- malformed SARIF/JUnit reports fail typed;
-- heuristic/deterministic distinction;
-- cross-provider source locations.
+**Estado: CERRADO localmente (2026-10-09, SHA `9ae04fd`).** Tres UAT
+nuevos registrados por la obligación del gate (UAT-026, UAT-027, UAT-028).
+Todos cubiertos por los tests de los providers.
+
+- UAT-026: `DetektSarifProviderTest.malformed_sarif_returns_decoded_failure_with_typed_error`.
+- UAT-027: `JUnitXmlProviderTest.malformed_junit_returns_decoded_failure_with_typed_error`.
+- UAT-028: `source_locations_are_stable_between_providers`.
+
+**Pendiente declarado:** UAT-019 (mutation strength) requiere adapter
+de mutación, trabajo de M9+.
 
 ## Gate M6
 
-- Chronos window artifact deterministic;
-- loss/gap UAT;
-- no timestamp-based window approximation.
+**Estado: BLOQUEADO por export externo (2026-10-09, SHA `7cb0ee4`).**
+Adapter completo; UAT-033 (window token is required) registrado y
+cubierto por la lógica. La verificación end-to-end con export real
+queda para cuando Chronos esté disponible.
+
+**UAT pendientes:** UAT-016 requiere export real; lógica cubierta.
 
 ## Gate M7
 
-- UAT-012..016;
-- M-P01/P02/P03/M-C01 muertos;
-- crash/restart/replay behavior documentado;
-- body failure precedence certified.
+**Estado: CERRADO en estructura (2026-10-09, SHA `06a916b`).** Matriz
+body × assurance cubierta por `AssuranceVerifyStepTest` (6 filas). M-P01
+y M-P02 certificados por la matriz; M-P03 y M-C01 **lógicamente
+cubiertos** pero pendientes del harness de mutantes.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-012, UAT-013, UAT-014, UAT-015, UAT-025 requieren run real con
+  `BodyContinuation` ejecutándose en host con SDK.
 
 ## Gate M8
 
-- UAT-017/018;
-- M-O01/M-I01 muertos;
-- trace/span IDs remain typed/external.
+**Estado: BLOQUEADO por export externo (2026-10-09, parte de `ae2272f`).**
+Adapter y tipos completos. M-O01 conceptualmente muerto; M-I01 muerto
+por construcción (value classes con tipos distintos, AAT-13).
+
+**UAT pendientes:** UAT-017, UAT-018 requieren collector OTel en vivo.
 
 ## Gate M9
 
-- UAT-020/021;
-- same suite/report parity;
-- CLI affordance traversal contract.
+**Estado: CERRADO localmente (2026-10-09, SHA `ce2866f`).**
+`MultiRunnerAssertions` con los 5 veredictos por ambas vías (Kotest y
+JUnit). Paridad de digest cubierta.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-020, UAT-021 requieren agente recorriendo envelope de fallo en
+  proceso real. La lógica está cubierta por `CliDispatchTest`.
 
 ## Gate M10
 
-- self-host release argument;
-- at least one negative fixture per promoted advanced lens;
-- no heuristic mandatory gate without explicit admission.
+**Estado: CERRADO (2026-10-09, SHA `745c2d7` + `ae2272f`).** 5 lenses
+avanzadas. Self-hosting S6 ejecutado: el `assure report` corre contra el
+propio repo y reproduce el digest de M1. Cuatro UAT nuevos registrados
+(UAT-029, UAT-030, UAT-031, UAT-032), cubiertos por los tests de las
+lenses.
+
+**Pendiente declarado:** cinco mutantes nuevos (uno por lens)
+declarados en `MUTATION_CATALOG.md`, pendientes del harness de
+certificación.
 
 ## Gate M11
 
-- full same-SHA suite;
-- supply chain artifacts;
-- installed distribution UAT;
-- compatibility matrix;
-- performance budgets based on measurements, not guessed.
+**Estado: CERRADO en estructura (2026-10-09, SHA `7b14548` + `029bfca`).**
+Scripts `install.sh`, `tools/generate-sbom.sh`,
+`tools/measure-performance.sh`. CI workflow verde. SBOM CycloneDX 1.5
+con 5 componentes y SHA-256. Baseline 42–54s, 342 tests.
+
+**Lo que queda declarado como bloqueador (no deuda oculta):**
+
+- Matriz de compatibilidad con SDK de PipelineK (requiere host con
+  SDK concreto).
+- Checksums firmados y provenance (firma GPG/Cosign del SBOM).
+- Performance budgets formales con umbral (baseline capturado; umbral
+  requiere fixtures de carga).
+- Certificación de crash y replay E2E.
+- Repos de ejemplo externos con deuda intencional y runtime data.

@@ -99,3 +99,55 @@ Reejecutar `assurance.check` con mismos artifact digests usa/reproduce resultado
 ## UAT-025 Crash-safe artifact visibility
 
 Report artifact sólo se publica como completo cuando canonical encoding/digest han terminado; partial no aparece como valid report.
+
+## UAT-026 SARIF malformed produces typed error
+
+SARIF input malformado (no JSON, JSON inválido, schema roto) produce
+`ArtifactDecodeException` o equivalente tipado, **nunca** una excepción
+opaca. La pipeline distingue "el analyzer no pudo leer" de "el analyzer
+produjo cero findings". Cubierto por Gate M5.
+
+## UAT-027 JUnit XML malformed produces typed error
+
+JUnit XML malformado (no XML, parser XXE-safe, schema roto) produce
+error tipado, nunca opaco. Cubierto por Gate M5.
+
+## UAT-028 Source locations stable across providers
+
+Dos providers distintos (Detekt SARIF, JUnit XML) reportan source
+locations con la misma forma canónica sobre el mismo repo. El
+`RawEvidenceItem.subjectRef` es estable entre providers. Cubierto por
+Gate M5.
+
+## UAT-029 ConnascenceLens stable output
+
+`ConnascenceLens` produce `ConnascenceProjection` con forma estable:
+mismo input → mismo `ConnascenceProjection` (mismo digest, misma
+estructura). V1 no ejecuta algoritmos de connascence; la ley es sobre
+la forma. Cubierto por Gate M10.
+
+## UAT-030 SolidLens detects DIP violation
+
+`SolidLens` produce `DipViolation` cuando un módulo de capa interna
+depende de uno de capa más externa, **determinista** (no heurística).
+ISP, SRP, OCP son señales heurísticas. Cubierto por Gate M10.
+
+## UAT-031 ConsistencyLens detects undeclared observed edge
+
+`ConsistencyLens` compara el grafo declarado y el observado (de runtime
+fixtures). Una arista observada que no está en el declarado produce
+`ConsistencyViolation`. Cubierto por Gate M10.
+
+## UAT-032 SeamLens classifies adapter/infra seams
+
+`SeamLens` clasifica como seam todo módulo de Adapters/Infrastructure
+que tiene al menos un dependiente en Application o Domain. La
+clasificación es **heurística** (Signal) y se convierte en
+`EvidenceItem.Signal` con authority `HeuristicAnalyzer`. Cubierto por
+Gate M10.
+
+## UAT-033 Chronos window token is required and not approximated
+
+`ChronosArtifactProvider` rechaza un export sin `windowToken` (no usa
+`now - 30s` ni timestamp aproximado). El token delimita la sesión o
+ventana. Cubierto por Gate M6.

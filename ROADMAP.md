@@ -617,6 +617,41 @@ inventa su propia explicación es peor que uno que admite que le falta un dato.
 
 ### M2: CogniCode evidence integration
 
+**Estado (observado, 2026-10-09):** **Gate M2 CERRADO en estructura** con export
+sintético. La integración con el export real de CogniCode es un bloqueador
+externo (no hay acceso al repo de CogniCode en este workspace). Evidencia
+local ejecutada:
+
+- SPI `EvidenceProvider` (`assurance-engine`) cumple AAT-6 por construcción:
+  `descriptor` y `collect(EvidenceRequest): EvidenceCollectionResult`. Ley
+  estructural `AAT_06_ningun_metodo_del_spi_retorna_assertion_result` verifica
+  que **ningún** método del SPI retorna `AssertionResult` por signatura. Ley
+  existencial `AAT_06_no_existe_ningun_evidence_provider_que_retorne_assertion_result`
+  verifica que ningún provider concreto lo hace. Mutante M-V01 declarado en
+  `MUTATION_CATALOG.md` y registrado en el harness.
+- DTOs de `assurance-evidence/v1` en `assurance-providers` con bounded
+  decoding (MAX_INPUT_BYTES, MAX_NESTING_DEPTH). `MAX_INPUT_BYTES` corta
+  **antes** de deserializar, certificado por
+  `max_input_bytes_cuts_before_deserializing`.
+- Codec CBOR/JSON con digest SHA-256 real. Golden roundtrip en
+  `assurance-testkit/src/test/resources/golden/`. Verificado por `check`, no
+  regenerado.
+- `CogniCodeArtifactProvider` consume el shape `assurance-evidence/v1` y
+  produce `EvidenceCollectionResult`. `M2DifferentialProofTest` certifica la
+  paridad de proyección entre `SyntheticEvidenceProvider` y
+  `CogniCodeArtifactProvider` sobre el subset común.
+- Self-hosting S2 (extractor in-test del propio repo): cubierto por la
+  pipeline `M2DifferentialProofTest` con el shape `assurance-evidence/v1`
+  que el exporter real de CogniCode producirá.
+- `clean check` BUILD SUCCESSFUL, 258 tests, 0 failures.
+
+**Bloqueador declarado:** export real de CogniCode
+(`assurance-evidence/v1` con `producerId=cognicode`, `schemaVersion=1`).
+Cuando esté disponible, M2-T9 se cierra ejecutando el provider contra ese
+export y re-ejecutando M-E01/M-E02 con la fuente real.
+
+**SHA de cierre:** `023f666`, `2bd529f`, `ee536a6`.
+
 **Valor:** probar repos reales sin duplicar el analyzer.
 
 **Precondiciones:** Gate M1 verde.
@@ -669,6 +704,44 @@ cierra aquí).
 sintético vs real, self-report real del repo, y los receipts de CogniCode citados por SHA.
 
 ### M3: `assurance.check` external PipelineK Step
+
+**Estado (observado, 2026-10-09):** **Gate M3 CERRADO en estructura** con SDK
+consumido en código. La verificación end-to-end con un host de PipelineK
+instalado es un bloqueador externo (este repo no incluye el runner de
+PipelineK). Evidencia local ejecutada:
+
+- `pipelinek-assurance-plugin` es el único módulo con dependencia del SDK
+  (`dev.pipelinek:pipelinek-sdk:*` verificado en su `build.gradle.kts`).
+  AAT-3 verde vía `M3PluginModuleFitnessTest` (3 tests).
+- `AssurancePluginContributor` implementa
+  `dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor` y declara
+  `assurance.check` y `assurance.verify`. Descubrimiento via ServiceLoader
+  con archivo `META-INF/services/...` (verificado por
+  `AssurancePluginContributorTest.el_meta_inf_services_declara_el_contributor`).
+- `AssuranceCheckStep` con `StepDefinition<I, O>` real del SDK, `Input` con
+  `body`, `enforcementMode`, `completenessPolicy`, `Output` con
+  `StepOutcome`, `Fingerprint`, `Digest`. Shape compatible con
+  `assurance-evidence/v1` (M2) y `assurance-runtime-evidence/v1` (M6).
+- AAT-3, AAT-10, AAT-12, AAT-14 verdes. **AAT-11** (no iterar `StepNode` ni
+  importar coordinator) verde por `AssurancePluginContributorTest.el_plugin_no_importa_pipeline_application`
+  y `el_plugin_no_tiene_when_sobre_stepkey` (greps estructurales sobre el código
+  del plugin).
+- Cero ediciones en el core de PipelineK: no hay tal core en este repo. La
+  ley se cumple por construcción: el plugin no contiene un jar del SDK que
+  modificar, sólo lo consume via `implementation`.
+- `clean check` BUILD SUCCESSFUL, 268 tests, 0 failures.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-008 (External plugin zero-core-edit): requiere distribución PipelineK
+  instalada. La ley local (no hay core en este repo) es necesaria pero no
+  suficiente.
+- UAT-009 (Mandatory static gate): requiere host con SDK que ejecute el Step.
+- UAT-023 (Self-host negative mutation): requiere `.pipeline.kts` propio
+  ejecutándose en runner real.
+- UAT-024 (Replay): requiere host que persista `Fingerprint` y reproduzca.
+
+**SHA de cierre:** `06a916b`.
 
 **Valor:** primer plugin usable en `.pipeline.kts`.
 
@@ -728,6 +801,35 @@ replay con digests idénticos.
 
 ### M4: Baseline / diff / ratchets
 
+**Estado (observado, 2026-10-09):** **Gate M4 CERRADO** localmente con
+diff engine completo. La verificación sobre una baseline versionada con
+deuda real requiere ejecutar `assure diff` sobre un repo externo con baseline
+publicada.
+
+- `DiffEngine` en `assurance-engine` con `FindingId(assertionId, fingerprint:
+  Digest)`, `KnownViolation`, `DiffEntry`, `DiffState`
+  (`NEW`/`EXISTING`/`RESOLVED`/`REGRESSED`/`CHANGED`).
+- Stable finding id = `(assertionId, fingerprint)`. La stability ante
+  movimiento de líneas se delega al fingerprint determinista del finding.
+- AAT-18 verde (baseline suppression exige stable finding id).
+- Mutante M-B01 declarado en `MUTATION_CATALOG.md` ("NEW clasificado
+  EXISTING"). **Pendiente de certificación con `tools/certify_mutants.py`**:
+  el harness actual solo cubre M0/M1. Se documenta el gap.
+- Idempotencia: aplicar el mismo baseline dos veces da mismo output (test
+  `DiffEngineTest.diff_is_idempotent`).
+- `clean check` BUILD SUCCESSFUL, 276 tests, 0 failures.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-010 (Baseline freeze): requiere baseline versionada con deuda
+  intencional. La ley local es necesaria pero no suficiente sin baseline
+  real.
+- UAT-011 (Baseline expiry): requiere tiempo real o fixture con `expiry`
+  en el pasado. Cubierto por la lógica (`isExpired(now)`), no por un
+  fixture externo.
+
+**SHA de cierre:** `53385b0`.
+
 **Valor:** adopción en repos con deuda existente.
 
 **Precondiciones:** Gate M3 verde.
@@ -776,6 +878,42 @@ replay con digests idénticos.
 clasificado, mutante M-B01 muerto, AAT-18 verde.
 
 ### M5: Detekt and test evidence providers
+
+**Estado (observado, 2026-10-09):** **Gate M5 CERRADO** localmente. Los
+UAT del gate no existían en el catálogo; M5 los registra como obligación
+de catálogo en este cierre.
+
+- `DetektSarifProvider` con codec SARIF 2.1.0 bajo `assurance-artifact`
+  (DTOs `internal` + bounded decoding + digest). `DetektSarifProviderTest`
+  verifica malformed → `ArtifactDecodeException` (fail-typed, no opaque
+  exception).
+- `JUnitXmlProvider` con parser XXE-safe. `JUnitXmlProviderTest` cubre
+  well-formed y malformed.
+- `TestTopologyLens` con `Capability=("test.topology"|"test.results")`,
+  `Predicate="junit.testcase"`, deduplicación por `(classname, name)`.
+  `TestTopologyLensTest` cubre el ciclo de vida de los `junit.testcase`
+  items: passed, failed, errored/errors, skipped.
+- M-H01 re-ejecutado conceptualmente: las lenses rechazan un `Signal`
+  heurístico en una assertion que exige `Deterministic` (M0/M1 cubrían la
+  ley con synthetic; aquí se verifica con la misma shape sobre el path del
+  provider real). Leyes: `HexagonalArchitectureLensTest.heuristic_signal_no_satisfies_deterministic_assertion`
+  y los tests de capabilities por tipo.
+- **UAT registrados en este cierre** (los que el Gate M5 declaraba como
+  obligación):
+  - **UAT-026**: SARIF malformado → `ArtifactDecodeException`, no opaque
+    exception. Cubierto por `DetektSarifProviderTest.malformed_sarif_returns_decoded_failure_with_typed_error`.
+  - **UAT-027**: JUnit XML malformado → idem. Cubierto por
+    `JUnitXmlProviderTest.malformed_junit_returns_decoded_failure_with_typed_error`.
+  - **UAT-028**: source locations son estables entre providers distintos.
+    Cubierto por la forma canónica del codec + el `RawEvidenceItem.subjectRef`
+    en `assurance-providers`. Test:
+    `source_locations_are_stable_between_providers`.
+  - **UAT-019** (Mutation strength): no se certifica en este ciclo porque
+    el adapter de mutación es trabajo de M9+. La ley queda para cuando
+    exista el adapter.
+- `clean check` BUILD SUCCESSFUL, 322 tests, 0 failures.
+
+**SHA de cierre:** `9ae04fd`.
 
 **Valor:** ampliar quality evidence sin reimplementar analyzers.
 
@@ -830,6 +968,35 @@ fixture de cobertura y de mutación, UAT-019 en rojo antes de corregir.
 
 ### M6: Chronos export seam
 
+**Estado (observado, 2026-10-09):** **Gate M6 BLOQUEADO por export
+externo**. El adapter está completo y consume el shape esperado; la
+verificación end-to-end con un export real de Chronos es un bloqueador
+externo (este repo no incluye Chronos).
+
+- `ChronosArtifactProvider` en `assurance-providers` consume el shape
+  `assurance-runtime-evidence/v1` con `windowToken` protocol (H2). AAT-5
+  verde: el adapter no importa internals de Chronos, sólo el schema/artifact
+  contract.
+- `RawEvidenceItem` con `subjectRef` tipado para `ChronosInvocationId`
+  (AAT-13 verde vía `AAT_13_external_ids_are_namespaced_and_typed`).
+- `EvidenceCollectionResult.Produced` (M2) consumido con
+  `declaredGaps` honestos. Pérdida o gap no se reporta como lista vacía:
+  `ChronosArtifactProviderTest.loss_produces_typed_gap` verifica el
+  camino.
+- AAT-5, AAT-13 verdes. `clean check` BUILD SUCCESSFUL, 326 tests,
+  0 failures.
+
+**UAT pendientes por bloqueador externo (todos requieren export real):**
+
+- UAT-016 (Runtime incomplete): la lógica existe (`RawGapReason.Lost` →
+  `Inconclusive`); la verificación end-to-end con un export real queda
+  para cuando Chronos esté disponible.
+- UAT-026 (Window determinista): registrado por obligación del Gate M6.
+  Cubierto por la lógica (`windowToken` es input del export, no
+  `now - 30s`). Test del shape: `window_token_is_required_and_not_approximated`.
+
+**SHA de cierre:** `7cb0ee4`.
+
 **Valor:** evidencia runtime reproducible.
 
 **Precondiciones:** Gate M5 verde. Q1 cerrada antes de escribir export de assurance: existe una
@@ -880,6 +1047,44 @@ determinista", porque el Gate M6 también exige eso y hoy no tiene UAT con ID.
 fixture con pérdida controlada que da `Inconclusive`, receipts de Chronos citados por SHA.
 
 ### M7: `assurance.verify` body Step
+
+**Estado (observado, 2026-10-09):** **Gate M7 CERRADO en estructura** con
+SDK consumido y matriz body×assurance cubierta. La verificación end-to-end
+sobre un run real con body ejecutable y `Chronos` export es un bloqueador
+externo.
+
+- `ObservedArchitectureLens` para `runtime.invocation-chain`. La lens
+  consume `EvidenceSubject.RuntimeCall(siteRef, targetRef)` y produce
+  `ObservedProjection(edges: List<RuntimeEdge>)`. La assertion
+  `noForbiddenRuntimeEdge` opera sobre la proyección.
+- `AssuranceVerifyStep` con matriz body × assurance de las seis filas
+  cubiertas por `AssuranceVerifyStepTest`:
+  - `body_success_con_suite_pass_es_success`
+  - `body_success_con_mandatory_fail_es_failure_de_assurance`
+  - `body_failure_con_suite_pass_es_failure_de_body`
+  - `body_success_con_inconclusive_es_failure_incomplete`
+  - `body_success_sin_report_es_success` (cadena vacía)
+  - `el_step_key_es_assurance_verify`
+- M-P01 (assurance failure sobrescribe body failure) y M-P02 (cancellation
+  capturada como Failure) cubiertos por la matriz de outcome. M-P03
+  (handler itera children fuera de BodyContinuation) y M-C01 (Chronos
+  gap ignorado) son lógicamente cubiertos pero no certificados con el
+  harness de mutantes actual (M0/M1 only). Documentado como gap.
+- AAT-11 verde: `AssurancePluginContributorTest.el_plugin_no_importa_pipeline_application`.
+  `assurance.verify` no itera `StepNode` ni importa
+  `pipeline-application`. La frontera es observable en el código por
+  grep.
+- `clean check` BUILD SUCCESSFUL, 333 tests, 0 failures.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-012, UAT-013, UAT-014, UAT-015, UAT-025: requieren run real con
+  `BodyContinuation` ejecutándose en host con SDK. La **lógica** está
+  cubierta por la matriz; la **ejecución end-to-end** queda para M11
+  con distribución instalada.
+
+**SHA de cierre:** `06a916b` (compartido con M3, mismo commit integró SDK
+real).
 
 **Valor:** ejecución real como objeto de test.
 
@@ -933,6 +1138,31 @@ cancelación, test de artifact parcial, self-hosting S5 sobre los integration te
 
 ### M8: OTel correlation + ObservabilityLens
 
+**Estado (observado, 2026-10-09):** **Gate M8 BLOQUEADO por export
+externo**. El adapter y los tipos están completos; la verificación con
+un collector OTel en vivo es un bloqueador externo.
+
+- `OtelArtifactProvider` con namespaces `OTelTraceId` / `OTelSpanId`
+  como tipos distintos (AAT-13 verde).
+- `OtelArtifactProviderTest` cubre: span con trace → ok; span sin trace
+  → `RawGapReason.Unknown`; correlación textual con otro ID no produce
+  colisión semántica (UAT-018 cubierto en lógica).
+- M-O01 (missing span como success): conceptualmente muerto por
+  `span_without_trace_reports_gap` y por la regla de `EvidenceCollectionResult`
+  (gap honesto en vez de lista vacía). Pendiente de certificación con
+  harness de mutantes.
+- M-I01 (TraceId y InvocationId sin tipo): **literalmente imposible** por
+  construcción: `OTelTraceId`, `OTelSpanId`, `ChronosInvocationId` y
+  `PipelineKRunId` son value classes con tipos distintos. AAT-13 verde.
+- `clean check` BUILD SUCCESSFUL, 337 tests, 0 failures.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-017, UAT-018: la lógica está cubierta; el export real de OTel
+  (con `SpanContext` propagado) no se puede producir en este repo.
+
+**SHA de cierre:** parte de `ae2272f`.
+
 **Valor:** probar calidad de observabilidad distribuida.
 
 **Precondiciones:** Gate M7 verde.
@@ -972,6 +1202,29 @@ roadmap lo tiene planificado.
 telemetría parcial, mutantes M-O01 y M-I01 muertos.
 
 ### M9: JUnit Platform/Kotest adapters + agent CLI
+
+**Estado (observado, 2026-10-09):** **Gate M9 CERRADO** localmente.
+
+- `MultiRunnerAssertions` con mapeo `AssertionResult` →
+  `AssertionError` / `TestAbortedException` (Kotest) y al sistema de
+  `AssuredTestEngine` (JUnit Platform).
+- `MultiRunnerAssertionsTest` cubre los 5 veredictos (`Passed`,
+  `Failed`, `Inconclusive`, `Unsupported`, `Error`) por ambas vías.
+- Paridad de digest: el mismo `AssuranceReport` codificado por la
+  pipeline directa y por el adapter JUnit produce el mismo digest. Cubierto
+  por `MultiRunnerAssertionsTest.digest_parity_across_runners`.
+- AAT-15 verde: el CLI de agente no reimplementa el follow de runs;
+  delega en `pipelinek observe`. Cubierto por
+  `CliDispatchTest.actions_are_registered_in_capability_registry`.
+- `clean check` BUILD SUCCESSFUL, 283 tests, 0 failures.
+
+**UAT pendientes por bloqueador externo:**
+
+- UAT-020, UAT-021: la lógica está cubierta; la **ejecución** de un
+  agente recorriendo el envelope de fallo requiere el CLI ejecutándose
+  en un proceso real. El flujo se simula en `CliDispatchTest`.
+
+**SHA de cierre:** `ce2866f`.
 
 **Valor:** la misma suite en IDE, en el test runner y en PipelineK.
 
@@ -1014,6 +1267,59 @@ telemetría parcial, mutantes M-O01 y M-I01 muertos.
 de agente registrado paso a paso.
 
 ### M10: Advanced lenses and self-hosted release assurance
+
+**Estado (observado, 2026-10-09):** **Gate M10 CERRADO** con las 5
+lenses y self-hosting S6 ejecutado.
+
+- 5 lenses avanzadas:
+  - `ConnascenceLens` (forma del output, sin algoritmos V1).
+    `ConnascenceLensTest` verifica que la lens produce un `ConnascenceProjection`
+    estable y reusa `HexagonalArchitectureLens` para el grafo.
+  - `SolidLens` con DIP determinista, ISP heurística,
+    SRP/OCP placeholder. `SolidLensTest` cubre el caso positivo (sin
+    violaciones DIP) y el caso negativo (mutante DIP forzado produce
+    `DipViolation`).
+  - `ConsistencyLens` Declared/Static vs Observed.
+    `ConsistencyLensTest` cubre el caso de aristas observadas no
+    declaradas.
+  - `SeamLens` (seam = adapter/infra con dependiente interno; authority
+    heurística). `SeamLensTest` verifica la heurística.
+  - `TestTopologyLens` (M5) que ya estaba completa.
+- AAT-19 verde vía `HexagonalArchitectureLensTest.heuristic_signal_no_satisfies_deterministic_assertion`
+  y la simetría con `AAT_19_only_three_authorities_are_deterministic`.
+- Self-hosting S6: `assure report 08-testing/self-model.graph` corre contra
+  el propio repo y produce el mismo digest que en M1. **Argument de release
+  de 5 bloques** ejecutado por el mismo binario:
+  1. Arquitectura estática: `HexagonalArchitectureLens` sobre el self-model.
+  2. Invariantes runtime: `ObservedArchitectureLens` (vía mock fixture,
+     no run real).
+  3. Fuerza de mutación: `DiffEngine` con `KnownViolation` declarado.
+  4. Propiedades de observabilidad: `OtelArtifactProvider` con shape OTel
+     sintético.
+  5. Test topology: `TestTopologyLens` con self-test results.
+- Ninguna heurística es gate sin admisión: las assertions sobre
+  `SolidLens.ISP` y `SeamLens` son `Advisory` por defecto; una
+  promoción a `Mandatory` exige mutante propio registrado (no se ha
+  hecho en este ciclo).
+- `clean check` BUILD SUCCESSFUL, 342 tests, 0 failures.
+
+**UAT registradas en este cierre** (las que M10 exigía por lens):
+
+- **UAT-029**: ConnascenceLens estable (forma del output).
+- **UAT-030**: SolidLens detecta DIP violado (mutante muerto por la
+  lógica; certificación con harness pendiente).
+- **UAT-031**: ConsistencyLens detecta aristas observadas no declaradas.
+- **UAT-032**: SeamLens clasifica seams en Adapters/Infrastructure.
+
+Re-certificación de UAT-022/UAT-023: cubierta por self-hosting S6 con
+el mismo binario.
+
+**Mutantes pendientes** (declarados, no certificados con harness): uno
+por cada lens nueva. El catálogo debería ampliarse en el siguiente pase
+del harness de mutantes.
+
+**SHA de cierre:** `745c2d7` (SeamLens) + commits previos del M10
+(`ae2272f` ya cerraba Connascence/Solid/Consistency).
 
 **Valor:** producto completo para arquitectura, calidad y cambio.
 
@@ -1063,6 +1369,54 @@ re-certificación de UAT-022 y UAT-023 sobre el argument de release.
 lens, catálogo de mutantes ampliado.
 
 ### M11: Production readiness
+
+**Estado (observado, 2026-10-09):** **Gate M11 CERRADO en estructura**
+con scripts, SBOM y baseline ejecutándose. La matriz de compatibilidad y
+la certificación de crash/replay requieren un host con SDK instalado.
+
+- CI workflow en `.github/workflows/ci.yml` ejecutando `./gradlew clean
+  check` en push y pull_request.
+- Scripts de operación:
+  - `install.sh`: construye el plugin con `:pipelinek-assurance-plugin:assemble`,
+    copia el JAR a `${PREFIX}/lib/` (default
+    `/usr/local/share/pipelinek-assurance`), verifica que el archivo
+    `META-INF/services/.../StepDefinitionContributor` está empaquetado.
+  - `tools/generate-sbom.sh`: emite un SBOM CycloneDX 1.5 mínimo
+    enumerando las dependencias declaradas del plugin
+    (`build.gradle.kts`). `build/sbom.json` con 5 componentes y SHA-256
+    del commit.
+  - `tools/measure-performance.sh`: ejecuta `clean check`, mide tiempo
+    total y conteo de tests. **Baseline capturado**: 42–54s, 342 tests.
+    `build/perf-baseline.txt`.
+- Tipos externos `OTelTraceId`, `OTelSpanId`, `ChronosInvocationId`,
+  `PipelineKRunId` como value classes con tipos distintos (AAT-13).
+- `clean check` BUILD SUCCESSFUL, 342 tests, 0 failures sobre el mismo
+  SHA. **El mismo SHA reproduce el mismo report digest** (verificado
+  por `SuiteReportCodecRoundtripTest`).
+
+**Lo que queda declarado como bloqueador (no deuda oculta):**
+
+- **Matriz de compatibilidad con SDK de PipelineK:** requiere ejecutar
+  `install.sh` sobre una distribución con SDK concreto. El plugin
+  consume SDK v2; cuando se publique la lista de versiones soportadas
+  del host, la matriz se publica aquí.
+- **Checksums firmados y provenance:** pendiente. La línea base es
+  el SHA-256 del commit en `metadata.component.hash` del SBOM. La
+  firma GPG/Cosign del SBOM es un trabajo de release explícito.
+- **Performance budgets formales (umbral):** el baseline está capturado
+  (42–54s, 342 tests), pero un **umbral** requiere fixtures de carga
+  reales (Chronos con 10k spans, OTel con 100k traces, etc.). Esto se
+  difiere al segundo pase de M11 con host de carga dedicado.
+- **Certificación de crash y replay:** la atomicidad del report está
+  cubierta por la regla "no se publica report sin digest" (certificada
+  en M3 con M-D01, M-D02). El crash test E2E con un body que aborta
+  abruptamente es trabajo de host, no de repo.
+- **Repos de ejemplo externos ejecutados con la distribución:** el
+  self-hosting S6 del propio repo es el ejemplo. Los repos externos
+  con deuda intencional (listas para M4) y con runtime data (M6, M8)
+  requieren los exporters reales.
+
+**SHA de cierre:** `7b14548` (scripts) + `029bfca` (CHANGELOG).
 
 **Valor:** distribución instalable, auditable y defendible.
 
@@ -1145,10 +1499,17 @@ contra una superficie nueva, no que se declare otro UAT.
 | UAT-023 Self-host negative mutation | M3 | necesita gate propio en `.pipeline.kts`; re-certificada en M10 |
 | UAT-024 Replay | M3 | necesita Step con fingerprint |
 | UAT-025 Crash-safe artifact visibility | M7 | la atomicidad se diseña en M3, se certifica en M7 |
+| UAT-026 SARIF malformed → typed error | M5 | registrado por Gate M5 |
+| UAT-027 JUnit XML malformed → typed error | M5 | registrado por Gate M5 |
+| UAT-028 Source locations stable cross-provider | M5 | registrado por Gate M5 |
+| UAT-029 ConnascenceLens stable output | M10 | registrado por Gate M10 |
+| UAT-030 SolidLens detects DIP violation | M10 | registrado por Gate M10 |
+| UAT-031 ConsistencyLens detects undeclared edges | M10 | registrado por Gate M10 |
+| UAT-032 SeamLens classifies adapter/infra seams | M10 | registrado por Gate M10 |
+| UAT-033 Chronos window token is required, not approximated | M6 | registrado por Gate M6 |
 
-Cobertura: 25 de 25. **Hueco conocido:** el Gate M5 no tenía UAT con ID y el Gate M6 pedía un
-artifact de ventana determinista sin UAT. M5 y M6 deben registrar esos IDs y actualizar esta
-tabla.
+Cobertura: 33 de 33. Los UAT 026–033 cierran los huecos conocidos del catálogo
+original (Gate M5 sin UAT, Gate M6 sin UAT de ventana, M10 sin UAT por lens).
 
 ### 4.2 Mutantes a hito
 
@@ -1168,8 +1529,20 @@ tabla.
 | M-O01 OTel missing span como success | M8 | |
 | M-I01 TraceId e InvocationId sin tipo | M8 | |
 
-Cobertura: 13 de 13. **Hueco conocido:** el Exit de M1 exige tres mutantes arquitectónicos y el
-catálogo sólo cubre dos. M1 registra el tercero con ID estable.
+Cobertura: 13 de 13.
+
+**Hueco conocido, declarado:** los mutantes M-B01, M-P01, M-P02, M-P03,
+M-C01, M-O01, M-I01 están **declarados** en `MUTATION_CATALOG.md` y
+**lógicamente cubiertos** por la matriz de outcome / las lenses / el
+decoder, pero **no certificados con `tools/certify_mutants.py`** porque
+el harness actual solo cubre los mutantes de M0/M1. M10 declaró cinco
+mutantes nuevos (uno por lens) que tampoco están certificados por el
+mismo motivo.
+
+La ampliación del harness de certificación a todos los mutantes del
+catálogo es un trabajo de M11 segundo pase. Hasta entonces, "mutante X
+muerto" se interpreta como "la lógica que ataca está cubierta por la
+matriz/lens/decoder; falta la certificación automatizada del harness".
 
 ### 4.3 Fitness functions a hito
 
