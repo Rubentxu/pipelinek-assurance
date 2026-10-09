@@ -153,8 +153,10 @@ class AssuranceVerifyStepTest : AnnotationSpec() {
         // processor recibiera el handler facilitaría el bug "iterar
         // children llamando al handler". Esta test confirma la forma
         // correcta: outcome es el dato, handler es la entrada.
+        val counter = intArrayOf(0)
         val seen: MutableList<AssuranceVerifyStep.BodyOutcome> = mutableListOf()
         val handler = AssuranceVerifyStep.BodyContinuation {
+            counter[0] += 1
             AssuranceVerifyStep.BodyOutcome.Failure(
                 error = IllegalStateException("body"),
                 message = "original",
@@ -169,6 +171,9 @@ class AssuranceVerifyStepTest : AnnotationSpec() {
         // por runBodyOnce; no hay otro BodyOutcome "secreto" en
         // juego.
         (seen[0] === outcome) shouldBe true
+        // M-P03 redundancia: con el mutante que añade handler.run()
+        // antes del processor, el contador subiría a 2.
+        counter[0] shouldBe 1
     }
 
     @Test
