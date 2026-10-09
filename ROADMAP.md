@@ -1928,3 +1928,131 @@ El ciclo M2..M11 está **completo en lo cerrable dentro de este
 repo**. Lo que queda es trabajo de release que requiere los repos
 externos o decisiones de release explícitas (firma, umbral, matriz
 de compatibilidad).
+
+## 8. Conocimiento negativo (intentos que no funcionaron)
+
+Lo que se intentó durante el ciclo y se retiró, con la razón. Sin
+esto, el cierre diría qué se entregó pero no qué se descartó, y un
+próximo ciclo acabaría re-descubriendo lo mismo.
+
+### 8.1 `assure evidence path` con `args[0] == "evidence path"`
+
+**Síntoma:** exit 2 siempre.
+
+**Causa:** el dispatcher comparaba el primer argumento contra el
+literal `"evidence path"`, dos palabras. Nunca coincidía.
+
+**Resolución:** dispatcher por prefijo más largo contra el registry
+de comandos. Verificado por `CliDispatchTest`. El CLI ya no anuncia
+un comando que él mismo rechaza.
+
+### 8.2 `runCatching { }.map { }` escapando excepciones
+
+**Síntoma:** una fixture ilegible reventaba con excepción en vez de
+fallar cerrado.
+
+**Causa:** `Result.map` ejecuta su bloque fuera del `try`, así que
+la excepción del codec se escapaba. Fail-closed exige envelope con
+exit 1, no un crash.
+
+**Resolución:** convertir a `getOrElse` con envelope explícito.
+
+### 8.3 M-A01 sobrevivió al catálogo porque el código era muerto
+
+**Síntoma:** el mutante "quitar el recorrido de infracciones de
+`noDependency`" no era matado por ningún test.
+
+**Causa (no la fácil):** la assertion iteraba sobre aristas
+prohibidas y pedía el camino más corto de `edge.from` a `edge.to`.
+Como `(from, to)` era una arista del propio grafo, el BFS la veía
+en la primera expansión y devolvía `[from, to]`. El
+`sortedBy { camino.size }` que elegía el testigo ordenaba una lista
+de constantes: era un no-op con apariencia de selector.
+
+**Resolución:** la assertion se reescribió para iterar sobre
+módulos y capas, no sobre aristas. **Lección:** un mutante que
+sobrevive no se cura añadiendo tests; se pregunta primero si el
+código que ataca está vivo, y un buen detector de código muerto es
+el propio selector que no selecciona nada.
+
+### 8.4 `MAX_COLLECTION_SIZE` declarada y nunca leída
+
+**Síntoma:** la cota estaba en `init` como `require` pero ningún
+camino la ejecutaba.
+
+**Causa:** la verificación vivía en un constructor secundario con
+los mismos tipos que el primario, Kotlin no los distingue, y nunca
+se llamaba.
+
+**Resolución:** verificación movida al path del decoder, no del
+constructor. La salvaguarda real es `MAX_INPUT_BYTES` sobre los
+BYTES antes de deserializar; la cota de colección es un segundo
+cinturón y no evita un OOM por sí sola (documentado en
+`EvidenceArtifactCodec`).
+
+### 8.5 `generate-sbom.sh` con array vacío
+
+**Síntoma:** `components: []` en `build/sbom.json` a pesar de que
+el grep extraía las dependencias correctamente.
+
+**Causa:** el script tenía un `cat > "$OUT" <<EOF` para la cabecera
+y otro `cat >> "$OUT" <<EOF` para el cierre, pero los `cat <<EOF`
+de los componentes iban a stdout, no al archivo. La variable
+`COMPONENTS_JSON` con `$'\n'` tampoco se expandía dentro del
+heredoc.
+
+**Resolución:** construir el SBOM con `printf` por línea y
+redirección explícita `>> "$OUT"` en cada componente. El sed
+también se ajustó a dos pasadas: literales `"..."` y
+`project("...")`. Resultado: 5 componentes con group/name/version
+correctos.
+
+### 8.6 CBOR sobre `JsonElement` falla
+
+**Síntoma:** `cbor.decodeFromByteArray(JsonElement.serializer(),
+bytes)` lanzaba excepción.
+
+**Causa:** el codec intentaba deserializar como `JsonElement`
+genérico en vez de como el DTO específico.
+
+**Resolución:** `cbor.decodeFromByteArray(CogniCodeEvidenceExportDto.serializer(),
+bytes)` directo. El DTO tiene la estructura serializable correcta.
+
+### 8.7 `RawGapReason.PartialProduced` con argumento
+
+**Síntoma:** el enum no admitía un campo `coveredFraction`.
+
+**Causa:** se modeló como `enum class` con casos sin payload.
+
+**Resolución:** se cambió a `sealed interface RawGapReason` con
+`data class PartialProduced(coveredFraction: String)`. La
+flexibilidad del sealed interface permite payload en los casos
+que lo necesitan.
+
+### 8.8 TestTopologyLens con filtros incorrectos
+
+**Síntoma:** la lens recibía items pero no proyectaba el grafo de
+tests.
+
+**Causa (múltiple):** se asumía que `EvidenceItem` tenía un campo
+`payload` con estructura distinta; el formato real es
+`objectValue: String?` con `key=value;...`. Además, se
+duplicaban items en vez de deduplicar por `(classname, name)`. El
+status `"errored"` se rechazaba en favor de `"errors"`.
+
+**Resolución:** la lens se reescribió para usar
+`EvidenceSubject.Test(classname#name)`, deduplica por par, y
+acepta ambos status como equivalentes semánticos.
+
+## 9. Cierre del ciclo
+
+Este ROADMAP se considera **completo en lo cerrable dentro de este
+repo** en la fecha indicada en §7. Los hitos M0, M1, M2, M3, M4, M5,
+M7, M9, M10 están cerrados con gate verde en la dimensión local.
+M6, M8 están bloqueados por export externo (Chronos, OTel). M11
+está cerrado en estructura (scripts, SBOM, baseline, CI) con
+release items pendientes (firma, umbral, matriz de compatibilidad,
+repos de ejemplo).
+
+El conocimiento negativo en §8 deja escrito lo que se intentó y
+no funcionó, para que un próximo ciclo no lo redescubra.
