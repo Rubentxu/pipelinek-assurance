@@ -382,6 +382,16 @@ sealed interface AssertionResult {
                 declaredGaps = emptyList(),
             )"""),
     ])],
+    # M-I01: "TraceId e InvocationId comparten wrapper String sin
+    # tipo". El TypedExternalId se protege con un `require(
+    # value.isNotBlank)`; el mutante lo quita y deja pasar el
+    # "String desnudo" que la AAT-13 prohíbe.
+    "M-I01": [(DOMAIN, [(
+        """    init {
+        require(value.isNotBlank()) { "TypedExternalId no puede estar vacio" }
+    }""",
+        """    init { }"""),
+    ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.
     #

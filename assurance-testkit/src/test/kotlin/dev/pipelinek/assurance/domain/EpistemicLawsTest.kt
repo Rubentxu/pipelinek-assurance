@@ -10,6 +10,7 @@ import dev.pipelinek.assurance.testkit.EvidenceFixtures
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.AnnotationSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 
 /**
  * Leyes epistémicas de M0.
@@ -216,6 +217,42 @@ class EpistemicLawsTest : AnnotationSpec() {
         correlation.from.namespace shouldBe dev.pipelinek.assurance.domain.evidence.ExternalNamespace.ChronosInvocationId
         correlation.to.namespace shouldBe dev.pipelinek.assurance.domain.evidence.ExternalNamespace.OTelSpanId
         correlation.from.value shouldBe "inv-1"
+    }
+
+    @Test
+    fun M_I01_mismo_value_en_namespaces_distintos_no_colisiona() {
+        // M-I01: "TraceId e InvocationId comparten wrapper String
+        // sin tipo". La regla AAT-13 no se cumple solo con que el
+        // namespace esté guardado: el `value: String` no debe
+        // permitir que dos `TypedExternalId` distintos en namespace
+        // pero con el mismo string sean considerados iguales. La
+        // data class ya enforce esto por (namespace, value); este
+        // test documenta la regla y la pone bajo mutación.
+        val a = dev.pipelinek.assurance.domain.evidence.TypedExternalId(
+            dev.pipelinek.assurance.domain.evidence.ExternalNamespace.ChronosInvocationId,
+            "abc",
+        )
+        val b = dev.pipelinek.assurance.domain.evidence.TypedExternalId(
+            dev.pipelinek.assurance.domain.evidence.ExternalNamespace.OTelTraceId,
+            "abc",
+        )
+        (a == b) shouldBe false
+        a.namespace shouldNotBe b.namespace
+    }
+
+    @Test
+    fun M_I01_value_vacio_rechazado_por_init() {
+        // M-I01 redundancia: el wrapper rechaza `value` en blanco.
+        // Un mutante que quite el `require(value.isNotBlank())`
+        // deja pasar un TypedExternalId con value == "", que es
+        // exactamente el "String desnudo" que la AAT-13 prohíbe.
+        val ex = shouldThrow<IllegalArgumentException> {
+            dev.pipelinek.assurance.domain.evidence.TypedExternalId(
+                dev.pipelinek.assurance.domain.evidence.ExternalNamespace.OTelTraceId,
+                "",
+            )
+        }
+        ex.message?.contains("no puede estar vacio") shouldBe true
     }
 
     @Test
