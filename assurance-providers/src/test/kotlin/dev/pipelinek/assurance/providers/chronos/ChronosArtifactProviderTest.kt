@@ -99,10 +99,40 @@ class ChronosArtifactProviderTest : AnnotationSpec() {
         // M-C01: el gap de la capability `runtime.window` debe estar
         // con `RawGapReason.PartialProduced`.
         val match = produced.declaredGaps.find { it.capability == "runtime.window" }
-        if (match == null) {
-            // Debug: qué hay en la lista
-            throw AssertionError("gaps encontrados: ${produced.declaredGaps.map { it.capability }}")
+        (match != null) shouldBe true
+        (match?.reason is dev.pipelinek.assurance.engine.RawGapReason.PartialProduced) shouldBe true
+    }
+
+    @Test
+    fun M_C01_mezcla_de_capabilities_solo_emite_partial_sin_items() {
+        // M-C01 redundancia: con dos capabilities (una Partial sin
+        // items, otra Complete), el bueno emite SOLO la Partial.
+        // Un mutante filter-falso emite ninguna; un mutante que
+        // ignora el status emite ambas. El test verifica el caso
+        // bueno y deja al mutante filter-falso sin gap de Partial
+        // (cae en el primer test) y al mutante que ignora status
+        // con dos gaps.
+        val conMezcla = """
+            {
+              "windowToken": "wt-abc",
+              "sessionRef": "sess-1",
+              "invocations": [],
+              "completenessByCapability": {
+                "runtime.window": {"status": "Partial"},
+                "runtime.trace": {"status": "Complete"}
+              }
+            }
+        """.trimIndent()
+        val provider = ChronosArtifactProvider(conMezcla.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        // El bueno: exactamente 1 gap (runtime.window Partial).
+        // Un mutante que ignore status: 2 gaps.
+        // Un mutante filter false: 0 gaps.
+        val partialGaps = produced.declaredGaps.filter {
+            it.reason is dev.pipelinek.assurance.engine.RawGapReason.PartialProduced
         }
-        (match.reason is dev.pipelinek.assurance.engine.RawGapReason.PartialProduced) shouldBe true
+        partialGaps.size shouldBe 1
+        partialGaps[0].capability shouldBe "runtime.window"
     }
 }

@@ -26,6 +26,10 @@ CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/Evi
 SUITE_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/SuiteReportArtifactCodec.kt"
 ENGINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/Assurance.kt"
 HEX = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/HexagonalAssertions.kt"
+BASELINE = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/BaselineAndDiff.kt"
+PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assurance/plugin/AssuranceVerifyStep.kt"
+CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
+OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -34,6 +38,8 @@ REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes"
 REPORTS = [
     REPORT,
     os.path.join(ROOT, "assurance-artifact/build/reports/tests/test/classes"),
+    os.path.join(ROOT, "assurance-providers/build/reports/tests/test/classes"),
+    os.path.join(ROOT, "pipelinek-assurance-plugin/build/reports/tests/test/classes"),
 ]
 
 # Cada mutante: (nombre, [(fichero, [(buscar, reemplazar)]), ...])
@@ -277,6 +283,84 @@ sealed interface AssertionResult {
          """        lenses = suite.lenses
             .map { lens ->"""),
     ])],
+    # M4 / M7 / M8 / M10 — mutantes ampliados en el segundo pase del
+    # harness. Cubren los gaps declarados en ROADMAP §4.2 y §7.
+    #
+    # M-B01: "NEW clasificado EXISTING". En la rama de finding nuevo
+    # (known == null), el estado debe ser `New`. Si pasa a `Existing`,
+    # la ratchet no detecta regresiones nuevas. La rama de la
+    # excepción expirada también crea `New`, pero ese es un caso
+    # distinto (known no nulo, expirado); el mutante sólo ataca la
+    # primera.
+    "M-B01": [(BASELINE, [(
+        """        for ((id, failure) in currentFindings) {
+            val known = baselineById[id]
+            if (known == null) {
+                entries += DiffEntry(
+                    stableId = id,
+                    state = DiffState.New,""",
+        """        for ((id, failure) in currentFindings) {
+            val known = baselineById[id]
+            if (known == null) {
+                entries += DiffEntry(
+                    stableId = id,
+                    state = DiffState.Existing,"""),
+    ])],
+    # M-P01: "assurance failure sobrescribe body failure". En la rama
+    # `BodyOutcome.Failure`, el mutante hace que el resultado sea
+    # `StepOutcome.Success` cuando el report tiene fallos, sobres-
+    # cribiendo el fallo del body. La rama de body Success no se toca.
+    "M-P01": [(PLUGIN_VERIFY, [(
+        """            is BodyOutcome.Failure -> {
+                // El body falló. El fallo se preserva tal cual. El
+                // report de assurance se adjunta si existe, pero NO
+                // cambia el outcome del body.
+                val reason = buildString {
+                    append("body failure: ").append(body.message ?: body.error::class.simpleName.orEmpty())
+                    if (report != null) {
+                        append("; assurance report: ${report.summary.failed} failed, ${report.summary.inconclusive} inconclusive")
+                    }
+                }
+                StepOutcome.Failure(reason)
+            }""",
+        """            is BodyOutcome.Failure -> {
+                // El body falló. El fallo se preserva tal cual. El
+                // report de assurance se adjunta si existe, pero NO
+                // cambia el outcome del body.
+                StepOutcome.Success
+            }"""),
+    ])],
+    # M-P02: "cancellation capturada como Failure". En la rama
+    # `BodyOutcome.Cancelled`, el mutante convierte la cancelación en
+    # Failure. PipelineK usa la cancelación como control estructurado
+    # y la trata distinto de un fallo.
+    "M-P02": [(PLUGIN_VERIFY, [(
+        """            is BodyOutcome.Cancelled -> StepOutcome.Cancelled(body.reason)""",
+        """            is BodyOutcome.Cancelled -> StepOutcome.Failure(body.reason)"""),
+    ])],
+    # M-C01: "Chronos gap ignorado". La rama de gaps declarados debe
+    # añadirlos al `EvidenceCollectionResult`. El mutante los filtra
+    # haciendo que el filter nunca matchee (cambia la condición a
+    # false). Mantenemos los tipos correctos.
+    "M-C01": [(CHRONOS, [(
+        """            .filter { (_, c) -> c.status == "Partial" && items.isEmpty() }""",
+        """            .filter { (_, c) -> false }"""),
+    ])],
+    # M-O01: "OTel missing span como success". Un export OTel sin
+    # traceId/spanId debe producir un Failed. El mutante lo convierte
+    # en Produced con lista vacía.
+    "M-O01": [(OTEL, [(
+        """if (traceIds.isEmpty() && spanIds.isEmpty()) {
+            return failed("export OTel sin traceId ni spanId reconocibles")""",
+        """if (traceIds.isEmpty() && spanIds.isEmpty()) {
+            return EvidenceCollectionResult.Produced(
+                producerId = descriptor.id,
+                producerVersion = descriptor.version,
+                schemaVersion = "otel/trace/v1",
+                rawItems = emptyList(),
+                declaredGaps = emptyList(),
+            )"""),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
@@ -298,8 +382,14 @@ def run_tests():
     # regenera el informe HTML. El conteo de bajas daria 0 y el mutante
     # pareceria sobreviviente. Un falso "sobrevive" aqui es peor que un falso
     # positivo, porque frenaria el gate por una mentira.
+    # Modulos ampliados en el segundo pase: assurance-testkit, assurance-artifact,
+    # assurance-providers (Chronos/Otel/CogniCode/Detekt/JUnit), pipelinek-assurance-plugin.
     subprocess.run(
-        ["./gradlew", ":assurance-testkit:test", ":assurance-artifact:test",
+        ["./gradlew",
+         ":assurance-testkit:test",
+         ":assurance-artifact:test",
+         ":assurance-providers:test",
+         ":pipelinek-assurance-plugin:test",
          "--no-daemon", "--rerun-tasks"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,

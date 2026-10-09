@@ -89,6 +89,49 @@ class OtelArtifactProviderTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_O01_export_totalmente_vacio_es_failed_no_produced_vacio() {
+        // M-O01 redundancia: un export sin traceId NI spanId debe
+        // ser Failed, no Produced con lista vacía. Un mutante que
+        // devuelva Produced(emptyList) haría fallar este test.
+        // M-O01 ataca exactamente esa rama.
+        val exportVacio = """
+            {
+              "resourceSpans": [
+                {
+                  "scopeSpans": [
+                    {
+                      "spans": []
+                    }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+        val provider = OtelArtifactProvider(exportVacio.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        // M-O01: el export vacío NO es Produced(emptyList). Es Failed.
+        outcome.shouldBeInstanceOf<EvidenceCollectionResult.Failed>()
+    }
+
+    @Test
+    fun M_O01_failed_lleva_motivo_explicito_no_es_generico() {
+        // M-O01 redundancia: el Failed debe llevar un motivo
+        // explícito ("export OTel sin traceId ni spanId"). Un
+        // mutante que devuelva Produced vacío es detectable
+        // aquí (el outcome no es Failed y no hay motivo). Un
+        // mutante que devuelva Failed con motivo vacío sería
+        // detectable también.
+        val exportVacio = "{}"
+        val provider = OtelArtifactProvider(exportVacio.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val failed = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Failed>()
+        // El motivo debe mencionar OTel/trace/span, no ser genérico.
+        val reasonText = failed.reason.toString()
+        (reasonText.contains("traceId") || reasonText.contains("spanId") ||
+            reasonText.contains("OTel")) shouldBe true
+    }
+
+    @Test
     fun el_provider_no_retorna_assertion_result() {
         val provider = OtelArtifactProvider("{}".toByteArray())
         val result: Any = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
