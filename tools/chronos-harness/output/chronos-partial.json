@@ -1,0 +1,12 @@
+{
+  "causalEdges": [],
+  "completenessByCapability": {
+    "runtime.window": {
+      "status": "Partial"
+    }
+  },
+  "invocations": [],
+  "schemaVersion": "assurance-runtime-evidence/v1",
+  "sessionRef": "sess-harness-002",
+  "windowToken": "wt-partial-2026-10-10"
+}

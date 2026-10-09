@@ -1,0 +1,32 @@
+{
+  "causalEdges": [
+    {
+      "from": "span/handler",
+      "id": "edge-1",
+      "kind": "causal",
+      "to": "span/db"
+    }
+  ],
+  "completenessByCapability": {
+    "runtime.window": {
+      "status": "Complete"
+    }
+  },
+  "invocations": [
+    {
+      "durationMs": 10,
+      "id": "inv-1",
+      "outcome": "ok",
+      "subjectRef": "span/handler"
+    },
+    {
+      "durationMs": 20,
+      "id": "inv-2",
+      "outcome": "ok",
+      "subjectRef": "span/db"
+    }
+  ],
+  "schemaVersion": "assurance-runtime-evidence/v1",
+  "sessionRef": "sess-harness-001",
+  "windowToken": "wt-complete-2026-10-10"
+}
