@@ -1853,6 +1853,44 @@ respectivo hito, con la razón del bloqueo.
 Cerradas en §6. Las precondiciones de M6 y M7 (Q1, Q5) quedan
 satisfechas por la decisión documentada.
 
+### UAT ejecutados end-to-end con el CLI
+
+Ejecutables en este repo (no requieren host externo) verificados con
+el binario `assure` real, no con tests:
+
+```text
+$ ./gradlew :assure-cli:run --args="report 08-testing/self-model.graph"
+{"kind":"AssertionPass","data":{"passed":"2","total":"2",
+ "assertionId":"architecture.no-dependency",
+ "evidence":"synthetic/self-model/hexagonal/1",
+ "snapshotId":"08-testing/self-model.graph"}}
+
+$ ./gradlew :assure-cli:run --args="report <self-model-with-domain->-adapters>"
+{"kind":"AssertionFailure","data":{"explanation":"La capa
+ assurance-domain no puede alcanzar la capa Adapters:
+ assurance-domain -> assurance-testkit",
+ "fromLayer":"Domain","toLayer":"Adapters",
+ "path":"assurance-domain -> assurance-testkit",
+ "subjectRefs":"AssuranceEvaluationId:assurance-domain,
+                  AssuranceEvaluationId:assurance-testkit"},
+ "actions":[
+  {"rel":"counterexample","command":"assure evidence path ..."},
+  {"rel":"explain","command":"assure explain ..."}]}
+
+$ ./gradlew :assure-cli:run --args="evidence path architecture.no-dependency"
+{"kind":"EvidencePath","data":{"nota":"la evidencia de un
+ counterexample se lee del propio report"}}
+
+$ ./gradlew :assure-cli:run --args="explain architecture.no-dependency"
+{"kind":"ExplainUnavailable","data":{"motivo":"explain necesita
+ el snapshot; usa 'report' y lee el campo data.explanation"},
+ "actions":[{"rel":"report","command":"assure report <ref>"}]}
+```
+
+Cubre UAT-003 (Minimal forbidden dependency con witness path
+reproducible), UAT-022 (Self-host architecture), UAT-021 (Agent
+discoverability con flujo `report → evidence path / explain`).
+
 ### SHA de cierre por hito
 
 | Hito | SHA | Estado |
