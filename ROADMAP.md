@@ -1802,32 +1802,54 @@ producers directamente.
 ### Mutantes certificados con `tools/certify_mutants.py`
 
 Salida del runner tras `clean check` (capturada en
-`build/evidence/m0-m10-mutants.txt`):
+`build/evidence/m0-m10-mutants.txt` y
+`build/evidence/m0-historicos-mutants.txt`):
 
 ```text
-M-A01:   total=335 killed=3   (domain-purity)
-M-A02:   total=335 killed=4   (eliminar arista antes de SCC)
-M-A03:   total=335 killed=4   (ciclo ABC pasa por no serlo)
-M-H01:   total=335 killed=2   (heuristic signal como deterministic)
-M-B01:   total=335 killed=2   (NEW clasificado EXISTING)
-M-P01:   total=335 killed=2   (assurance failure sobrescribe body failure)
-M-P02:   total=335 killed=2   (cancellation capturada como Failure)
-M-C01:   total=335 killed=2   (Chronos gap ignorado)
-M-O01:   total=335 killed=2   (OTel missing span como success)
+M-E01: total=335 killed=3   (Partial se trata como Complete)
+M-E02: total=335 killed=3   (Hypothesis se acepta como Fact)
+M-R01: total=335 killed=31  (report serializer no canonicaliza maps)
+M-R02: total=335 killed=9   (digest ordena por clave sin desempate)
+M-R03: total=335 killed=4   (report CBOR no canonicaliza results)
+M-R04: total=335 killed=2   (report CBOR no canonicaliza correlations)
+M-S01: total=335 killed=2   (cotas no se aplican al construir)
+M-S02: total=335 killed=2   (cota de longitud ausente)
+M-D01: total=335 killed=4   (envelope no verifica digest)
+M-D02: total=335 killed=4   (digest vuelve a ser opcional)
+M-J01: total=335 killed=3   (orden de declaracion kotlinx)
+M-V01: total=335 killed=3   (EvidenceProvider retorna AssertionResult)
+M-V02: total=335 killed=3   (AssertionResult deja de ser sealed)
+M-V03: total=335 killed=2   (canonicalizeSuite no ordena lenses)
+M-A01: total=335 killed=3   (domain-purity)
+M-A02: total=335 killed=4   (eliminar arista antes de SCC)
+M-A03: total=335 killed=4   (ciclo ABC pasa por no serlo)
+M-H01: total=335 killed=2   (heuristic signal como deterministic)
+M-B01: total=335 killed=2   (NEW clasificado EXISTING)
+M-P01: total=335 killed=2   (assurance failure sobrescribe body failure)
+M-P02: total=335 killed=2   (cancellation capturada como Failure)
+M-C01: total=335 killed=2   (Chronos gap ignorado)
+M-O01: total=335 killed=2   (OTel missing span como success)
 M-10-01: total=335 killed=3   (ConnascenceLens: strength 6 aceptado)
 M-10-02: total=335 killed=3   (SolidLens: DIP violation no detectada)
 M-10-03: total=335 killed=3   (ConsistencyLens: contradiccion no detectada)
 M-10-04: total=335 killed=3   (SeamLens: TODOS los modulos clasificados)
 ```
 
-13 mutantes certificados. **Todos** con redundancia ≥ 2 (killed
-contado sobre los tests del plugin/lens que atacan, sin contar
-los OTel cache de harn runs anteriores). Sin AVISO de
-redundancia insuficiente.
+**27 mutantes certificados** con el harness. **Todos** con
+redundancia ≥ 2. Sin AVISO de redundancia insuficiente.
 
-Los demás mutantes de M0 (M-E01, M-E02, M-R01..R04, M-S01/S02,
-M-D01/D02, M-J01, M-V01..V03) se certificaron en el cierre de M0
-(`b1cfbc5`/`c416521`) y siguen verdes por el `clean check` actual.
+**2 mutantes del catálogo sin certificado en el harness** (M11
+segundo pase):
+
+- **M-P03** ("handler itera children fuera de BodyContinuation"):
+  la lógica del plugin lo enforce por construcción; añadir el
+  mutante al harness requiere un test que ejercite la rama de
+  iteración, que en V1 no existe.
+- **M-I01** ("TraceId y InvocationId sin tipo"): literalmente
+  imposible por construcción; `OTelTraceId`, `OTelSpanId`,
+  `ChronosInvocationId` y `PipelineKRunId` son value classes
+  con tipos distintos (AAT-13 verde). Un mutante que rompa la
+  distinción de tipos no compila.
 
 **Ampliaciones del harness en este ciclo:**
 
