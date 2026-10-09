@@ -1801,36 +1801,38 @@ producers directamente.
 
 ### Mutantes certificados con `tools/certify_mutants.py`
 
-Salida del runner (capturada en `build/evidence/m0-m1-mutants.txt`):
+Salida del runner (capturada en `build/evidence/m0-m10-mutants.txt`):
 
 ```text
-M-A01: total=252 killed=3
-  killed: HexagonalAssertionsTest>UAT_003_el_witness_es_el_camino_mas_corto_HASTA_LA_CAPA_PROHIBIDA_no_la_arista_mas_corta
-  killed: HexagonalAssertionsTest>la_politica_prohibe_la_dependencia_hacia_adentro_y_nada_mas
-  killed: HexagonalAssertionsTest>la_politica_prohibe_que_el_domain_dependa_de_las_otras_tres_capas
-
-M-A02: total=252 killed=4
-  killed: HexagonalAssertionsTest>UAT_004_ciclo_ABC_devuelve_el_ciclo_completo
-  killed: HexagonalAssertionsTest>UAT_004_ciclo_que_no_contiene_el_nodo_minimo_del_grafo_se_encuentra
-  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_devuelto_es_el_MAS_PEQUENO
-  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_empieza_por_su_nodo_menor
-
-M-A03: total=252 killed=4
-  killed: HexagonalAssertionsTest>UAT_004_ciclo_ABC_devuelve_el_ciclo_completo
-  killed: HexagonalAssertionsTest>UAT_004_ciclo_que_no_contiene_el_nodo_minimo_del_grafo_se_encuentra
-  killed: HexagonalAssertionsTest>UAT_004_el_ciclo_empieza_por_su_nodo_menor
-  killed: HexagonalAssertionsTest>UAT_004_el_mismo_grafo_da_el_mismo_witness_por_duplicado
-
-M-H01: total=252 killed=2
-  killed: EpistemicLawsTest>M_H01_signal_admits_only_heuristic_authority
-  killed: EpistemicLawsTest>M_H01_signal_cannot_be_deterministic
+M-A01: total=274 killed=3   (domain-purity)
+M-A02: total=274 killed=4   (eliminar arista antes de SCC)
+M-A03: total=274 killed=4   (ciclo ABC pasa por no serlo)
+M-H01: total=274 killed=2   (heuristic signal como deterministic)
+M-B01: total=274 killed=2   (NEW clasificado EXISTING)
+M-P01: total=274 killed=1   (assurance failure sobrescribe body failure)
+M-P02: total=274 killed=1   (cancellation capturada como Failure)
+M-C01: total=274 killed=2   (Chronos gap ignorado)
+M-O01: total=274 killed=2   (OTel missing span como success)
 ```
 
-Los cuatro mutantes exigidos por M1 mueren y **ninguno por un único
-test** (3, 4, 4 y 2 respectivamente). Los demás mutantes de M0
-(M-E01, M-E02, M-R01..R04, M-S01/S02, M-D01/D02, M-J01, M-V01..V03)
-se certificaron en el cierre de M0 (`b1cfbc5`/`c416521`) y siguen
-verdes por el `clean check` actual.
+Todos los mutantes de M0..M8 mueren. M-P01 y M-P02 mueren por un
+solo test (la advertencia "AVISO: redundancia insuficiente" se
+mantiene hasta que exista un segundo test que cubra la rama
+específica del mutante con un caso distinto al actual).
+
+Los demás mutantes de M0 (M-E01, M-E02, M-R01..R04, M-S01/S02,
+M-D01/D02, M-J01, M-V01..V03) se certificaron en el cierre de M0
+(`b1cfbc5`/`c416521`) y siguen verdes por el `clean check` actual.
+
+**Ampliaciones del harness en este pase:**
+
+- `run_tests()` ahora incluye `:assurance-providers:test` y
+  `:pipelinek-assurance-plugin:test`. Sin esa ampliación, los
+  mutantes de M4+ atacaban código cuyo test nunca se ejecutaba
+  en la corrida del harness, y el conteo de kills daba 0 aunque
+  la lógica estuviera cubierta. El defecto se documenta en §8.
+- Nuevos mutantes en el harness: M-B01, M-P01, M-P02, M-C01,
+  M-O01. Cada uno con su patrón de parcheo sobre el código real.
 
 ### AAT verdes
 
