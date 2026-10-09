@@ -50,8 +50,8 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 - [x] **M2-T3** Codec `CogniCodeEvidenceExportCodec` (CBOR/JSON) del export. Verificar digest. Roundtrip con golden. SHA: `023f666`.
 - [x] **M2-T4** `CogniCodeArtifactProvider` que consume el export y produce `EvidenceCollectionResult` con `RawEvidenceItem`/`RawEvidenceGap`. SHA: `023f666`.
 - [x] **M2-T5** Provider sintético equivalente (`SyntheticEvidenceProvider`) en `assurance-testkit`. Differential proof con capability-based parity. SHA: `2bd529f`.
-- [x] **M2-T6** Self-hosting S2: extractor in-test del propio repo produce un export, el `CogniCodeArtifactProvider` lo consume, la lens proyecta. SHA: ver siguiente commit.
-- [ ] **M2-T7** Recibo en `ROADMAP.md` con SHA y conteo de tests (258 verde, +22 desde M1).
+- [x] **M2-T6** Self-hosting S2: extractor in-test del propio repo produce un export, el `CogniCodeArtifactProvider` lo consume, la lens proyecta. SHA: `ee536a6` (`test(providers): M2 self-hosting S2 con extractor in-test del propio repo`).
+- [x] **M2-T7** Recibo en `ROADMAP.md` con SHA y conteo de tests. SHA: `a3aed65` (sección §M2 con "Estado (observado, 2026-10-09)" + §7 recibo consolidado).
 - [ ] **M2-T8** (Opcional M3) Normalizer genérico `EvidenceCollectionResult → EvidenceSnapshot`. Hoy se hace in-test; cuando haya un servicio de aplicación (plugin en M3), el normalizador vivirá allí.
 - [ ] **M2-T9** (Difiere a M3) Integración con export real de CogniCode. El extractor in-test cubre la pipeline; el export real requiere WP-CG-002.
 - [ ] **M2-T10** (Pendiente) Catálogo: registrar M2 en `08-testing/MUTATION_CATALOG.md` si hay mutantes nuevos. M-E01 y M-E02 se re-ejecutan en M3 sobre el path completo con provider.
