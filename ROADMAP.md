@@ -1794,9 +1794,9 @@ producers directamente.
 ## 7. Recibo consolidado del ciclo M2..M11
 
 **Fecha de cierre:** 2026-10-09.
-**HEAD en `main`:** `86033c4` (cabeza del ciclo de cierre).
+**HEAD en `main`:** `9738a60` (cabeza del ciclo de cierre).
 **Build:** `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in
-36s`, **350 tests, 0 failures, 0 skipped** (capturado en
+34s`, **352 tests, 0 failures, 0 skipped** (capturado en
 `build/evidence/clean-check.txt`).
 
 ### Mutantes certificados con `tools/certify_mutants.py`
@@ -1805,25 +1805,25 @@ Salida del runner tras `clean check` (capturada en
 `build/evidence/m0-m10-mutants.txt`):
 
 ```text
-M-A01:   total=333 killed=3   (domain-purity)
-M-A02:   total=333 killed=4   (eliminar arista antes de SCC)
-M-A03:   total=333 killed=4   (ciclo ABC pasa por no serlo)
-M-H01:   total=333 killed=2   (heuristic signal como deterministic)
-M-B01:   total=333 killed=2   (NEW clasificado EXISTING)
-M-P01:   total=333 killed=1   (AVISO redundancia)
-M-P02:   total=333 killed=1   (AVISO redundancia)
-M-C01:   total=333 killed=2   (Chronos gap ignorado)
-M-O01:   total=333 killed=2   (OTel missing span como success)
-M-10-01: total=333 killed=3   (ConnascenceLens: strength 6 aceptado)
-M-10-02: total=333 killed=3   (SolidLens: DIP violation no detectada)
-M-10-03: total=333 killed=3   (ConsistencyLens: contradiccion no detectada)
-M-10-04: total=333 killed=3   (SeamLens: TODOS los modulos clasificados)
+M-A01:   total=335 killed=3   (domain-purity)
+M-A02:   total=335 killed=4   (eliminar arista antes de SCC)
+M-A03:   total=335 killed=4   (ciclo ABC pasa por no serlo)
+M-H01:   total=335 killed=2   (heuristic signal como deterministic)
+M-B01:   total=335 killed=2   (NEW clasificado EXISTING)
+M-P01:   total=335 killed=2   (assurance failure sobrescribe body failure)
+M-P02:   total=335 killed=2   (cancellation capturada como Failure)
+M-C01:   total=335 killed=2   (Chronos gap ignorado)
+M-O01:   total=335 killed=2   (OTel missing span como success)
+M-10-01: total=335 killed=3   (ConnascenceLens: strength 6 aceptado)
+M-10-02: total=335 killed=3   (SolidLens: DIP violation no detectada)
+M-10-03: total=335 killed=3   (ConsistencyLens: contradiccion no detectada)
+M-10-04: total=335 killed=3   (SeamLens: TODOS los modulos clasificados)
 ```
 
-13 mutantes certificados. 11 mueren por 2 o más tests
-(redundancia OK). 2 (M-P01, M-P02) mueren por 1 test
-(AVISO redundancia insuficiente): un mutante ortogonal
-que distinga la rama en otro caso está pendiente.
+13 mutantes certificados. **Todos** con redundancia ≥ 2 (killed
+contado sobre los tests del plugin/lens que atacan, sin contar
+los OTel cache de harn runs anteriores). Sin AVISO de
+redundancia insuficiente.
 
 Los demás mutantes de M0 (M-E01, M-E02, M-R01..R04, M-S01/S02,
 M-D01/D02, M-J01, M-V01..V03) se certificaron en el cierre de M0
