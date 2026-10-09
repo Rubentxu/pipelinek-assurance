@@ -74,10 +74,52 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 
 ---
 
-## M3 — `assurance.check` external PipelineK Step
+## Tracking (resumen final)
 
-(estructura similar — pending)
+| Hito | Estado | Tests (al cerrar) | SHA de cierre |
+|---|---|---|---|
+| W0  | closed | — | `74b89d0` (ya en historial) |
+| M0  | closed | 174 → 169 | ya cerrado (historial) |
+| M1  | closed | 236 | ya cerrado (historial) |
+| M2  | closed | 258 | `023f666`, `2bd529f`, `ee536a6` |
+| M3  | estructura | 268 | `8c88f16` (integración SDK pendiente) |
+| M4  | closed | 276 | `53385b0` |
+| M5  | closed | 322 | `9ae04fd` |
+| M6  | estructura | 326 | `7cb0ee4` (Chronos real pendiente) |
+| M7  | estructura | 333 | `43aa106` (integración SDK pendiente) |
+| M8  | estructura | 337 | (commit al final de M11) |
+| M9  | closed | 283 | `ce2866f` |
+| M10 | parcial   | 337 | (Connascence/Solid/Consistency; Seam diferido) |
+| M11 | parcial   | 337 | CI verde; SBOM, performance budgets, distribución pendiente |
 
-## M4..M11
+## Bloqueadores externos (no cerrables sin acceso a los repos)
 
-(estructura similar — pending)
+| Bloqueador | Hito | Plan |
+|---|---|---|
+| SDK de PipelineK (JAR consumible) | M3, M7 | Esperar publicación; mientras tanto, contratos de los Steps documentados. |
+| Export real de CogniCode (`assurance-evidence/v1`) | M2 | El adapter existe; el export sintético cubre la pipeline. |
+| Export real de Chronos (`assurance-runtime-evidence/v1`) | M6, M7 | El adapter existe; la verificación end-to-end con run real se difiere. |
+| Collector OTel con datos | M8 | El adapter existe; las pruebas usan shapes sintéticos. |
+| Runner de PipelineK instalado | M3, M7, M11 | UAT-008, UAT-009, UAT-024 y matriz de compatibilidad requieren una distribución real. |
+
+## Lo que se entregó en este commit (M2..M11)
+
+- 5 módulos: `assurance-domain`, `assurance-engine`, `assurance-artifact`, `assurance-testkit`, `assurance-providers`, `assure-cli`, `pipelinek-assurance-plugin`.
+- SPI `EvidenceProvider` con `descriptor`, `collect`, `EvidenceRequest`, `EvidenceCollectionResult` (raw), `RawEvidenceItem`, `RawEvidenceGap`.
+- 4 providers: CogniCode (export evidence v1), Detekt SARIF, JUnit XML, Chronos (runtime evidence v1), OTel.
+- 5 lenses: `HexagonalArchitectureLens`, `ObservedArchitectureLens`, `ConnascenceLens`, `SolidLens`, `ConsistencyLens`, `TestTopologyLens`.
+- `DiffEngine` con `FindingId`, `KnownViolation`, `DiffEntry`, `DiffState` (M4).
+- `MultiRunnerAssertions` para Kotest + JUnit (M9).
+- 2 Steps: `AssuranceCheckStep`, `AssuranceVerifyStep` con matrices de outcome (M3, M7).
+- 22 fitness tests verificando AAT-1..AAT-20.
+- 337 tests, 0 failures, 0 skipped.
+- CI workflow (`clean check` en GitHub Actions).
+- `CHANGELOG.md` con el historial de hitos.
+
+## Lo que queda declarado como pendiente (no como deuda técnica oculta)
+
+- Integración con SDK de PipelineK (M3, M7, parte de M11): sin acceso al SDK, los Steps tienen la forma del contrato pero no la integración real.
+- Export real de CogniCode/Chronos/OTel: los adapters existen; el export real cubre la pipeline pero no la verificación end-to-end.
+- Performance budgets medidos: sin fixtures reales, los budgets son placeholders.
+- SBOM, checksums firmados, provenance: pendiente de la distribución final.
+- SeamLens de M10: las demás lenses de M10 están hechas.
