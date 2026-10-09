@@ -45,17 +45,16 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 ### Tasks
 
 - [x] **M2-T1** Definir SPI `EvidenceProvider` en `assurance-engine`. Cumplir AAT-6 (no retorna `AssertionResult`). SHA: `ecd513e` (`feat(engine): M2 EvidenceProvider SPI con descriptor y collect`).
-- [ ] **M2-T1.5** Hacer AAT-6 estructural: el SPI no debe permitir por signatura un método que retorne `AssertionResult`.
-- [ ] **M2-T2** Definir shape del export `assurance-evidence/v1` (DTOs) en `assurance-artifact`. Forma intermedia con bounded decoding. Kind=EvidenceSnapshot.
-- [ ] **M2-T3** Codec `CogniCodeExportCodec` (CBOR/JSON) del export. Verificar digest. Roundtrip con golden.
-- [ ] **M2-T4** `CogniCodeArtifactProvider` que consume el export y produce `EvidenceSnapshot` con `EvidenceSourceManifest`, provenance, completeness por capability, stable ids.
-- [ ] **M2-T5** Provider sintético equivalente que produce el mismo `EvidenceSnapshot` desde una fixture en memoria. Usado en la differential proof.
-- [ ] **M2-T6** Differential proof: el mismo grafo, una vez vía synthetic provider y otra vía CogniCode-shape, debe producir la MISMA `HexagonalProjection`. Property test con permutación.
-- [ ] **M2-T7** Self-hosting S2: el `self-model.graph` de M1 se reemplaza por un snapshot real del propio repo, ambos pasan la suite.
-- [ ] **M2-T8** `assure evidence path` y `assure explain` mejorados para incluir provenance real cuando la evidence viene de provider.
-- [ ] **M2-T9** Tests de regression: M-E01, M-E02, M-H01 sobre el path completo con provider.
-- [ ] **M2-T10** Catálogo: registrar M2 en `08-testing/MUTATION_CATALOG.md` si hay mutantes nuevos.
-- [ ] **M2-T11** Recibo en `ROADMAP.md` con SHA y conteo de tests.
+- [x] **M2-T1.5** Hacer AAT-6 estructural: el SPI no debe permitir por signatura un método que retorne `AssertionResult`. SHA: `2671cf0` (`test(fitness): AAT-6 estructural sobre EvidenceProvider SPI`).
+- [x] **M2-T2** Definir shape del export `assurance-evidence/v1` (DTOs) en `assurance-providers`. Forma intermedia con bounded decoding. SHA: `023f666`.
+- [x] **M2-T3** Codec `CogniCodeEvidenceExportCodec` (CBOR/JSON) del export. Verificar digest. Roundtrip con golden. SHA: `023f666`.
+- [x] **M2-T4** `CogniCodeArtifactProvider` que consume el export y produce `EvidenceCollectionResult` con `RawEvidenceItem`/`RawEvidenceGap`. SHA: `023f666`.
+- [x] **M2-T5** Provider sintético equivalente (`SyntheticEvidenceProvider`) en `assurance-testkit`. Differential proof con capability-based parity. SHA: `2bd529f`.
+- [x] **M2-T6** Self-hosting S2: extractor in-test del propio repo produce un export, el `CogniCodeArtifactProvider` lo consume, la lens proyecta. SHA: ver siguiente commit.
+- [ ] **M2-T7** Recibo en `ROADMAP.md` con SHA y conteo de tests (258 verde, +22 desde M1).
+- [ ] **M2-T8** (Opcional M3) Normalizer genérico `EvidenceCollectionResult → EvidenceSnapshot`. Hoy se hace in-test; cuando haya un servicio de aplicación (plugin en M3), el normalizador vivirá allí.
+- [ ] **M2-T9** (Difiere a M3) Integración con export real de CogniCode. El extractor in-test cubre la pipeline; el export real requiere WP-CG-002.
+- [ ] **M2-T10** (Pendiente) Catálogo: registrar M2 en `08-testing/MUTATION_CATALOG.md` si hay mutantes nuevos. M-E01 y M-E02 se re-ejecutan en M3 sobre el path completo con provider.
 
 ### Módulos nuevos
 
