@@ -178,11 +178,19 @@ class ChronosArtifactProvider(
                 )
             }
             .toList()
+        val completeness = Regex(
+            "\"([^\"]+)\"\\s*:\\s*\\{\\s*\"status\"\\s*:\\s*\"([^\"]+)\"",
+        ).findAll(text)
+            .map { match ->
+                match.groupValues[1] to ChronosCompleteness(status = match.groupValues[2])
+            }
+            .toList()
+            .toMap()
         return ChronosExport(
             windowToken = windowToken,
             invocations = invocations,
             causalEdges = causalEdges,
-            completenessByCapability = emptyMap(),
+            completenessByCapability = completeness,
             schemaVersion = "assurance-runtime-evidence/v1",
         )
     }

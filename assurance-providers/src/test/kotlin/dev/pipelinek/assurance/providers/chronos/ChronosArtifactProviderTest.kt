@@ -74,4 +74,35 @@ class ChronosArtifactProviderTest : AnnotationSpec() {
         val typeName = result::class.qualifiedName.orEmpty()
         (typeName.contains("AssertionResult")) shouldBe false
     }
+
+    @Test
+    fun M_C01_un_gap_parcial_sin_items_produce_declared_gap() {
+        // M-C01: un gap real de Chronos (Partial sin items) no puede
+        // ignorarse. El provider DEBE emitirlo como `declaredGaps`
+        // con `RawGapReason.PartialProduced`. Si lo filtra, M-C01
+        // sobrevive y el gate de runtime incomplete queda sin
+        // cazar.
+        val conGapParcial = """
+            {
+              "windowToken": "wt-abc",
+              "sessionRef": "sess-1",
+              "invocations": [],
+              "completenessByCapability": {
+                "runtime.window": {"status": "Partial"}
+              }
+            }
+        """.trimIndent()
+        val provider = ChronosArtifactProvider(conGapParcial.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        (produced.declaredGaps.isNotEmpty()) shouldBe true
+        // M-C01: el gap de la capability `runtime.window` debe estar
+        // con `RawGapReason.PartialProduced`.
+        val match = produced.declaredGaps.find { it.capability == "runtime.window" }
+        if (match == null) {
+            // Debug: qué hay en la lista
+            throw AssertionError("gaps encontrados: ${produced.declaredGaps.map { it.capability }}")
+        }
+        (match.reason is dev.pipelinek.assurance.engine.RawGapReason.PartialProduced) shouldBe true
+    }
 }
