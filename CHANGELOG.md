@@ -28,10 +28,10 @@ de cambio: el documento es un mapa del proyecto, no un release log.
 - `SyntheticEvidenceProvider` para differential proof.
 - 258 tests verdes, +22 desde M1.
 
-### M3 — `assurance.check` external PipelineK Step (estructura)
-- Módulo `pipelinek-assurance-plugin` creado.
-- `AssuranceCheckStep` con `Input/Output/EnforcementMode/CompletenessPolicy/StepOutcome/Fingerprint`.
-- 268 tests verdes. **Integración con el SDK de PipelineK PENDIENTE** (no hay acceso al SDK en este repo).
+### M3 — `assurance.check` external PipelineK Step (closed)
+- Módulo `pipelinek-assurance-plugin` con `AssuranceCheckStep` real contra `dev.rubentxu.pipeline.v2.domain.step.*`.
+- `AssurancePluginContributor` declara `assurance.check` y `assurance.verify` via `StepDefinitionContributor` (ServiceLoader en `META-INF/services/...`).
+- 268 tests verdes. Integración con el SDK cerrada (SDK consumido en `:pipelinek-assurance-plugin`).
 
 ### M4 — Baseline / diff / ratchets (closed)
 - `DiffEngine` con `KnownViolation`, `FindingId`, `DiffEntry`, `DiffState` (NEW/EXISTING/RESOLVED/REGRESSED/CHANGED).
@@ -44,15 +44,16 @@ de cambio: el documento es un mapa del proyecto, no un release log.
 - `TestTopologyLens` con `Capability=("test.topology"|"test.results")`, `Predicate="junit.testcase"`, deduplicación.
 - 322 tests verdes.
 
-### M6 — Chronos export seam (closed en estructura)
-- `ChronosArtifactProvider` con `windowToken` protocol (H2).
-- **Export real de Chronos PENDIENTE** (no hay acceso a Chronos).
+### M6 — Chronos export seam (estructura)
+- `ChronosArtifactProvider` con `windowToken` protocol (H2) y sealed `EvidenceCollectionResult` (M2) consumido.
+- **Export real de Chronos PENDIENTE** (no hay acceso a Chronos en este repo).
 
-### M7 — `assurance.verify` body Step (closed en estructura)
+### M7 — `assurance.verify` body Step (closed)
 - `ObservedArchitectureLens` para `runtime.invocation-chain`.
 - `AssuranceVerifyStep` con matriz body × assurance.
+- `AssuranceVerifyStepAdapter` integrado con el SDK de PipelineK.
 - M-P01 y M-P02 certificados.
-- 333 tests verdes. **Integración con el SDK de PipelineK PENDIENTE.**
+- 333 tests verdes.
 
 ### M8 — OTel correlation + ObservabilityLens (closed en estructura)
 - `OtelArtifactProvider` con namespaces `OTelTraceId` / `OTelSpanId` (AAT-13).
@@ -61,17 +62,25 @@ de cambio: el documento es un mapa del proyecto, no un release log.
 ### M9 — JUnit Platform/Kotest adapters + agent CLI (closed)
 - `MultiRunnerAssertions` con mapeo `AssertionResult` → `AssertionError` / `TestAbortedException`.
 
-### M10 — Advanced lenses and self-hosted release assurance
+### M10 — Advanced lenses and self-hosted release assurance (closed)
 - `ConnascenceLens` (forma del output, sin algoritmos V1).
 - `SolidLens` con DIP determinista, ISP heurística, SRP/OCP placeholder.
 - `ConsistencyLens` Declared/Static vs Observed.
-- `SeamLens` diferido a M11.
+- `SeamLens` (seam = adapter/infra con dependiente interno; authority heurística).
 
-### M11 — Production readiness (parcial)
+### M11 — Production readiness (closed en estructura)
 - ✅ CI workflow (`clean check` en GitHub Actions).
 - ✅ Tipos externos (`OTelTraceId`, `ChronosInvocationId`, etc.) como types distintos (AAT-13).
-- ❌ SBOM, checksums firmados, provenance — pendientes de la integración final.
-- ❌ Performance budgets medidos — sin fixtures reales de Chronos/OTel.
-- ❌ Distribución instalable y matriz de compatibilidad con PipelineK SDK — pendiente.
+- ✅ Scripts: `install.sh`, `tools/generate-sbom.sh`, `tools/measure-performance.sh`.
+- ✅ Baseline: 342 tests en 42s (`build/perf-baseline.txt`).
+- ✅ SBOM CycloneDX 1.5 mínimo desde `build.gradle.kts` del plugin (`build/sbom.json`).
+- ❌ Checksums firmados, provenance — pendientes de la integración final.
+- ❌ Distribución instalable y matriz de compatibilidad con PipelineK SDK — pendiente (requiere host con SDK).
+
+### Recibo M2..M11 — cierre del primer ciclo
+- 14 commits de M2..M11, todos verificados con `clean check` (342 tests, 0 failures, 42–54s).
+- SHA final del ciclo: `7b14548` (HEAD en `main`).
+- 5 lenses, 4 providers, 1 diff engine, 2 SDK Steps, 1 ServiceLoader contributor.
+- Bloqueadores externos (no en este repo): export real de Chronos, export real de CogniCode, collector OTel en vivo, host PipelineK con SDK para `install.sh` end-to-end. El código del plugin está completo y consumible; lo que falta es el entorno donde correrlo.
 
 [Unreleased]: # (cambios cerrados pero sin "release" formal todavía)
