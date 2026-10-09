@@ -1,0 +1,43 @@
+# OTel collector config para el harness de pipelinek-assurance.
+#
+# - Receiver OTLP HTTP en :4318.
+# - Processor batch + memory_limiter.
+# - Exporters:
+#   - file: escribe en formato JSON, una linea por export.
+#     Este es el formato que OtelArtifactProvider consume.
+#   - debug: stderr (para verificar que entran trazas).
+#
+# Uso:
+#   podman run --rm -p 4318:4318 \
+#     -v $PWD/tools/otel-harness/collector-config.yaml:/etc/otelcol/config.yaml:Z \
+#     -v $PWD/build/otel-exports:/exports:Z \
+#     docker.io/otel/opentelemetry-collector:0.96.0
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 100ms
+    send_batch_size: 1024
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+
+exporters:
+  file:
+    path: /exports/otel-export.jsonl
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter]
+      exporters: [file, debug]
+  telemetry:
+    logs:
+      level: info
