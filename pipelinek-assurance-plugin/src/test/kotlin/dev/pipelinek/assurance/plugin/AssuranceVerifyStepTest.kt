@@ -75,6 +75,26 @@ class AssuranceVerifyStepTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_P01_body_failure_preserva_razon_aun_con_assurance_fallando() {
+        // M-P01 redundancia: con report con assurance fallando Y
+        // body fallando, el body failure sigue siendo el outcome
+        // primario. La razón DEBE mencionar el body, no sólo el
+        // assurance. Un mutante que devuelva Success aquí
+        // también es detectable.
+        val body = AssuranceVerifyStep.BodyOutcome.Failure(
+            error = IllegalStateException("body crashed"),
+            message = "body crashed during deploy",
+        )
+        val outcome = AssuranceVerifyStep.combine(body, reportWith(failed = 3, inconclusive = 0))
+        outcome.shouldBeInstanceOf<AssuranceVerifyStep.StepOutcome.Failure>()
+        val reason = (outcome as AssuranceVerifyStep.StepOutcome.Failure).reason
+        // M-P01 redundancia: la razón incluye "body failure" Y
+        // "assurance report", preservando ambos.
+        (reason.contains("body failure")) shouldBe true
+        (reason.contains("assurance report")) shouldBe true
+    }
+
+    @Test
     fun M_P02_cancelled_se_propag_a_como_cancelled_no_como_failure() {
         // M-P02: "cancellation capturada como Failure". La
         // cancelación NO es un fallo del código bajo prueba; es
@@ -85,6 +105,16 @@ class AssuranceVerifyStepTest : AnnotationSpec() {
         val outcome = AssuranceVerifyStep.combine(body, reportWith(failed = 1, inconclusive = 0))
         outcome.shouldBeInstanceOf<AssuranceVerifyStep.StepOutcome.Cancelled>()
         (outcome as AssuranceVerifyStep.StepOutcome.Cancelled).reason shouldBe "user pressed Ctrl-C"
+    }
+
+    @Test
+    fun M_P02_cancelled_sin_report_se_propag_a_como_cancelled() {
+        // M-P02 redundancia: la cancelación sin report (null)
+        // también se propaga como Cancelled. Un mutante que
+        // devuelva Failure aquí es detectable.
+        val body = AssuranceVerifyStep.BodyOutcome.Cancelled("user pressed Ctrl-C")
+        val outcome = AssuranceVerifyStep.combine(body, null)
+        outcome.shouldBeInstanceOf<AssuranceVerifyStep.StepOutcome.Cancelled>()
     }
 
     @Test
