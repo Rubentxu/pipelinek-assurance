@@ -3,6 +3,17 @@ plugins {
     alias(libs.plugins.application)
 }
 
+apply<org.cyclonedx.gradle.CycloneDxPlugin>()
+
+// CycloneDX SBOM para el binario `assure` (M11.2). Mismo setup
+// que el módulo del plugin (defaults del plugin 1.4.0).
+tasks.named("cyclonedxBom") {
+    val task = this
+    if (task is org.cyclonedx.gradle.CycloneDxTask) {
+        // Defaults: JSON, schema 1.3
+    }
+}
+
 // `assure-cli` es la UNICA capa `Infrastructure` del core, y eso no es
 // decorativo: la ley de capas dice que `Infrastructure` puede depender de todo
 // lo de dentro y que nada depende de ella. El CLI es lo unico que lee ficheros

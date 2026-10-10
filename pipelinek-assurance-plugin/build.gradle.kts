@@ -3,6 +3,31 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// CycloneDX 1.4.0 no expone plugin id público; se aplica por
+// clase vía buildscript classpath del root project.
+apply<org.cyclonedx.gradle.CycloneDxPlugin>()
+
+// CycloneDX SBOM — `cyclonedxBom` task genera `build/reports/
+// sbom.json` y `build/reports/sbom.xml` con el árbol transitivo
+// completo de dependencias. Esta es la fuente de verdad del M11.2:
+// reemplaza al stub `tools/generate-sbom.sh` que sólo enumeraba
+// dependencias declaradas (no transitivas).
+//
+// CycloneDX Gradle plugin 1.4.0: la configuración se pasa vía
+// `getStringParameter` / `getBooleanParameter` sobre properties
+// del proyecto (`cyclonedx.schemaVersion`, etc.). Defaults del
+// plugin (schema 1.3, JSON only) son suficientes para M11.2; el
+// `osv-scanner` consume CycloneDX 1.3+ sin problemas.
+tasks.named("cyclonedxBom") {
+    val task = this
+    if (task is org.cyclonedx.gradle.CycloneDxTask) {
+        // El task 1.4 no expone setters públicos; el plugin
+        // lee de `project.ext` o de system properties. Por
+        // ahora usamos defaults (JSON, schema 1.3) que el
+        // plugin acepta.
+    }
+}
+
 // M3 — pipelinek-assurance-plugin.
 //
 // AAT-3: este es el ÚNICO módulo del repo que depende del SDK de PipelineK.

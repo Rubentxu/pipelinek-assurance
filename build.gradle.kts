@@ -1,5 +1,20 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+// CycloneDX Gradle plugin via buildscript classpath. La razón: el
+// plugin id `org.cyclonedx.bom` no publica un plugin marker en
+// Gradle Plugin Portal; el artefacto real vive en Maven Central
+// con coordenadas `org.cyclonedx:cyclonedx-gradle-plugin`. El
+// buildscript clásico evita el plugin id resolution.
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath("org.cyclonedx:cyclonedx-gradle-plugin:${libs.versions.cyclonedx.get()}")
+    }
+}
+
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
