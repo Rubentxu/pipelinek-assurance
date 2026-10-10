@@ -266,6 +266,26 @@ class CogniCodeArtifactProviderTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_COGN01_authority_inventada_no_se_reclasifica_como_deterministic() {
+        // M-COGN01 redundancia: otro ángulo sobre la misma
+        // garantía. Una autoridad "CustomAnalyzer" tampoco debe
+        // re-clasificarse como DeterministicAnalyzer. Esto
+        // protege contra refactors que endurezcan el set
+        // conocido (e.g. añadir "HeuristicAnalyzer" a la lista
+        // permitida) y relajen la cobertura del test
+        // redundante.
+        val bytes = exportWithUnknownAuthority(authority = "CustomAnalyzer")
+        val provider = CogniCodeArtifactProvider(bytes)
+        val produced = provider.collect(
+            EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")),
+        ).shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val itemsForPredicate = produced.rawItems.filter {
+            it.payload["predicate"] == "imports"
+        }
+        itemsForPredicate.forEach { it.authority shouldBe "CustomAnalyzer" }
+    }
+
+    @Test
     fun M_COGN01_reason_desconocido_se_reporta_como_Other_no_como_PartialProduced() {
         // M-COGN01 redundancia: un gap reason desconocido se
         // reporta como `Other(rawReason)`, NO como
@@ -287,6 +307,24 @@ class CogniCodeArtifactProviderTest : AnnotationSpec() {
         val other = produced.declaredGaps.find { it.reason is RawGapReason.Other }
         (other != null) shouldBe true
         (other!!.reason as RawGapReason.Other).rawReason shouldBe "DriftedFromProducer"
+    }
+
+    @Test
+    fun M_COGN01_reason_desconocido_NO_aparece_como_PartialProduced() {
+        // M-COGN01 redundancia (segundo ángulo): un gap reason
+        // desconocido NUNCA debe materializarse como
+        // `PartialProduced`. Verificamos la negación
+        // explícitamente para que cualquier refactor que
+        // reintroduzca la coerción falle por DOS caminos
+        // distintos (presencia de `Other` Y ausencia de
+        // `PartialProduced`).
+        val bytes = exportWithUnknownGapReason(reason = "AnotherDrift")
+        val provider = CogniCodeArtifactProvider(bytes)
+        val produced = provider.collect(
+            EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")),
+        ).shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val anyPartial = produced.declaredGaps.any { it.reason is RawGapReason.PartialProduced }
+        (anyPartial) shouldBe false
     }
 
     // -----------------------------------------------------------------------
