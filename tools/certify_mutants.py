@@ -6,18 +6,41 @@ suite y cuenta cuantos tests lo matan de forma independiente. Un mutante
 superviviente o matado por un unico test es un STOP del gate, no un detalle.
 
 Uso:  python3 tools/certify_mutants.py <nombre-mutante>
-Exit: 0 si el mutante muere, 1 si sobrevive.
+Exit: 0 si el mutante muere, 1 si sobrevive o falla por infraestructura.
+      3 si el arbol tiene cambios sin commitear en ficheros a mutar.
 
 Las fuentes se restauran siempre, pase lo que pase.
+
+A4 (Bloque A) — el harness endurecido:
+  - Ejecucion aislada por mutante (este script = un mutante).
+  - Limpieza de informes HTML antiguos al inicio de cada corrida para
+    evitar mezclar resultados del mutante anterior con los del actual.
+  - Comprobacion del exit code de Gradle: si Gradle no compila o se
+    aborta por infraestructura, el mutante NO se cataloga como
+    "superviviente"; se cataloga como "infrastructure failure" y el
+    script devuelve 1 con codigo distinguible.
+  - Distincion de cuatro veredictos:
+       DEAD          → killed >= 2
+       UNDER_KILLED  → killed == 1 (redundancia insuficiente)
+       SURVIVED      → killed == 0 (gate failure)
+       INFRA_FAILED  → Gradle no levanto la suite (no es fallo del mutante)
+  - Recibo JSON por mutante en build/mutant-receipts/<name>.json con
+    SHA del commit, tests que mataron, veredicto y exit codes.
+  - Restauracion sin riesgo: el chequeo de "arbol limpio" en los
+    ficheros a mutar (git status --porcelain) ya existe; ademas el
+    `try/finally` garantiza la restauracion incluso si Gradle crashea
+    o se recibe SIGINT.
 """
 import glob
 import html
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOMAIN = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/evidence/Evidence.kt"
@@ -39,7 +62,7 @@ OTEL_CODEC = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/provid
 COGNICODE = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/cognicode/CogniCodeArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
-NORMALIZER = "assurance-testkit/src/main/kotlin/dev/pipelinek/assurance/testkit/EvidenceNormalizer.kt"
+NORMALIZER = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/EvidenceNormalizer.kt"
 CAPABILITIES = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
@@ -634,13 +657,30 @@ def apply(path, edits):
 
 
 def run_tests():
-    # Sin forzar la reejecucion Gradle marca el test UP-TO-DATE: no corre y no
-    # regenera el informe HTML. El conteo de bajas daria 0 y el mutante
-    # pareceria sobreviviente. Un falso "sobrevive" aqui es peor que un falso
-    # positivo, porque frenaria el gate por una mentira.
-    # Modulos ampliados en el segundo pase: assurance-testkit, assurance-artifact,
-    # assurance-providers (Chronos/Otel/CogniCode/Detekt/JUnit), pipelinek-assurance-plugin.
-    subprocess.run(
+    """Ejecuta la suite Gradle y devuelve el exit code.
+
+    A4 (Bloque A):
+      - Limpia los informes HTML de runs anteriores para que el
+        parse_report() no mezcle resultados viejos con los del
+        mutante actual (un informe stale puede hacer que un
+        mutante muerto parezca vivo o viceversa).
+      - Captura el exit code de Gradle. Si Gradle falla por
+        infraestructura (compilacion rota, daemon crash, OOM),
+        ese fallo NO se confunde con "el mutante sobrevivió".
+    """
+    # Limpiar informes stale. Si el módulo no compilaba antes de
+    # la mutacion, queremos fallar loud aquí, no acumular
+    # evidencia del run anterior.
+    for r in REPORTS:
+        for stale in glob.glob(os.path.join(r, "*.html")):
+            os.unlink(stale)
+
+    # Sin forzar la reejecucion Gradle marca el test UP-TO-DATE: no
+    # corre y no regenera el informe HTML. El conteo de bajas
+    # daria 0 y el mutante pareceria sobreviviente. Un falso
+    # "sobrevive" aqui es peor que un falso positivo, porque
+    # frenaria el gate por una mentira.
+    proc = subprocess.run(
         ["./gradlew",
          ":assurance-testkit:test",
          ":assurance-artifact:test",
@@ -650,14 +690,19 @@ def run_tests():
          ":assure-cli:test",
          "--no-daemon", "--rerun-tasks"],
         cwd=ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
+    if proc.returncode != 0:
+        # No abortamos con SystemExit porque eso enmascararía el
+        # veredicto de "infraestructura falló" como "gate failure".
+        # Devolvemos un sentinel y dejamos que el caller lo
+        # catalogue.
+        return proc.returncode, proc.stdout.decode(errors="replace")[-2000:] + \
+            proc.stderr.decode(errors="replace")[-2000:]
     if not any(glob.glob(os.path.join(r, "*.html")) for r in REPORTS):
-        raise SystemExit(
-            "STOP: el informe de tests no se genero. Sin el, la certificacion "
-            "no puede afirmar nada. Comprueba que el codigo de test compile."
-        )
+        return -1, "el informe de tests no se genero. Comprueba que el codigo de test compile."
+    return 0, ""
 
 
 def parse_report():
@@ -680,6 +725,42 @@ def parse_report():
     return results
 
 
+def current_sha():
+    """SHA corto del HEAD actual, para anclar el recibo al commit."""
+    return subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    ).stdout.decode().strip()
+
+
+def write_receipt(name, sha, verdict, killed, total, killed_names, gradle_exit, infra_log):
+    """Persiste un recibo JSON por mutante en build/mutant-receipts/.
+
+    A4: el recibo liga el veredicto al SHA del commit, los tests que
+    mataron, el total de tests corridos, el exit code de Gradle, y
+    un veredicto tipado (DEAD / UNDER_KILLED / SURVIVED / INFRA_FAILED).
+    El recibo es la fuente de verdad para auditoria: si el script
+    dice "el mutante M-X murió", ese recibo existe en disco con el
+    SHA y los tests exactos que lo mataron.
+    """
+    out_dir = os.path.join(ROOT, "build", "mutant-receipts")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"{name}.json")
+    receipt = {
+        "mutant": name,
+        "sha": sha,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "verdict": verdict,
+        "killed_count": len(killed),
+        "total_tests": total,
+        "killed_by": killed_names,
+        "gradle_exit_code": gradle_exit,
+        "infra_log_tail": infra_log if infra_log else None,
+    }
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(receipt, f, indent=2, sort_keys=True)
+
+
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in MUTANTS:
         print(f"uso: {sys.argv[0]} <{'|'.join(MUTANTS)}>")
@@ -687,6 +768,7 @@ def main():
 
     name = sys.argv[1]
     targets = MUTANTS[name]
+    sha = current_sha()
 
     # STOP si el arbol de trabajo esta sucio. El harness hace COPIAS de
     # seguridad de los ficheros que va a mutar y los restaura al final. Si
@@ -718,26 +800,80 @@ def main():
         backups[path].write(open(os.path.join(ROOT, path), "rb").read())
         backups[path].close()
 
+    killed = []
+    total = 0
+    killed_names = []
+    gradle_exit = 0
+    infra_log = ""
+    verdict = "DEAD"
+    rc = 0
+
     try:
         for path, edits in targets:
             apply(path, edits)
-        run_tests()
-        results = parse_report()
-        killed = sorted(t for t, s in results if s == "failed")
-        print(f"{name}: total={len(results)} killed={len(killed)}")
-        for k in killed:
-            print(f"  killed: {k}")
-        if not killed:
-            print(f"STOP: {name} sobrevive. El gate M0 exige certificacion.")
-            return 1
-        if len(killed) < 2:
-            print(f"AVISO: {name} muere por un solo test. Redundancia insuficiente.")
-            return 1
-        return 0
+        gradle_exit, infra_log = run_tests()
+        # Distincion critica: si Gradle exit != 0 PERO los informes
+        # HTML se generaron, eso es el caso normal de "el mutante
+        # mató un test" (test rojo = exit 1). Sólo si NO hay
+        # informes hablamos de infraestructura fallida.
+        reports_present = any(glob.glob(os.path.join(r, "*.html")) for r in REPORTS)
+        if gradle_exit != 0 and not reports_present:
+            verdict = "INFRA_FAILED"
+            print(
+                f"{name}: INFRA_FAILED (gradle exit={gradle_exit}, sin "
+                f"informes HTML). No se puede afirmar nada sobre el "
+                f"mutante hasta que Gradle levante la suite. Log tail:\n{infra_log}"
+            )
+            rc = 1
+        else:
+            results = parse_report()
+            killed = sorted(t for t, s in results if s == "failed")
+            total = len(results)
+            killed_names = killed
+            print(f"{name}: total={total} killed={len(killed)}")
+            for k in killed:
+                print(f"  killed: {k}")
+            if not killed:
+                verdict = "SURVIVED"
+                print(f"STOP: {name} sobrevive. El gate M0 exige certificacion.")
+                rc = 1
+            elif len(killed) < 2:
+                verdict = "UNDER_KILLED"
+                print(f"AVISO: {name} muere por un solo test. Redundancia insuficiente.")
+                rc = 1
+            else:
+                verdict = "DEAD"
+                rc = 0
     finally:
+        # Restaurar SIEMPRE, incluso si el proceso recibe SIGINT o
+        # Gradle se aborta. La restauracion es la última operación
+        # del bloque, fuera del try, así que un raise antes de
+        # llegar aquí deja el árbol con la mutación aplicada.
+        # Eso es la primera versión de este harness: un fallo
+        # durante la ejecución podía dejar el árbol mutado. La
+        # fix es mover la restauración al `finally` y confiar en
+        # el chequeo de "arbol limpio" para detectar el estado
+        # inconsistente si lo hay.
         for target, backup in backups.items():
-            shutil.copyfile(backup.name, os.path.join(ROOT, target))
-            os.unlink(backup.name)
+            try:
+                shutil.copyfile(backup.name, os.path.join(ROOT, target))
+            finally:
+                try:
+                    os.unlink(backup.name)
+                except FileNotFoundError:
+                    pass
+        write_receipt(
+            name=name,
+            sha=sha,
+            verdict=verdict,
+            killed=killed,
+            total=total,
+            killed_names=killed_names,
+            gradle_exit=gradle_exit,
+            infra_log=infra_log,
+        )
+
+    return rc
 
 
 if __name__ == "__main__":
