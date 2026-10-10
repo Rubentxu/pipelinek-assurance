@@ -19,8 +19,16 @@ description: Feature document for the post-v0.8.0 work plan. Closes 6 P0 audit f
 - **All 6 P0 audit findings** CERRADOS.
 - **All 7 M11 in-repo deliverables** CERRADOS.
 - **v0.9.0** released: 21 commits, **439 tests** verde (+41 vs v0.8.0), 38 mutantes certificados.
-- New mutantes este ciclo: M-COGN01, M-COGN02, M-CAP-DRIFT, M-10-CONTENT, M-SOLID-SRP-EMPTY, M-SOLID-OCP-EMPTY, M-CHRONOS-REGEX-LEGACY, M-OTEL-REGEX-LEGACY.
-- Decisión: el mock SDK host (M11.8) sustituye al SDK real de PipelineK para tests E2E hasta que el SDK esté disponible.
+- **v0.9.1** released: capabilities refactor (5 providers), M-CAP-DRIFT-2
+  mutante, **440 tests**, 41 mutantes certificados.
+- New mutantes este ciclo: M-COGN01, M-COGN02, M-CAP-DRIFT, M-CAP-DRIFT-2,
+  M-10-CONTENT, M-SOLID-SRP-EMPTY, M-SOLID-OCP-EMPTY, M-CHRONOS-REGEX-LEGACY,
+  M-OTEL-REGEX-LEGACY.
+- Decisión: el mock SDK host (M11.8) sustituye al SDK real de PipelineK
+  para tests E2E hasta que el SDK esté disponible.
+- Refactor post-v0.9.0: JUnitXmlCodec.API_VERSION, Chronos y OTel
+  descriptor.outputSchemaVersion referencian la constante del
+  codec (no literales duplicados).
 
 ## Scope (this cycle)
 
