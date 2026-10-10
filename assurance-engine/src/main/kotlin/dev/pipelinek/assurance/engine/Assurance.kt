@@ -507,4 +507,145 @@ object AssuranceEngine {
             correlations = snapshot.correlations,
         )
     }
+
+    /**
+     * Decisión de enforcement a partir del resultado completo.
+     *
+     * A1 (Bloque A): NO usar únicamente los contadores agregados
+     * del report para decidir el gate. La asociación assertion ↔
+     * política se preserva: el IR declara `enforcement` y la
+     * función lo cruza con el `AssertionResult` de cada assertion
+     * para emitir un `EnforcementDecision` tipado.
+     *
+     * Comportamiento por (enforcement, result):
+     *
+     * | enforcement | Passed        | Failed/Inconclusive/Unsupported/Error |
+     * |-------------|---------------|--------------------------------------|
+     * | Advisory    | no afecta     | no afecta                            |
+     * | Mandatory   | no afecta     | gate failure                         |
+     * | Ratchet     | no afecta     | (gestionado por baseline, ver F1)    |
+     *
+     * Modo de ejecución:
+     * - FailClosed: cualquier gate failure produce `EnforcementDecision.Failure`.
+     * - ReportOnly: los gate failures se degradan a `Advisory` (el Step sigue, el
+     *   report documenta el fallo). Esto es lo que un `assurance.check --report-only`
+     *   o un dev-server usaría.
+     *
+     * AAT-20: la rama `no evidence` (Unsupported con cap requerida ausente) sobre
+     * una assertion Mandatory es `Failure`, no `Passed`. Lo que aquí se codifica
+     * es: `Unsupported` sobre Mandatory ⇒ `Failure` (con su `UnsupportedReason`).
+     *
+     * AAT-19: `Signal` heurístico sobre assertion que exige `Deterministic` es
+     * detectado por el dominio antes de llegar aquí; pero esta función es robusta
+     * ante esa entrada: `Unsupported` (motivada por incompatibilidad de autoridad)
+     * ⇒ `Failure` si Mandatory.
+     *
+     * **Política de Ratchet**: el ratcheting contra baseline se delega a un
+     * componente externo (DiffEngine) que produce un `DiffState` por finding.
+     * Esta función sólo marca como `Failure` las `Mandatory` puras (no
+     * ratchets); un Ratchet con baseline se resuelve en el componente de
+     * diff. La entrada `ratchetFailure` permite al caller inyectar el
+     * resultado del diff sin que esta función conozca el formato de baseline.
+     */
+    fun evaluateEnforcement(
+        report: AssuranceReport,
+        suite: AssuranceSuiteIR,
+        mode: EnforcementMode,
+        ratchetFailure: Boolean = false,
+    ): EnforcementDecision {
+        // Index por id para mantener la asociación assertion ↔ enforcement.
+        val enforcementById: Map<AssertionId, Enforcement> =
+            suite.assertions.associate { it.id to it.enforcement }
+
+        val perAssertion: List<EnforcementEntry> = report.results.map { result ->
+            // El id del AssertionResult no se preserva actualmente
+            // (A1 secundario: el IR debe llevar su id al resultado para
+            // que el join sea directo). Por ahora, enforcemos por posición:
+            // report.results tiene el mismo orden que suite.assertions
+            // porque evaluateSuite los itera en ese orden.
+            val irAssertion = suite.assertions.getOrNull(
+                report.results.indexOf(result),
+            )
+            val enforcement = irAssertion?.enforcement ?: Enforcement.Advisory
+            EnforcementEntry(
+                assertionId = irAssertion?.id,
+                enforcement = enforcement,
+                result = result,
+            )
+        }
+
+        val blockingFailures: List<EnforcementEntry> = perAssertion.filter { entry ->
+            when (entry.enforcement) {
+                Enforcement.Advisory -> false
+                Enforcement.Mandatory -> entry.result !is AssertionResult.Passed
+                Enforcement.Ratchet -> ratchetFailure
+            }
+        }
+
+        return when {
+            blockingFailures.isEmpty() -> EnforcementDecision.Passed(perAssertion)
+            mode == EnforcementMode.ReportOnly -> EnforcementDecision.Advisory(blockingFailures)
+            else -> EnforcementDecision.Failure(blockingFailures, mode)
+        }
+    }
 }
+
+/**
+ * Modo de ejecución del gate.
+ *
+ * Ref: Bloque A. La decisión se preserva de `AssuranceCheckStep` y
+ * se sube al engine para que la función pura la pueda consumir sin
+ * importar el plugin.
+ */
+enum class EnforcementMode {
+    /** Mandatory fail ⇒ gate failure. Default. */
+    FailClosed,
+
+    /** Mandatory fail ⇒ se reporta pero no bloquea. Dev/seguimiento. */
+    ReportOnly,
+}
+
+/**
+ * Decisión de gate tipada, resultado de `evaluateEnforcement`.
+ *
+ * Tres formas exhaustivas:
+ * - `Passed`: el gate pasa. La lista lleva el detalle por assertion
+ *   para que el Step handler pueda serializar el report sin perder
+ *   información.
+ * - `Advisory`: el gate habría fallado pero el modo es ReportOnly.
+ *   El Step sigue; el report documenta qué falló.
+ * - `Failure`: gate rojo. El Step para el pipeline. La lista lleva
+ *   las assertions que rompieron el gate.
+ *
+ * `Failure` y `Advisory` comparten `blockingFailures` con el mismo
+ * tipo para que el caller pueda iterar sin doble dispatch.
+ */
+sealed interface EnforcementDecision {
+    val perAssertion: List<EnforcementEntry>
+
+    data class Passed(override val perAssertion: List<EnforcementEntry>) : EnforcementDecision
+
+    data class Advisory(val blockingFailures: List<EnforcementEntry>) : EnforcementDecision {
+        override val perAssertion: List<EnforcementEntry> get() = blockingFailures
+    }
+
+    data class Failure(
+        val blockingFailures: List<EnforcementEntry>,
+        val mode: EnforcementMode,
+    ) : EnforcementDecision {
+        override val perAssertion: List<EnforcementEntry> get() = blockingFailures
+    }
+}
+
+/**
+ * Entrada por assertion que cruza el `AssertionResult` con su `Enforcement`.
+ *
+ * Es la asociación assertion ↔ política que el plan A1 pide preservar:
+ * un `Failed` que es `Advisory` no es lo mismo que un `Failed` que es
+ * `Mandatory`, y el `EnforcementDecision` los trata distinto.
+ */
+data class EnforcementEntry(
+    val assertionId: AssertionId?,
+    val enforcement: Enforcement,
+    val result: AssertionResult,
+)

@@ -205,6 +205,12 @@ object AssuranceCheckStep {
         mode: EnforcementMode,
         completenessPolicy: CompletenessPolicy,
     ): StepOutcome {
+        // A1: gate basado en per-assertion enforcement cuando se
+        // conoce el IR de suite. Sin IR, caemos al counter-based
+        // legacy (que sigue siendo correcto para el caso "no
+        // suite attached", que el plugin soporta en su modo
+        // minimal). El path preferido es `outcomeOfWithSuite`
+        // cuando el IR está disponible.
         val failed = report.summary.failed
         val inconclusive = report.summary.inconclusive
 
@@ -219,6 +225,65 @@ object AssuranceCheckStep {
 
             // Pasó
             else -> StepOutcome.Success
+        }
+    }
+
+    /**
+     * A1 (Bloque A): variante de `outcomeOf` que conoce el IR de
+     * suite y aplica la función pura `evaluateEnforcement` para
+     * preservar la asociación assertion ↔ política.
+     *
+     * Sin esto, el gate es un contador. Con esto, cada Mandatory
+     * fail se reporta con su `AssertionId` y el run del Step puede
+     * producir un mensaje reproducible byte a byte.
+     */
+    fun outcomeOfWithSuite(
+        report: AssuranceReport,
+        suite: AssuranceSuiteIR,
+        mode: EnforcementMode,
+        completenessPolicy: CompletenessPolicy,
+    ): StepOutcome {
+        val engineMode = when (mode) {
+            EnforcementMode.FailClosed -> dev.pipelinek.assurance.engine.EnforcementMode.FailClosed
+            EnforcementMode.ReportOnly -> dev.pipelinek.assurance.engine.EnforcementMode.ReportOnly
+        }
+        val decision = dev.pipelinek.assurance.engine.AssuranceEngine.evaluateEnforcement(
+            report = report,
+            suite = suite,
+            mode = engineMode,
+        )
+
+        val inconclusive = report.summary.inconclusive
+
+        return when (decision) {
+            is dev.pipelinek.assurance.engine.EnforcementDecision.Failure -> {
+                val failedIds = decision.blockingFailures
+                    .filter { it.enforcement == dev.pipelinek.assurance.engine.Enforcement.Mandatory }
+                    .mapNotNull { it.assertionId?.value }
+                    .joinToString(",")
+                when {
+                    inconclusive > 0 && completenessPolicy == CompletenessPolicy.RequireComplete ->
+                        StepOutcome.Failure("assurance-incomplete: $inconclusive inconclusive assertion(s)")
+                    failedIds.isNotEmpty() ->
+                        StepOutcome.Failure("assurance Mandatory fail: $failedIds")
+                    else ->
+                        StepOutcome.Failure("assurance gate failure (mode=$mode)")
+                }
+            }
+            is dev.pipelinek.assurance.engine.EnforcementDecision.Advisory -> {
+                if (inconclusive > 0 && completenessPolicy == CompletenessPolicy.RequireComplete) {
+                    StepOutcome.Failure("assurance-incomplete: $inconclusive inconclusive assertion(s)")
+                } else {
+                    StepOutcome.Success
+                }
+            }
+            is dev.pipelinek.assurance.engine.EnforcementDecision.Passed -> {
+                if (inconclusive > 0 && completenessPolicy == CompletenessPolicy.RequireComplete) {
+                    StepOutcome.Failure("assurance-incomplete: $inconclusive inconclusive assertion(s)")
+                } else {
+                    StepOutcome.Success
+                }
+            }
         }
     }
 }
