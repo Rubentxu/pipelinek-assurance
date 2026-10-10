@@ -538,6 +538,27 @@ sealed interface AssertionResult {
         return emptyList() // MUTATED
         val nonStable = setOf(Layer.Adapters, Layer.Infrastructure)"""),
     ])],
+    # M-CHRONOS-REGEX-LEGACY: ChronosArtifactProvider usa la ruta
+    # regex legacy (`decodeExportLegacy`) en vez del codec
+    # `ChronosRuntimeEvidenceCodec`. El mutante reemplaza la llamada
+    # al codec por la regex; los tests del codec
+    # (`ChronosRuntimeEvidenceCodecTest`) deben seguir pasando
+    # porque el codec sigue existiendo, pero el provider
+    # entregaría evidencia con datos vacíos o mal parseados.
+    "M-CHRONOS-REGEX-LEGACY": [(CHRONOS, [(
+        """        val export = try {
+            ChronosRuntimeEvidenceCodec.decodeFromJson(exportBytes)""",
+        """        val export = try {
+            decodeExportLegacy(exportBytes)"""),
+    ])],
+    # M-OTEL-REGEX-LEGACY: OtelArtifactProvider usa la ruta regex
+    # legacy en vez del codec `OtelTraceExportCodec`.
+    "M-OTEL-REGEX-LEGACY": [(OTEL, [(
+        """        val export = try {
+            OtelTraceExportCodec.decodeFromJson(exportBytes)""",
+        """        val export = try {
+            decodeExportLegacy(exportBytes)"""),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)

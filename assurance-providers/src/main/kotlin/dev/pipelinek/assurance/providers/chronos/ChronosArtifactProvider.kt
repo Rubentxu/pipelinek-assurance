@@ -61,13 +61,13 @@ class ChronosArtifactProvider(
     )
 
     override fun collect(request: EvidenceRequest): EvidenceCollectionResult {
-        // 1. Decode del export. Por ahora, asumimos que el export
-        //    tiene la forma JSON/CBOR correcta; el codec real se
-        //    materializa cuando Chronos esté disponible.
-        //    Aquí validamos la presencia del `windowToken`, que es
-        //    la regla H2 (no timestamps heurísticos).
+        // 1. Decode del export. Ruta principal: el codec con
+        //    `kotlinx.serialization` (M-CHRONOS-REGEX-LEGACY
+        //    documenta la ruta legacy).
         val export = try {
-            decodeExport(exportBytes)
+            ChronosRuntimeEvidenceCodec.decodeFromJson(exportBytes)
+        } catch (e: ChronosRuntimeEvidenceCodec.CodecException) {
+            return failed("decode: ${e.message}")
         } catch (e: IllegalArgumentException) {
             return failed("decode: ${e.message}")
         }
@@ -86,7 +86,7 @@ class ChronosArtifactProvider(
             RawEvidenceItem(
                 kind = RawItemKind.Observation,
                 id = "chronos/invocation/${inv.id}",
-                subjectRef = inv.subjectRef,
+                subjectRef = inv.subjectRef ?: "chronos:invocation:${inv.id}",
                 authority = "RuntimeObserver",
                 payload = mapOf(
                     "outcome" to inv.outcome,
@@ -94,10 +94,10 @@ class ChronosArtifactProvider(
                     "durationMs" to inv.durationMs.toString(),
                 ),
             )
-        } + export.causalEdges.map { edge ->
+        } + export.causalEdges.mapIndexed { i, edge ->
             RawEvidenceItem(
                 kind = RawItemKind.Observation,
-                id = "chronos/causal/${edge.id}",
+                id = "chronos/causal/${edge.id ?: "edge-$i"}",
                 subjectRef = edge.from,
                 authority = "RuntimeObserver",
                 payload = mapOf(
@@ -107,8 +107,11 @@ class ChronosArtifactProvider(
             )
         }
 
-        // 3. Gaps: capabilities declaradas con `Complete` pero sin
-        //    items, o `Partial` con cero items.
+        // 3. Gaps: capabilities declaradas con `Partial` y cero
+        //    items. La condición `items.isEmpty()` es la del
+        //    contrato original; si hay items pero la capability
+        //    está Partial, no se emite gap aquí — el servicio de
+        //    aplicación cruzará con `requestedCapabilities`.
         val gaps = export.completenessByCapability
             .filter { (_, c) -> c.status == "Partial" && items.isEmpty() }
             .map { (cap, _) ->
@@ -142,24 +145,21 @@ class ChronosArtifactProvider(
         )
 
     /**
-     * Decode mínimo. En M6 sin Chronos real, esto se mockea desde
-     * el test; en M7 con Chronos real, este método se conecta al
-     * `ChronosRuntimeEvidenceCodec`.
+     * Decode legacy con regex sobre JSON textual. Conservado para
+     * entradas que el producer antiguo aún emite y para que el
+     * mutante M-CHRONOS-REGEX-LEGACY tenga un punto de mutación
+     * explícito. El codec `ChronosRuntimeEvidenceCodec` es la
+     * ruta principal.
      */
-    private fun decodeExport(bytes: ByteArray): ChronosExport {
-        // V1: leer un JSON simple. El export completo se codifica
-        // con kotlinx.serialization cuando el codec real exista.
+    internal fun decodeExportLegacy(bytes: ByteArray): ChronosExportDto {
         val text = bytes.toString(Charsets.UTF_8)
-        if (!text.contains("\"windowToken\"")) {
-            throw IllegalArgumentException("no windowToken")
-        }
-        // Parsing minimalista para V1. La forma completa viene del codec.
         val windowToken = Regex("\"windowToken\"\\s*:\\s*\"([^\"]+)\"")
             .find(text)?.groupValues?.get(1)
-        val invocations = Regex("\"id\"\\s*:\\s*\"inv-([^\"]+)\"\\s*,\\s*\"outcome\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(text)
+        val invocations = Regex(
+            "\"id\"\\s*:\\s*\"inv-([^\"]+)\"\\s*,\\s*\"outcome\"\\s*:\\s*\"([^\"]+)\"",
+        ).findAll(text)
             .map { match ->
-                ChronosInvocation(
+                ChronosInvocationDto(
                     id = "inv-${match.groupValues[1]}",
                     subjectRef = "span/${match.groupValues[1]}",
                     outcome = match.groupValues[2],
@@ -170,7 +170,7 @@ class ChronosArtifactProvider(
         val causalEdges = Regex("\"kind\"\\s*:\\s*\"causal\"")
             .findAll(text)
             .mapIndexed { i, _ ->
-                ChronosCausalEdge(
+                ChronosCausalEdgeDto(
                     id = "edge-$i",
                     from = "span/from-$i",
                     to = "span/to-$i",
@@ -182,42 +182,15 @@ class ChronosArtifactProvider(
             "\"([^\"]+)\"\\s*:\\s*\\{\\s*\"status\"\\s*:\\s*\"([^\"]+)\"",
         ).findAll(text)
             .map { match ->
-                match.groupValues[1] to ChronosCompleteness(status = match.groupValues[2])
+                match.groupValues[1] to ChronosCompletenessDto(status = match.groupValues[2])
             }
             .toList()
             .toMap()
-        return ChronosExport(
+        return ChronosExportDto(
             windowToken = windowToken,
             invocations = invocations,
             causalEdges = causalEdges,
             completenessByCapability = completeness,
-            schemaVersion = "assurance-runtime-evidence/v1",
         )
     }
 }
-
-data class ChronosExport(
-    val windowToken: String?,
-    val invocations: List<ChronosInvocation>,
-    val causalEdges: List<ChronosCausalEdge>,
-    val completenessByCapability: Map<String, ChronosCompleteness>,
-    val schemaVersion: String,
-)
-
-data class ChronosInvocation(
-    val id: String,
-    val subjectRef: String,
-    val outcome: String,
-    val durationMs: Long,
-)
-
-data class ChronosCausalEdge(
-    val id: String,
-    val from: String,
-    val to: String,
-    val kind: String,
-)
-
-data class ChronosCompleteness(
-    val status: String,
-)

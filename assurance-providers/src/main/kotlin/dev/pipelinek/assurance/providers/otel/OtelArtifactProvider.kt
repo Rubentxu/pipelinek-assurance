@@ -1,6 +1,5 @@
 package dev.pipelinek.assurance.providers.otel
 
-import dev.pipelinek.assurance.domain.evidence.RevisionRef
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
 import dev.pipelinek.assurance.engine.EvidenceProviderDescriptor
@@ -35,6 +34,10 @@ import dev.pipelinek.assurance.engine.RawItemKind
  * completo.
  *
  * **AAT-6:** este provider no retorna `AssertionResult`.
+ *
+ * **Codec real:** `OtelTraceExportCodec` (kotlinx.serialization).
+ * La ruta legacy `decodeExportLegacy` se conserva para entradas
+ * antiguas; el mutante M-OTEL-REGEX-LEGACY la ataca.
  */
 class OtelArtifactProvider(
     private val exportBytes: ByteArray,
@@ -54,18 +57,18 @@ class OtelArtifactProvider(
     )
 
     override fun collect(request: EvidenceRequest): EvidenceCollectionResult {
-        val text = runCatching { exportBytes.toString(Charsets.UTF_8) }
-            .getOrElse {
-                return failed("decode: ${it.message}")
-            }
-        // V1: parsing minimalista. La forma completa del export OTel
-        // (con `resourceSpans`, `scopeSpans`, `spans[].traceId`,
-        // `spans[].spanId`, `spans[].parentSpanId`) se materializa
-        // cuando el codec real exista.
-        val traceIds = Regex("\"traceId\"\\s*:\\s*\"([0-9a-f]+)\"")
-            .findAll(text).map { it.groupValues[1] }.toList()
-        val spanIds = Regex("\"spanId\"\\s*:\\s*\"([0-9a-f]+)\"")
-            .findAll(text).map { it.groupValues[1] }.toList()
+        // 1. Decode del export. Ruta principal: codec con
+        //    `kotlinx.serialization` (M-OTEL-REGEX-LEGACY documenta
+        //    la ruta legacy).
+        val export = try {
+            OtelTraceExportCodec.decodeFromJson(exportBytes)
+        } catch (e: OtelTraceExportCodec.CodecException) {
+            return failed("decode: ${e.message}")
+        }
+
+        val spans = export.spans()
+        val traceIds = spans.mapNotNull { it.traceId }.distinct()
+        val spanIds = spans.mapNotNull { it.spanId }.distinct()
 
         if (traceIds.isEmpty() && spanIds.isEmpty()) {
             return failed("export OTel sin traceId ni spanId reconocibles")
@@ -113,7 +116,7 @@ class OtelArtifactProvider(
         return EvidenceCollectionResult.Produced(
             producerId = descriptor.id,
             producerVersion = descriptor.version,
-            schemaVersion = "otel/trace/v1",
+            schemaVersion = descriptor.outputSchemaVersion,
             rawItems = items,
             declaredGaps = gaps,
         )
@@ -131,4 +134,29 @@ class OtelArtifactProvider(
                 ),
             ),
         )
+
+    /**
+     * Decode legacy con regex sobre JSON textual. Conservado para
+     * entradas que el producer antiguo aún emite y para que el
+     * mutante M-OTEL-REGEX-LEGACY tenga un punto de mutación
+     * explícito. El codec `OtelTraceExportCodec` es la ruta principal.
+     */
+    internal fun decodeExportLegacy(bytes: ByteArray): OtelExportDto {
+        val text = bytes.toString(Charsets.UTF_8)
+        val traceIds = Regex("\"traceId\"\\s*:\\s*\"([0-9a-f]+)\"")
+            .findAll(text).map { it.groupValues[1] }.toList()
+        val spanIds = Regex("\"spanId\"\\s*:\\s*\"([0-9a-f]+)\"")
+            .findAll(text).map { it.groupValues[1] }.toList()
+        val spans = traceIds.map { OtelSpanDto(traceId = it) } +
+            spanIds.map { OtelSpanDto(spanId = it) }
+        return OtelExportDto(
+            resourceSpans = listOf(
+                ResourceSpansDto(
+                    scopeSpans = listOf(
+                        ScopeSpansDto(spans = spans),
+                    ),
+                ),
+            ),
+        )
+    }
 }
