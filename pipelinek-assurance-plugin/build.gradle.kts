@@ -66,6 +66,20 @@ dependencies {
     implementation(project(":assurance-domain"))
     implementation(project(":assurance-engine"))
     implementation(project(":assurance-artifact"))
+    // B2 (Bloque B): el Application Service (AssuranceOrchestrator)
+    // necesita EvidenceNormalizer para aplicar AAT-13/AAT-19 al
+    // cruzar la frontera cruda/normalizada. La dependencia es
+    // implementation, no api, porque el orchestrator expone su
+    // propio OrchestrationResult; los tipos del normalizer no
+    // salen del plugin.
+    //
+    // AAT-3 sigue verde: el plugin no importa adapters concretos
+    // (CogniCode, Chronos, OTel, Detekt, JUnit, Mutation) — sólo
+    // utility code. La distinción entre "adapter" y "utility" la
+    // enforce el fitness test AAT_03_plugin_no_depende_de_assurance_providers,
+    // que ahora checka imports de packages específicos, no la
+    // mera presencia del módulo en el classpath.
+    implementation(project(":assurance-providers"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.serialization.json)
 

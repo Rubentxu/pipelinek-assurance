@@ -5,13 +5,20 @@
  * SPI de providers) a `EvidenceSnapshot` (forma que el core
  * consume).
  *
- * **Por qué vive aquí, en `assurance-providers`, y no en
- * `assurance-testkit`**: la conversión cruda → normalizada es
- * lógica de aplicación. La frontera del SPI entrega items con
- * `authority: String` y un `subjectRef` textual; el core consume
- * items con `EvidenceAuthority` tipado y `EvidenceSubject` como
- * ADT. Esa traducción es responsabilidad de un servicio de
- * aplicación, no del core puro y no del testkit.
+ * **Por qué vive aquí, en `assurance-providers`**: la
+ * conversión cruda → normalizada es lógica de aplicación que
+ * pertenece a la frontera del SPI. Los adapters viven en
+ * `assurance-providers` (cognicode, chronos, otel, detekt,
+ * junit, mutation); el normalizer los consume a través de
+ * `EvidenceCollectionResult` (forma cruda) y produce
+ * `EvidenceSnapshot` (forma que el core consume).
+ *
+ * En B2, el plugin importa este normalizer (es utility code,
+ * no adapter) sin acoplarse a las implementaciones concretas
+ * de providers. La distinción entre "adapter" y "utility" la
+ * enforce `M3PluginModuleFitnessTest.AAT_03_plugin_no_depende_de_assurance_providers`
+ * por contenido de imports, no por mera presencia del módulo
+ * en el classpath.
  *
  * El testkit queda como **consumidor** de la misma implementación
  * (ver `EvidenceNormalizerTest`); la duplicación que existía antes

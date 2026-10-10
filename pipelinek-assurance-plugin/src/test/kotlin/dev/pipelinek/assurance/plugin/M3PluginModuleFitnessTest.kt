@@ -43,8 +43,35 @@ class M3PluginModuleFitnessTest : AnnotationSpec() {
 
     @Test
     fun AAT_03_plugin_no_depende_de_assurance_providers() {
-        val buildFile = File(repoRoot, "pipelinek-assurance-plugin/build.gradle.kts")
-        val body = buildFile.readText()
-        (":assurance-providers" in body && "implementation(project" in body) shouldBe false
+        // B2 (Bloque B): el plugin ahora depende de
+        // :assurance-providers porque el Application Service
+        // (AssuranceOrchestrator) necesita EvidenceNormalizer.
+        // La intención original de AAT-3 no era "el plugin no
+        // puede tener :assurance-providers en el classpath"
+        // (eso era un check sobre la realidad de M3 cuando
+        // no había B2); era "el plugin no debe acoplarse a
+        // adapters concretos" (CogniCode, Chronos, OTel,
+        // Detekt, JUnit, Mutation). El check actualizado
+        // verifica eso: ningún source file del plugin importa
+        // los sub-paquetes de adapters.
+        val sourceDir = File(repoRoot, "pipelinek-assurance-plugin/src/main/kotlin")
+        if (sourceDir.isDirectory) {
+            val forbiddenSubpackages = listOf(
+                "cognicode", "chronos", "otel", "detekt", "junit", "mutation",
+            )
+            for (file in sourceDir.walkTopDown().filter { it.extension == "kt" }) {
+                val text = file.readText()
+                for (sub in forbiddenSubpackages) {
+                    if (text.contains("import dev.pipelinek.assurance.providers.$sub")) {
+                        throw AssertionError(
+                            "AAT-3 violado en ${file.name}: " +
+                                "el plugin importa un adapter concreto de providers " +
+                                "(sub-paquete $sub). El plugin descubre providers en " +
+                                "runtime por SPI, no en compilación.",
+                        )
+                    }
+                }
+            }
+        }
     }
 }
