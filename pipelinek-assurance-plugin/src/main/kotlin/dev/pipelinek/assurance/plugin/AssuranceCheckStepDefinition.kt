@@ -150,62 +150,151 @@ object AssuranceCheckStepDefinition {
      *   - persistir el report artifact (eso es del SDK).
      */
     fun run(input: Input, evidenceItems: List<dev.pipelinek.assurance.domain.evidence.EvidenceItem>): Output {
+        // B3 (Bloque B): delega al overload con registries vacíos.
+        // El SDK llama a la versión de abajo con los registries
+        // reales. Esta versión legacy (M3) sólo se conserva para los
+        // tests que comprueban el shape del output sin providers.
+        return run(
+            input = input,
+            evidenceItems = evidenceItems,
+            providers = ProviderRegistry(),
+            runtime = FrozenAssuranceRuntime(engineVersion = "0.1.0", lenses = emptyMap()),
+            assertionsById = emptyMap(),
+        )
+    }
+
+    /**
+     * B3 (Bloque B) — `run` con orchestrator cableado.
+     *
+     * Ésta es la versión que el SDK invoca en producción. Hace los
+     * 10 pasos de orquestación: validar refs, recolectar evidencia
+     * vía providers, normalizar, congelar, evaluar, codificar el
+     * report y computar el `StepOutcome` por assertion (A1).
+     *
+     * @param input el DTO del Step
+     * @param evidenceItems items precargados (modo offline / tests)
+     * @param providers registry de EvidenceProvider; el plugin NO
+     *        registra providers propios — los aporta el SDK
+     * @param runtime runtime congelado con las lenses del SDK
+     * @param assertionsById mapa `AssertionId → AssuranceAssertion`
+     *        que ejecuta la lógica de la assertion
+     */
+    fun run(
+        input: Input,
+        evidenceItems: List<dev.pipelinek.assurance.domain.evidence.EvidenceItem>,
+        providers: ProviderRegistry,
+        runtime: FrozenAssuranceRuntime,
+        assertionsById: Map<AssertionId, dev.pipelinek.assurance.engine.AssuranceAssertion<*>>,
+    ): Output {
         // 1. Decodifica la suite (de DTO a IR).
         val suite: AssuranceSuiteIR = suiteFromDto(input.suite)
 
-        // 2. Construye un snapshot in-memory con los items de
-        //    evidence que el caller pasó. Un snapshot real lo
-        //    construye el provider desde un artefacto externo;
-        //    aquí asumimos que el SDK ya hizo esa parte.
-        val snapshot = dev.pipelinek.assurance.domain.evidence.EvidenceSnapshot(
-            id = dev.pipelinek.assurance.domain.evidence.SnapshotId("snap-${input.suite.id}"),
-            subject = dev.pipelinek.assurance.domain.evidence.EvidenceSubject.Module(input.name),
-            sources = listOf(
-                dev.pipelinek.assurance.domain.evidence.EvidenceSourceManifest(
-                    producerId = "plugin/${KEY}",
-                    producerVersion = "0.1.0",
-                    subjectRevision = dev.pipelinek.assurance.domain.evidence.RevisionRef("0000000000000000000000000000000000000000"),
-                    requestedCapabilities = input.suite.requiredEvidence,
-                    producedCapabilities = input.evidence.map { it.logicalRole },
-                    completenessByCapability = input.evidence.associate { it.logicalRole to
-                        dev.pipelinek.assurance.domain.evidence.Completeness.Complete },
-                    schemaVersion = "assurance-evidence/v1",
-                    digest = Digest.ofUtf8("snap-${input.suite.id}"),
-                ),
-            ),
-            items = evidenceItems,
-            gaps = emptyList(),
-        )
+        // 2. Construye la request de orquestación. El subject se
+        //    deriva del nombre del Step. Los refs se traducen al
+        //    shape mínimo del orchestrator.
+        val mode = if (input.mode == "ReportOnly")
+            AssuranceCheckStep.EnforcementMode.ReportOnly
+        else
+            AssuranceCheckStep.EnforcementMode.FailClosed
+        val completeness = if (input.completenessPolicy == "ReportMissing")
+            AssuranceCheckStep.CompletenessPolicy.ReportMissing
+        else
+            AssuranceCheckStep.CompletenessPolicy.RequireComplete
 
-        // 3. Evalúa la suite con un runtime congelado.
-        val runtime = FrozenAssuranceRuntime(
-            engineVersion = "0.1.0",
-            lenses = emptyMap(), // Las lenses reales se inyectan en runtime.
-        )
-        val report = AssuranceEngine.evaluateSuite(
-            snapshot = snapshot,
+        // Si el caller ya pasó items pre-coleccionados, los
+        // exponemos al orchestrator como un provider sintético que
+        // retorna esos items para todos los logicalRole de la
+        // suite. Eso preserva la forma "items precargados" que el
+        // SDK puede usar para tests o re-ejecución.
+        val effectiveProviders = if (evidenceItems.isNotEmpty() && providers.all().isEmpty()) {
+            ProviderRegistry().apply {
+                register(
+                    "preloaded",
+                    object : dev.pipelinek.assurance.engine.EvidenceProvider {
+                        override val descriptor = dev.pipelinek.assurance.engine.EvidenceProviderDescriptor(
+                            id = "preloaded",
+                            version = "0.1.0",
+                            evidenceCapabilities = listOf("preloaded"),
+                            subjectKinds = listOf("Module"),
+                            classification = dev.pipelinek.assurance.engine.ProviderClassification.Deterministic,
+                            inputFormats = listOf("assurance-evidence/v1"),
+                            outputSchemaVersion = "assurance-evidence/v1",
+                        )
+                        override fun collect(request: dev.pipelinek.assurance.engine.EvidenceRequest) =
+                            dev.pipelinek.assurance.engine.EvidenceCollectionResult.Produced(
+                                producerId = "preloaded",
+                                producerVersion = "0.1.0",
+                                schemaVersion = "assurance-evidence/v1",
+                                rawItems = evidenceItems.map { item ->
+                                    dev.pipelinek.assurance.engine.RawEvidenceItem(
+                                        kind = when (item) {
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Fact -> dev.pipelinek.assurance.engine.RawItemKind.Fact
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Observation -> dev.pipelinek.assurance.engine.RawItemKind.Observation
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Signal -> dev.pipelinek.assurance.engine.RawItemKind.Signal
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Hypothesis -> dev.pipelinek.assurance.engine.RawItemKind.Hypothesis
+                                        },
+                                        id = item.id.value,
+                                        subjectRef = when (val s = item.subject) {
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceSubject.Module -> "module:${s.path}"
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceSubject.Symbol -> "symbol:${s.qualifiedName}"
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceSubject.RuntimeSpan -> "chronos:${s.typedRef}"
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceSubject.SourceLocation -> "source:${s.file}:${s.line}"
+                                            is dev.pipelinek.assurance.domain.evidence.EvidenceSubject.Test -> "test:${s.id}"
+                                        },
+                                        authority = item.authority.name,
+                                        payload = item.toPayloadMap(),
+                                    )
+                                },
+                                declaredGaps = emptyList(),
+                            )
+                    },
+                )
+            }
+        } else {
+            providers
+        }
+
+        val request = OrchestrationRequest(
+            name = input.name,
             suite = suite,
-            runtime = runtime,
-            digestOf = { Digest.ofUtf8(json.encodeToString(SuiteDto.serializer(), suiteDto(it))) },
-            snapshotDigest = snapshotDigest(snapshot, input),
-            assertionsById = emptyMap(), // Las assertions reales se inyectan.
+            subject = dev.pipelinek.assurance.domain.evidence.EvidenceSubject.Module(input.name),
+            evidenceRefs = input.evidence.map {
+                EvidenceRefDto(
+                    logicalRole = it.logicalRole,
+                    digest = it.digest,
+                    producerId = "preloaded",
+                )
+            },
+            mode = mode,
+            completenessPolicy = completeness,
+            producerVersion = "0.1.0",
         )
 
-        // 4. Computa el outcome según la policy.
-        val outcome = AssuranceCheckStep.outcomeOf(
-            report = report,
-            mode = if (input.mode == "ReportOnly")
-                AssuranceCheckStep.EnforcementMode.ReportOnly
-            else
-                AssuranceCheckStep.EnforcementMode.FailClosed,
-            completenessPolicy = if (input.completenessPolicy == "ReportMissing")
-                AssuranceCheckStep.CompletenessPolicy.ReportMissing
-            else
-                AssuranceCheckStep.CompletenessPolicy.RequireComplete,
+        // 3. Orquestar. El orchestrator hace los 10 pasos.
+        val orchestration = AssuranceOrchestrator.orchestrate(
+            request = request,
+            providers = effectiveProviders,
+            runtime = runtime,
+            assertionsById = assertionsById,
         )
+
+        // 4. Computa el outcome usando A1 (per-assertion
+        //    enforcement) si tenemos suite; sino, el legacy
+        //    counter-based.
+        val report = orchestration.report
+        val outcome = if (suite.assertions.isNotEmpty()) {
+            AssuranceCheckStep.outcomeOfWithSuite(
+                report = report,
+                suite = suite,
+                mode = mode,
+                completenessPolicy = completeness,
+            )
+        } else {
+            AssuranceCheckStep.outcomeOf(report = report, mode = mode, completenessPolicy = completeness)
+        }
 
         return Output(
-            reportDigest = report.snapshotDigest.hex,
+            reportDigest = orchestration.reportDigest.hex,
             summary = SummaryDto(
                 passed = report.summary.passed,
                 failed = report.summary.failed,
@@ -220,6 +309,32 @@ object AssuranceCheckStepDefinition {
             },
         )
     }
+
+    private fun dev.pipelinek.assurance.domain.evidence.EvidenceItem.toPayloadMap(): Map<String, String> =
+        when (this) {
+            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Fact -> mapOf(
+                "predicate" to predicate,
+                "object" to (objectValue ?: ""),
+                "capability" to provenance.capability,
+            )
+            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Observation -> mapOf(
+                "observation" to observation,
+                "capability" to provenance.capability,
+            )
+            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Signal -> mapOf(
+                "signalKind" to signalKind,
+                "score" to score,
+                "algorithmId" to algorithmId,
+                "algorithmVersion" to algorithmVersion,
+                "capability" to provenance.capability,
+            )
+            is dev.pipelinek.assurance.domain.evidence.EvidenceItem.Hypothesis -> mapOf(
+                "claim" to claim,
+                "reasoning" to reasoning,
+                "confidence" to confidence,
+                "capability" to provenance.capability,
+            )
+        }
 
     private fun suiteFromDto(dto: SuiteDto): AssuranceSuiteIR {
         return AssuranceSuiteIR(

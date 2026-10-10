@@ -214,6 +214,7 @@ object AssuranceOrchestrator {
         request: OrchestrationRequest,
         providers: ProviderRegistry,
         runtime: FrozenAssuranceRuntime,
+        assertionsById: Map<dev.pipelinek.assurance.engine.AssertionId, dev.pipelinek.assurance.engine.AssuranceAssertion<*>> = emptyMap(),
     ): OrchestrationResult {
         val accumulatedGaps = mutableListOf<EvidenceGap>()
         // B2: el subjectRevision llega al EvidenceRequest y al
@@ -397,11 +398,10 @@ object AssuranceOrchestrator {
                 Digest.ofUtf8(json.encodeToString(AssuranceCheckStepDefinition.SuiteDto.serializer(), dto))
             },
             snapshotDigest = snapshotDigest(enrichedSnapshot, request),
-            // B2: las assertions reales se inyectan vía runtime;
-            // aquí pasamos emptyMap porque la unidad mínima de
-            // B2 es la orquestación. La integración con
-            // assertions reales es del step handler.
-            assertionsById = emptyMap(),
+            // B3: las assertionsById llegan como parámetro;
+            // por default vacío. El caller (step handler) las
+            // construye a partir de los AssertionIR del IR.
+            assertionsById = assertionsById,
         )
 
         // 9. Codificar y publicar report: el codificado
