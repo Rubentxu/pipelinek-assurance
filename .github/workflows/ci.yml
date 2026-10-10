@@ -62,6 +62,24 @@ jobs:
             **/build/reports/tests/test/
           if-no-files-found: ignore
 
+      # M11.7 — performance budget. Después de que `clean check`
+      # pase, medimos el tiempo. Si supera el budget (default
+      # 90s), exit 1 y el build rojo. El budget formal sobre
+      # fixtures de carga reales (Chronos 10k spans, OTel 100k
+      # traces) queda para el segundo pase de M11; aquí se mide
+      # sobre el suite de tests actual.
+      - name: Performance budget
+        if: success()
+        run: ./tools/measure-performance.sh --budget 90
+
+      - name: Upload perf baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline
+          path: build/perf-baseline.txt
+          if-no-files-found: ignore
+
   # M11.6 — security scan con `osv-scanner` sobre el
   # `settings-gradle.lockfile` y el SBOM CycloneDX. La CI
   # aborta si se detecta una vulnerabilidad con severidad >= HIGH.
