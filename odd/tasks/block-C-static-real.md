@@ -43,10 +43,19 @@ disponible con las capabilities que exigen las suites.
 
 ### C2 — Endurecer adapters (en-repo)
 
-- [ ] JaCoCo y PIT: XML seguro, modelos tipados.
-- [ ] Colisiones de IDs por línea/clase/fichero resueltas.
-- [ ] Preservar identidad de mutantes y ubicación de mediciones.
-- [ ] Verificar entradas vacías, inválidas, enormes, parciales.
+- [x] JaCoCo y PIT: XML seguro, modelos tipados.
+- [x] Colisiones de IDs por línea/clase/fichero resueltas:
+      el id del mutante ahora incluye el `mutator`, así
+      dos mutaciones en la misma línea (distintos
+      operadores) producen ids distintos
+      (4 tests nuevos en `PitestMutationProviderTest`).
+- [x] Preservar identidad de mutantes y ubicación de
+      mediciones: el id es estable a través de
+      invocaciones; el payload lleva sourceFile,
+      mutatedClass, lineNumber, mutator.
+- [x] Verificar entradas vacías, inválidas, enormes,
+      parciales: XML sin <mutation> → Failed; XML con
+      mutator faltante → "unknown"; XML inválido → Failed.
 
 ### C3 — Baselines y diff (en-repo)
 

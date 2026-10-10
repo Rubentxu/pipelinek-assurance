@@ -62,15 +62,23 @@ class PitestMutationProvider(
             val sourceFile = Regex("""<sourceFile>([^<]+)</sourceFile>""").find(body)?.groupValues?.get(1) ?: "?"
             val mutatedClass = Regex("""<mutatedClass>([^<]+)</mutatedClass>""").find(body)?.groupValues?.get(1) ?: "?"
             val lineNumber = Regex("""<lineNumber>(\d+)</lineNumber>""").find(body)?.groupValues?.get(1) ?: "0"
+            // C2: el `mutator` distingue dos mutaciones en
+            // la misma línea/clase/fichero. Sin él, dos
+            // operadores en la misma línea producirían
+            // ids idénticos, colisionando en el
+            // normalizer (AAT-13). Lo incluimos en el id
+            // para preservar la identidad del mutante.
+            val mutator = Regex("""<mutator>([^<]+)</mutator>""").find(body)?.groupValues?.get(1) ?: "unknown"
             items += RawEvidenceItem(
                 kind = RawItemKind.Observation,
-                id = "pitest/$sourceFile/$mutatedClass/$lineNumber",
+                id = "pitest/$sourceFile/$mutatedClass/$lineNumber/$mutator",
                 subjectRef = "MutationSite/$sourceFile:$lineNumber",
                 authority = "RuntimeObserver",
                 payload = mapOf(
                     "sourceFile" to sourceFile,
                     "mutatedClass" to mutatedClass,
                     "lineNumber" to lineNumber,
+                    "mutator" to mutator,
                     "status" to status,
                     "detected" to detected.toString(),
                 ),
