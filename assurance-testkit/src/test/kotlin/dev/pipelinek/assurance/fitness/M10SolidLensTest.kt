@@ -160,32 +160,33 @@ class M10SolidLensTest : AnnotationSpec() {
     }
 
     @Test
-    fun M_SOLID_SRP_EMPTY_srp_signals_llevan_principio_SRP() {
-        // M-SOLID-SRP-EMPTY redundancia: además de existir la
-        // señal, su `principle` debe ser exactamente "SRP". Un
-        // mutante que devuelva señales de OTRO principio (e.g.
-        // ISP) sería cazado por este test además del primero.
+    fun M_SOLID_SRP_EMPTY_fat_module_distinto_produce_outlier() {
+        // M-SOLID-SRP-EMPTY redundancia: usamos un fixture con
+        // un módulo outlier diferente para que el mutante
+        // (devolver emptyList) falle por DOS paths: la lista
+        // contiene "fat" en el primer test Y contiene "greedy"
+        // en este.
         val snapshot = snapshotCon(
             modules = listOf(
-                "fat @ Domain",
-                "a @ Domain",
-                "b @ Domain",
-                "c @ Domain",
-                "d @ Domain",
-                "e @ Domain",
+                "greedy @ Domain",
+                "p @ Domain",
+                "q @ Domain",
+                "r @ Domain",
+                "s @ Domain",
+                "t @ Domain",
             ),
             edges = listOf(
-                "fat -> a",
-                "fat -> b",
-                "fat -> c",
-                "fat -> d",
-                "fat -> e",
+                "greedy -> p",
+                "greedy -> q",
+                "greedy -> r",
+                "greedy -> s",
+                "greedy -> t",
             ),
         )
         val projection = SolidLens.project(snapshot)
         val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
         val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
-        solid.srpSignals.all { it.principle == "SRP" } shouldBe true
+        solid.srpSignals.any { it.module == "greedy" } shouldBe true
     }
 
     @Test
@@ -217,29 +218,29 @@ class M10SolidLensTest : AnnotationSpec() {
     }
 
     @Test
-    fun M_SOLID_OCP_EMPTY_ocp_signals_llevan_principio_OCP() {
-        // M-SOLID-OCP-EMPTY redundancia: además de existir la
-        // señal, su `principle` debe ser exactamente "OCP".
+    fun M_SOLID_OCP_EMPTY_outlier_distinto_produce_outlier() {
+        // M-SOLID-OCP-EMPTY redundancia: otro módulo outlier
+        // con la misma forma de grafo.
         val snapshot = snapshotCon(
             modules = listOf(
                 "stable-core @ Domain",
-                "adapter-foo @ Adapters",
-                "infra1 @ Infrastructure",
-                "infra2 @ Infrastructure",
-                "infra3 @ Infrastructure",
-                "infra4 @ Infrastructure",
+                "adapter-bar @ Adapters",
+                "i1 @ Infrastructure",
+                "i2 @ Infrastructure",
+                "i3 @ Infrastructure",
+                "i4 @ Infrastructure",
             ),
             edges = listOf(
-                "infra1 -> adapter-foo",
-                "infra2 -> adapter-foo",
-                "infra3 -> adapter-foo",
-                "infra4 -> adapter-foo",
+                "i1 -> adapter-bar",
+                "i2 -> adapter-bar",
+                "i3 -> adapter-bar",
+                "i4 -> adapter-bar",
             ),
         )
         val projection = SolidLens.project(snapshot)
         val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
         val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
-        solid.ocpSignals.all { it.principle == "OCP" } shouldBe true
+        solid.ocpSignals.any { it.module == "adapter-bar" } shouldBe true
     }
 
     @Test
