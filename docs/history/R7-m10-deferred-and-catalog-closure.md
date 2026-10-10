@@ -3,7 +3,7 @@
 **Bloque:** R7 — cierre de la deuda M10 explícita + mutantes M-P03/M-I01 + consolidación M11.
 **Release propuesta:** `v0.8.0`.
 **Fecha:** 2026-10-10.
-**SHA integrado:** `9528cb5`.
+**SHA integrado:** `b23b594` (HEAD tras la certificación del catálogo de mutantes).
 
 ## Trabajo ejecutado
 
@@ -136,7 +136,7 @@ Tras la redundancia:
 ## Build
 
 - `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in 1m`.
-- 385 tests, 0 failures, 0 skipped (incremento de 23 vs R6).
+- 387 tests, 0 failures, 0 skipped (incremento de 25 vs R6).
 - SHA de cierre: `9528cb5`.
 
 ## Riesgos y deuda
