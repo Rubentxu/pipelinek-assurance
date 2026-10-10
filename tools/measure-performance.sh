@@ -62,15 +62,6 @@ if [[ "$ELAPSED" -gt "$BUDGET" && "$TESTS" -ge "$MIN_TESTS" ]]; then
     OVER_BUDGET=true
 fi
 
-# Module compilation time (rough, via gradle build --dry-run timing).
-MODULE_TIMES=""
-for module in assurance-domain assurance-engine assurance-artifact assurance-testkit assurance-providers assure-cli pipelinek-assurance-plugin; do
-    if [[ -d "$module" ]]; then
-        MODULE_TIMES="${MODULE_TIMES}module_${module}=present
-"
-    fi
-done
-
 {
     echo "# pipelinek-assurance performance baseline"
     echo "# generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -79,9 +70,6 @@ done
     echo "clean_check_seconds=$ELAPSED"
     echo "over_budget=$OVER_BUDGET"
     echo "total_tests=$TESTS"
-    echo
-    echo "# per-module presence"
-    echo "$MODULE_TIMES"
 } > "$OUT"
 
 echo "[perf] wrote $OUT"
