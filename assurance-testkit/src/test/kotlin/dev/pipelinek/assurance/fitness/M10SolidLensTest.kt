@@ -45,6 +45,24 @@ class M10SolidLensTest : AnnotationSpec() {
     }
 
     @Test
+    fun dip_violations_domain_a_infrastructure_tambien_se_detecta() {
+        // M-10-02 redundancia: la rama DIP debe detectar la
+        // violación con cualquier capa de destino más externa,
+        // no solo Adapters. Un mutante que limite la condición
+        // a `toLayer == Adapters` dejaría pasar domain->infra.
+        val snapshot = snapshotCon(
+            modules = listOf("domain @ Domain", "infra @ Infrastructure"),
+            edges = listOf("domain -> infra"),
+        )
+        val projection = SolidLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
+        val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
+        solid.dipViolationCount shouldBe 1
+        solid.dipViolations.single().from shouldBe "domain"
+        solid.dipViolations.single().to shouldBe "infra"
+    }
+
+    @Test
     fun un_grafo_bien_ordenado_no_tiene_dip_violations() {
         // adapter -> domain, app -> adapter. Domain es la raíz, todas
         // las dependencias van hacia capas más internas.
