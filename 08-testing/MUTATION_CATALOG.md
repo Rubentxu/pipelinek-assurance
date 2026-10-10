@@ -43,6 +43,7 @@
 | M-SOLID-OCP-EMPTY | SolidLens `findOcpSignals` neutralizado a `emptyList()` | M10 / OCP heuristic |
 | M-CHRONOS-REGEX-LEGACY | ChronosArtifactProvider usa regex legacy en vez del codec | P0.4 / Chronos codec |
 | M-OTEL-REGEX-LEGACY | OtelArtifactProvider usa regex legacy en vez del codec | P0.4 / OTel codec |
+| M-NORM-01 | EvidenceNormalizer remueve chequeo AAT-13 (id debe contener '/') | AAT-13 / namespacing |
 
 ## Redundancia, y por qué se importa
 
