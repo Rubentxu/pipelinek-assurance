@@ -91,7 +91,7 @@ class JUnitXmlProvider(
         subjectKinds = listOf("Test"),
         classification = ProviderClassification.Deterministic,
         inputFormats = listOf("application/junit+xml"),
-        outputSchemaVersion = "junit/v4",
+        outputSchemaVersion = JUnitXmlCodec.API_VERSION,
     )
 
     /**
@@ -259,6 +259,9 @@ class JUnitXmlProvider(
  * entidades externas, y eso es por diseño".
  */
 internal object JUnitXmlCodec {
+
+    /** Versión del formato. La referencia canónica vive aquí. */
+    const val API_VERSION: String = "junit/v4"
 
     /** Cotas — heredadas de los otros codecs por la misma razón. */
     const val MAX_INPUT_BYTES: Long = 64L * 1024 * 1024
