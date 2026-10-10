@@ -160,6 +160,35 @@ class M10SolidLensTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_SOLID_SRP_EMPTY_srp_signals_llevan_principio_SRP() {
+        // M-SOLID-SRP-EMPTY redundancia: además de existir la
+        // señal, su `principle` debe ser exactamente "SRP". Un
+        // mutante que devuelva señales de OTRO principio (e.g.
+        // ISP) sería cazado por este test además del primero.
+        val snapshot = snapshotCon(
+            modules = listOf(
+                "fat @ Domain",
+                "a @ Domain",
+                "b @ Domain",
+                "c @ Domain",
+                "d @ Domain",
+                "e @ Domain",
+            ),
+            edges = listOf(
+                "fat -> a",
+                "fat -> b",
+                "fat -> c",
+                "fat -> d",
+                "fat -> e",
+            ),
+        )
+        val projection = SolidLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
+        val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
+        solid.srpSignals.all { it.principle == "SRP" } shouldBe true
+    }
+
+    @Test
     fun M_SOLID_OCP_EMPTY_adapters_con_muchos_dependents_produce_outlier() {
         // M-SOLID-OCP-EMPTY: un mutante que neutralice
         // findOcpSignals debe ser cazado por este test. Una capa
@@ -185,6 +214,32 @@ class M10SolidLensTest : AnnotationSpec() {
         val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
         val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
         solid.ocpSignals.any { it.module == "adapter-foo" } shouldBe true
+    }
+
+    @Test
+    fun M_SOLID_OCP_EMPTY_ocp_signals_llevan_principio_OCP() {
+        // M-SOLID-OCP-EMPTY redundancia: además de existir la
+        // señal, su `principle` debe ser exactamente "OCP".
+        val snapshot = snapshotCon(
+            modules = listOf(
+                "stable-core @ Domain",
+                "adapter-foo @ Adapters",
+                "infra1 @ Infrastructure",
+                "infra2 @ Infrastructure",
+                "infra3 @ Infrastructure",
+                "infra4 @ Infrastructure",
+            ),
+            edges = listOf(
+                "infra1 -> adapter-foo",
+                "infra2 -> adapter-foo",
+                "infra3 -> adapter-foo",
+                "infra4 -> adapter-foo",
+            ),
+        )
+        val projection = SolidLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
+        val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
+        solid.ocpSignals.all { it.principle == "OCP" } shouldBe true
     }
 
     @Test
