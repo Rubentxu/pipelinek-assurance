@@ -23,6 +23,8 @@
 | M-J01 | envelope JSON vuelve al orden de declaración de kotlinx | orden canónico JSON |
 | M-S01 | decoder no aplica las cotas al construir el dominio | bounded decoding |
 | M-S02 | cota de longitud de cadena ausente | bounded decoding |
+| M-D01 | codec decode no verifica digest (digest != canonical) | AAT-1 / fail-closed |
+| M-D02 | codec digest field relaja a nullable | M5 / digest schema |
 | M-V01 | un EvidenceProvider retorna AssertionResult | AAT-6 |
 | M-V02 | AssertionResult deja de ser sealed | AAT-8 |
 | M-V03 | canonicalizeSuite deja de ordenar lenses | AAT-16 |
