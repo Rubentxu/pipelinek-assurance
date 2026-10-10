@@ -37,6 +37,7 @@ OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/ot
 COGNICODE = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/cognicode/CogniCodeArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
+NORMALIZER = "assurance-testkit/src/main/kotlin/dev/pipelinek/assurance/testkit/EvidenceNormalizer.kt"
 CAPABILITIES = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
@@ -566,6 +567,18 @@ sealed interface AssertionResult {
             OtelTraceExportCodec.decodeFromJson(exportBytes)""",
         """        val export = try {
             decodeExportLegacy(exportBytes)"""),
+    ])],
+    # M-NORM-01: EvidenceNormalizer.remove la enforce de AAT-13
+    # (id debe contener `/`). Un mutante que lo elimine acepta
+    # raw items con ids sin namespace — exactamente el bug que
+    # el spec prohíbe (un producer mintiendo sobre su namespace).
+    "M-NORM-01": [(NORMALIZER, [(
+        """        if (!raw.id.contains(\"/\")) {
+            throw NormalizerException(
+                \"rawItem sin namespace en id: ${raw.id} (producerId=$producerId)\",
+            )
+        }""",
+        """        // AAT-13 check removed (mutated)"""),
     ])],
 }
 
