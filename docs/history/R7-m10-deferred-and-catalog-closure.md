@@ -3,7 +3,7 @@
 **Bloque:** R7 — cierre de la deuda M10 explícita + mutantes M-P03/M-I01 + consolidación M11.
 **Release propuesta:** `v0.8.0`.
 **Fecha:** 2026-10-10.
-**SHA integrado:** `2007956` (HEAD tras la DSL del M10 + M-DSL01 + gitignore de pycache).
+**SHA integrado:** `bd775fa` (HEAD tras R7.8 PackArtifactCodec + M-CODEC01 + fix del init de Fact).
 
 ## Trabajo ejecutado
 
@@ -63,6 +63,28 @@ El DSL es opcional: el `AssurancePack` data class sigue siendo la API
 pública estable; la DSL es una conveniencia. Cuando se materialice
 el codec JSON del pack (pendiente en la deuda R7), el DSL también
 podrá serializarse a un manifiesto versionado.
+
+### R7.8 — `PackArtifactCodec` (familia 4 + 5 del wire contract)
+
+CBOR codec para `AssurancePack` y `RequiredAssurancePlan.Plan` en
+`assurance-artifact`, siguiendo el mismo patrón de los codecs
+anteriores (`EvidenceArtifactCodec`, `SuiteArtifactCodec`):
+
+- `encodeToCbor`/`decodeFromCbor` para pack (media type
+  `application/vnd.pipelinek.assurance.pack+cbor;version=1`).
+- `encodeToCbor`/`decodeFromCborPlan` para plan (media type
+  `application/vnd.pipelinek.assurance.plan+cbor;version=1`).
+- Cada DTO tiene `of()` y `toDomain()`; el decoder del plan verifica
+  el digest canónico con `CanonicalEncoder.digestPlan` (mismo
+  contrato que `SuiteArtifactCodec` y `EvidenceArtifactCodec`).
+- `when` exhaustivo en `Rule.kind` y `Reason.kind`: cualquier valor
+  fuera de la unión produce `ArtifactDecodeException` tipado.
+- Mismas cotas de bounded decoding: `MAX_INPUT_BYTES` antes de
+  deserializar, `MAX_COLLECTION_SIZE` sobre los DTOs ya
+  deserializados.
+- 6 tests cubren roundtrip de pack (3 reglas + digest en SuiteRef),
+  roundtrip de plan con verificación de digest, rechazo de plan
+  alterado, y rechazo de `Reason.kind` desconocido.
 
 ### R7.3 — `CanonicalEncoder.digestPlan(...)`
 
@@ -155,6 +177,8 @@ Tras la redundancia:
 - M-I01 certificado con `killed=3` en el harness de mutantes.
 - M-DSL01 certificado con `killed=2` (ataque al bridge
   `mandatory(id) → metadata["mandatory"]=true`).
+- M-CODEC01 certificado con `killed=6` (ataque a la verificación
+  de digest del plan en el decoder).
 - M-10-01..M-10-04: redundancia >= 2 (sin AVISO en el harness).
 - AAT-22: el Plan no expone nigún risk score. Cubierto por test
   `plan_no_expone_ningun_risk_score` (compila, no en runtime).
@@ -162,9 +186,9 @@ Tras la redundancia:
 ## Build
 
 - `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in 1m`.
-- 391 tests, 0 failures, 0 skipped (incremento de 29 vs R6).
-- 31/31 mutantes del catálogo certificados, 0 AVISO.
-- SHA de cierre: `2007956`.
+- 398 tests, 0 failures, 0 skipped (incremento de 36 vs R6).
+- 32/32 mutantes del catálogo certificados, 0 AVISO.
+- SHA de cierre: `bd775fa`.
 
 ## Riesgos y deuda
 
