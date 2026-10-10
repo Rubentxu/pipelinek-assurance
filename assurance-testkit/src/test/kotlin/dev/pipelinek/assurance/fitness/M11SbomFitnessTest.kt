@@ -61,4 +61,15 @@ class M11SbomFitnessTest : AnnotationSpec() {
         // desaparecería (sólo listaba deps declaradas en build.gradle.kts).
         text shouldContain "org.jetbrains.kotlin"
     }
+
+    @Test
+    fun sbom_cli_existe_y_es_cyclonedx() {
+        // Cubre el SBOM del binario `assure` (M11.2 segundo
+        // módulo). La generación corre con `./tools/generate-sbom.sh all`.
+        val sbom = SbomFixture.cliSbom()
+        if (!sbom.exists()) return
+        val text = sbom.readText()
+        text shouldStartWith "{\n  \"bomFormat\" : \"CycloneDX\""
+        text shouldContain "\"specVersion\" : \"1.3\""
+    }
 }
