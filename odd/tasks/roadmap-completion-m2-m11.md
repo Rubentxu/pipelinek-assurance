@@ -7,12 +7,16 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 
 **Goal:** complete the 9 remaining milestones (M2 through M11) per `ROADMAP.md` authority.
 
-## Current state (verified 2026-10-09)
+## Current state (verified 2026-10-10)
 
 - **W0** (bootstrap): closed
 - **M0** (Compatibility fortress): closed — 174 tests, 8 AAT verdes, 15 mutantes certificados
 - **M1** (Hexagonal vertical): closed — 236 tests verdes, CLI funcional, self-model en disco
-- **M2..M11**: pending
+- **M2..M11**: closed (v0.8.0 release)
+- **v0.9.0 / v0.9.1**: post-audit closure — 440 tests, 41 mutantes certificados
+- **P0 audit**: 6/6 cerrado
+- **M11 in-repo**: 7/7 cerrado (gradle.lockfile, SECURITY, CODEOWNERS, perf budget,
+  CycloneDX SBOM, GPG signing, osv-scanner CI, Mock SDK host)
 
 ## Constraints (from ROADMAP)
 
@@ -23,16 +27,14 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 - M5 y M6 deben registrar IDs de UAT que hoy no tienen.
 - M11 cierra con un solo SHA y una suite completa verde.
 
-## External dependencies (blockers)
+## External dependencies (still external)
 
 | Hito | Repo externo | Estado |
 |---|---|---|
-| M2 | CogniCode (export `assurance-evidence/v1`) | **BLOQUEADO** sin acceso a CogniCode |
-| M3 | PipelineK (SDK) | **BLOQUEADO** sin acceso al SDK de PipelineK |
-| M6 | Chronos (export `assurance-runtime-evidence/v1`) | **BLOQUEADO** sin acceso a Chronos |
-| M8 | OTel (refs tipadas) | **BLOQUEADO** sin OTel collector configurado |
-
-**Estrategia:** donde el hito requiere export externo, se construye el adapter/consumidor con fixtures sintéticos del shape esperado, y se documenta que la verificación con export real queda pendiente del repo externo. Coherente con M1 (fixture sintético antes que evidencia real).
+| M3 / M7 | PipelineK (SDK) | **BLOQUEADO** sin SDK; cubierto con `MockSdkHost` (M11.8) que ejecuta el plugin end-to-end sin SDK real. |
+| M6 | Chronos (export `assurance-runtime-evidence/v1`) | Adapter real con codec `ChronosRuntimeEvidenceCodec`; el mutante `M-CHRONOS-REGEX-LEGACY` documenta la ruta legacy. Verificación end-to-end difiere. |
+| M8 | OTel (refs tipadas) | Adapter real con codec `OtelTraceExportCodec`; el mutante `M-OTEL-REGEX-LEGACY` documenta la ruta legacy. Verificación end-to-end difiere. |
+| M2 | CogniCode (export real) | Cubierto con extractor in-test del propio repo (M2-T6 self-hosting). El export real requiere WP-CG-002. |
 
 ---
 
@@ -74,7 +76,7 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 
 ---
 
-## Tracking (resumen final)
+## Tracking (resumen final post v0.9.1)
 
 | Hito | Estado | Tests (al cerrar) | SHA de cierre |
 |---|---|---|---|
@@ -82,15 +84,17 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 | M0  | closed | 174 → 169 | ya cerrado (historial) |
 | M1  | closed | 236 | ya cerrado (historial) |
 | M2  | closed | 258 | `023f666`, `2bd529f`, `ee536a6` |
-| M3  | closed | 268 | `06a916b` (SDK integrado via ServiceLoader) |
+| M3  | closed | 268 | `06a916b` (SDK via ServiceLoader) + Mock SDK host (M11.8) |
 | M4  | closed | 276 | `53385b0` |
 | M5  | closed | 322 | `9ae04fd` |
-| M6  | estructura | 326 | `7cb0ee4` (Chronos real pendiente) |
-| M7  | closed | 333 | `06a916b` (SDK integrado) |
-| M8  | estructura | 337 | (export OTel real pendiente) |
+| M6  | closed | 398+ | `7cb0ee4` (estructura) + `5006c2e` (codec real con kotlinx.serialization) |
+| M7  | closed | 333 | `06a916b` (SDK integrado) + Mock SDK host |
+| M8  | closed | 398+ | estructura → codec real `OtelTraceExportCodec` (M11.8 ciclo) |
 | M9  | closed | 283 | `ce2866f` |
-| M10 | closed | 342 | `745c2d7` (SeamLens) |
-| M11 | estructura | 342 | `7b14548` (scripts OK; checksums/provenance/distribución pendientes) |
+| M10 | closed | 342 → 398+ | `745c2d7` (SeamLens) + `8dd6b57` (ConnascenceLens 3 heurísticas) + `2835c31` (SolidLens SRP/OCP) |
+| M11 | closed | 440 | `7ee42bb` CycloneDX SBOM, `b04786e` GPG signing, `50bb9eb` osv-scanner, `66d8cbc` Mock SDK host |
+| v0.9.0 | released | 440 | `fd16bde` (release commit) |
+| v0.9.1 | released | 440 | `89d515a` (capabilities refactor) |
 
 ## Bloqueadores externos (no cerrables sin acceso a los repos)
 
