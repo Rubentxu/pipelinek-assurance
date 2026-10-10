@@ -201,4 +201,49 @@ class OtelArtifactProviderTest : AnnotationSpec() {
         // (el codec los extrae correctamente).
         spanIds.toSet().size shouldBe 2
     }
+
+    @Test
+    fun M_OTEL_REGEX_LEGACY_campos_desconocidos_del_envelope_se_ignoran() {
+        // M-OTEL-REGEX-LEGACY redundancia: el codec real con
+        // `ignoreUnknownKeys = true` ignora campos OTLP que no
+        // mapeamos (e.g. attributes, events, links). El legacy
+        // regex también los ignora, pero FALLA si esos campos
+        // contienen la cadena "traceId" o "spanId" en otro
+        // contexto: el regex captura el valor aunque esté en
+        // `attributes[].key` o en un `name` de span.
+        // Construimos un export con un campo `name` que parece
+        // un traceId: el codec lo trata como `name` (no lo
+        // confunde con traceId); el regex lo captura como
+        // traceId espurio.
+        val export = """
+            {
+              "resourceSpans": [
+                {
+                  "scopeSpans": [
+                    {
+                      "spans": [
+                        {
+                          "traceId": "real-trace",
+                          "spanId": "real-span",
+                          "name": "span-with-abc123-traceId-as-name"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+        val provider = OtelArtifactProvider(export.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val traceSubjects = produced.rawItems
+            .filter { it.subjectRef.startsWith("OTelTraceId/") }
+            .map { it.subjectRef }
+        // El codec real extrae SOLO el traceId real, no el
+        // capturado por el regex en `name`. Si el legacy gana,
+        // aparecerán 2 traceIds (el real + el del `name`).
+        traceSubjects.size shouldBe 1
+        traceSubjects[0] shouldBe "OTelTraceId/real-trace"
+    }
 }
