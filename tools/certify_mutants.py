@@ -440,6 +440,14 @@ sealed interface AssertionResult {
         """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph\"""",
         """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph-DRIFT\""""),
     ])],
+    # M-CAP-DRIFT-2: análogo al anterior pero sobre SIGNALS_DETEKT.
+    # Cubre la rama que JUnitXmlProvider y DetektSarifProvider
+    # referencian; sin este mutante, el bug que reintrodujo
+    # strings literales en `private companion object` no se cazaba.
+    "M-CAP-DRIFT-2": [(CAPABILITIES, [(
+        """    const val SIGNALS_DETEKT: String = \"signals.detekt\"""",
+        """    const val SIGNALS_DETEKT: String = \"signals.detekt-DRIFT\""""),
+    ])],
     # M-COGN01: "CogniCodeProvider re-clasifica authority desconocida
     # como DeterministicAnalyzer". La función `deterministicOrFallback`
     # degradaba cualquier cadena no reconocida a

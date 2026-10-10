@@ -28,6 +28,7 @@
  */
 package dev.pipelinek.assurance.providers.detekt
 
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.domain.evidence.Digest
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
@@ -241,9 +242,11 @@ class DetektSarifProvider(
     }
 
     private companion object {
-        // Capabilities declaradas en el descriptor; duplicadas aquí para
-        // que un cambio de descriptor fuerce un cambio aquí también.
-        const val CAPABILITY_SIGNALS_DETEKT = "signals.detekt"
+        // Capability declarada en el descriptor; referencia
+        // `Capabilities` en `assurance-domain` para que un cambio
+        // del nombre canónico se haga en un solo sitio (ver
+        // M-CAP-DRIFT).
+        const val CAPABILITY_SIGNALS_DETEKT = Capabilities.SIGNALS_DETEKT
     }
 }
 

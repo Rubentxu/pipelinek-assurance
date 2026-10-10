@@ -50,4 +50,7 @@ object Capabilities {
 
     /** Señales heurísticas (Detekt, sonar, etc.). */
     const val SIGNALS_SOLID_AUDIT: String = "signals.solid_audit"
+
+    /** Señales heurísticas de Detekt (reglas SARIF). */
+    const val SIGNALS_DETEKT: String = "signals.detekt"
 }

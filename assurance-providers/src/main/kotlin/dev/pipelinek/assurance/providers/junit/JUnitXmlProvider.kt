@@ -30,6 +30,7 @@
  */
 package dev.pipelinek.assurance.providers.junit
 
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
 import dev.pipelinek.assurance.engine.EvidenceProviderDescriptor
@@ -225,10 +226,11 @@ class JUnitXmlProvider(
     }
 
     private companion object {
-        // Capabilities declaradas en el descriptor; duplicadas aquí para
-        // que un cambio de descriptor fuerce un cambio aquí también.
-        const val CAPABILITY_TEST_RESULTS = "test.results"
-        const val CAPABILITY_TEST_TOPOLOGY = "test.topology"
+        // Capabilities declaradas en el descriptor; referencian
+        // `Capabilities` en `assurance-domain` para que un cambio del
+        // nombre canónico se haga en un solo sitio (ver M-CAP-DRIFT).
+        const val CAPABILITY_TEST_RESULTS = Capabilities.TEST_RESULTS
+        const val CAPABILITY_TEST_TOPOLOGY = Capabilities.TEST_TOPOLOGY
     }
 }
 
