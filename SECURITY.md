@@ -10,9 +10,9 @@ expect, and what the policy of supported versions is.
 
 | Version | Status | Security fixes until |
 |---|---|---|
-| `v0.8.x` | Current | Until `v0.10.0` is released (~3 months) |
-| `v0.7.x` | Maintenance | Until `v0.9.0` is released (~1 month) |
-| `v0.6.x` and earlier | End of life | No backports |
+| `v0.9.x` | Current | Until `v0.11.0` is released (~3 months) |
+| `v0.8.x` | Maintenance | Until `v0.10.0` is released (~1 month) |
+| `v0.7.x` and earlier | End of life | No backports |
 
 The project follows **semver**. Patch releases on supported minor versions
 include security fixes; minor and major releases do not. Releases are tagged
