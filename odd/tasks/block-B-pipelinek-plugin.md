@@ -67,7 +67,9 @@ PipelineK con versión verificable.
       `AssuranceCheckEndToEndTest`).
 - [x] Ejemplo reproducible: grafo correcto (Success) +
       dependencia prohibida (Failure con counterexample + report).
-- [ ] Fachada Kotlin DSL que baje a Step primitives públicos.
+- [x] Fachada Kotlin DSL que baje a Step primitives públicos
+      (`AssuranceCheckStepDsl`, 8 tests en
+      `AssuranceCheckStepDslTest`).
 - [x] NO activar `assurance.verify` como capacidad anunciada.
 
 ### B4 — Artifact y replay (en-repo, sin bloqueador)
