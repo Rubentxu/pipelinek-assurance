@@ -30,6 +30,7 @@
 | M-10-02 | SolidLens: DIP violation no detectada (rank check desactivado) | M10 DIP |
 | M-10-03 | ConsistencyLens: contradicción no detectada (filter false) | M10 Consistency |
 | M-10-04 | SeamLens: TODOS los módulos clasificados como seam | M10 Seam |
+| M-DSL01 | assurancePack DSL `mandatory(id)` no bridgea a `metadata["mandatory"]` | M10 DSL bridge |
 
 ## Redundancia, y por qué se importa
 

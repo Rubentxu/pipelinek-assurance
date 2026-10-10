@@ -106,6 +106,30 @@ class AssuranceDslTest : AnnotationSpec() {
         pack.rules[1].shouldBeInstanceOf<AssurancePack.Rule.NewFindings>()
     }
 
+    @Test
+    fun assurancePack_mandatory_bridgea_metadata_para_RequiredAssurancePlan() {
+        // M-DSL01 redundancia: el `mandatory(suiteId)` de la DSL debe
+        // patchear la `AssuranceSuiteIR` con `metadata["mandatory"]=true`.
+        // Un mutante que quite ese patch hace que el plan no detecte
+        // la suite como Mandatory aunque la regla esté en el pack.
+        val (pack, irs) = packWithIrs("mandatory-bridge", "1.0.0") {
+            description = "bridge"
+            suite("a") {
+                lens(lensId = "lens/a", kind = "a.kind")
+                assertion("a/x", lensRef = "lens/a", operator = "op")
+            }
+            mandatory("a")
+        }
+        val ir = irs["a"]
+        (ir != null) shouldBe true
+        // La IR debe tener el flag "mandatory"="true" para que el plan
+        // la incluya en `selections`.
+        (ir!!.metadata["mandatory"]) shouldBe "true"
+        // La regla sigue presente en el pack.
+        pack.rules.size shouldBe 1
+        pack.rules.single().shouldBeInstanceOf<AssurancePack.Rule.Mandatory>()
+    }
+
     private fun emptyDiff() = Diff(
         baselineName = "none",
         baselineDigest = dev.pipelinek.assurance.domain.evidence.Digest.ofUtf8("b"),

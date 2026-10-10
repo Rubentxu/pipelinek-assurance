@@ -34,6 +34,7 @@ SEAM = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architec
 PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assurance/plugin/AssuranceVerifyStep.kt"
 CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
+DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -45,6 +46,7 @@ REPORTS = [
     os.path.join(ROOT, "assurance-providers/build/reports/tests/test/classes"),
     os.path.join(ROOT, "pipelinek-assurance-plugin/build/reports/tests/test/classes"),
     os.path.join(ROOT, "assurance-engine/build/reports/tests/test/classes"),
+    os.path.join(ROOT, "assure-cli/build/reports/tests/test/classes"),
 ]
 
 # Cada mutante: (nombre, [(fichero, [(buscar, reemplazar)]), ...])
@@ -392,6 +394,27 @@ sealed interface AssertionResult {
     }""",
         """    init { }"""),
     ])],
+    # M-DSL01: "DSL mandatory() no bridgea a metadata". La DSL
+    # declara la regla Rule.Mandatory y además parchea la
+    # AssuranceSuiteIR con `metadata["mandatory"]="true"` para que
+    # `RequiredAssurancePlan.build` la detecte como
+    # `MandatoryBaseline`. El mutante reemplaza el patch por una
+    # asignación del `existing` sin modificar: la regla sigue en
+    # el pack pero el IR queda sin el flag, y el plan no detecta
+    # la suite como Mandatory.
+    "M-DSL01": [(DSL, [(
+        """            val patched = existing.copy(metadata = existing.metadata + (\"mandatory\" to \"true\"))
+            suites[suiteId] = patched
+            val ref = suiteRefs[suiteId]
+            if (ref != null) {
+                suiteRefs[suiteId] = ref.copy(suiteVersion = patched.suiteVersion)
+            }""",
+        """            suites[suiteId] = existing
+            val ref = suiteRefs[suiteId]
+            if (ref != null) {
+                suiteRefs[suiteId] = ref.copy(suiteVersion = existing.suiteVersion)
+            }"""),
+    ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.
     #
@@ -447,6 +470,7 @@ def run_tests():
          ":assurance-providers:test",
          ":pipelinek-assurance-plugin:test",
          ":assurance-engine:test",
+         ":assure-cli:test",
          "--no-daemon", "--rerun-tasks"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,

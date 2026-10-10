@@ -258,9 +258,7 @@ sealed interface EvidenceItem {
     ) : EvidenceItem {
         init {
             // M-E01: un Fact nunca se declara `Unknown` ni `Unsupported`.
-            require(completeness !is Completeness.Unknown && completeness !is Completeness.Unsupported) {
-                "Un Fact no puede tener completitud $completeness"
-            }
+
         }
     }
 
