@@ -25,6 +25,13 @@ class CapabilitiesTest : AnnotationSpec() {
     }
 
     @Test
+    fun signals_detekt_tiene_valor_canonico() {
+        // M-CAP-DRIFT-2: análogo al anterior para SIGNALS_DETEKT.
+        // Si el mutante añade un sufijo "-DRIFT", el test falla.
+        Capabilities.SIGNALS_DETEKT shouldBe "signals.detekt"
+    }
+
+    @Test
     fun todas_las_capabilities_tienen_forma_namespace_dot_subnamespace() {
         // AAT-13: la forma `<namespace>.<subnamespace>` es la
         // convención. Un capability fuera de forma es un typo
