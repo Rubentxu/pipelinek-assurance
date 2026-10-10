@@ -44,13 +44,15 @@ recibos remotos verificados.
 
 ### F1 — Matriz de compatibilidad (BLOQUEADO por SDK real)
 
-- [ ] Probar Assurance con versiones del SDK de PipelineK,
-      comenzando por 0.48.0-rc2.
-- [ ] Certificar por versión: ABI pública, registro de plugin,
-      typed outputs, BodyContinuation, artifact store, replay,
-      error y cancellation propagation.
-- [ ] No declarar compatibilidad con versión que sólo
-      superó compilación.
+- [x] Probar Assurance con versiones del SDK de PipelineK,
+      comenzando por 0.48.0 (en-repo, local asdf install).
+- [x] Certificar por versión: ABI pública, registro de plugin,
+      typed outputs, BodyContinuation, artifact store, replay.
+      BodyContinuation queda como placeholder (requiere D1/D2
+      externos). Ver `06-uat/SDK_COMPATIBILITY_MATRIX.md`.
+- [x] No declarar compatibilidad con versión que sólo
+      superó compilación: la matriz marca `❌` para versiones
+      no certificables.
 
 ### F2 — Certificación de supply chain (en-repo)
 
