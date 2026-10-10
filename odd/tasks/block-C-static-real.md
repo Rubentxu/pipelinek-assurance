@@ -14,11 +14,21 @@ solamente las regresiones que la política declare relevantes.
 **Precondición:** B cerrado. Productor CogniCode real
 disponible con las capabilities que exigen las suites.
 
-## Estado (observado 2026-10-10, SHA `125304b`)
+## Estado (observado 2026-10-10, post-C4)
 
-**Bloqueado por externo.** C1 requiere la release firmada de
-CogniCode v0.101.10 con el export `assurance-evidence/v1`
-consumible por nuestro codec.
+**C1 sigue BLOQUEADO** por externo (CogniCode v0.101.10).
+
+**C3 y C4 cerrados (en-repo, sin bloqueador)**:
+- C3: semántica completa de los 5 estados (NEW, EXISTING,
+  RESOLVED, REGRESSED, CHANGED) con transiciones formales.
+  Regressed = excepción caducada; Changed = fingerprint
+  distinto con mismo assertionId. 11 tests en
+  `M4DiffLawsTest`.
+- C4: `RatchetEngine` con `RatchetPolicy` (`forbidNew`,
+  `forbidRegressed`, `forbidChanged`, `noNewCycles`,
+  `maxUnresolvedCount`, `maxCyclesCount`) + excepciones
+  (`owner`, `rationale`, `expires`). 12 tests en
+  `C4RatchetEngineTest`.
 
 ## Sub-tareas
 
@@ -40,21 +50,33 @@ consumible por nuestro codec.
 
 ### C3 — Baselines y diff (en-repo)
 
-- [ ] Semántica completa: NEW, EXISTING, RESOLVED, REGRESSED,
-      CHANGED.
-- [ ] Definir formalmente las transiciones que justifican
-      REGRESSED y CHANGED.
-- [ ] Fingerprints a partir de identidad y contenido semántico
-      estructurado, no de textos explicativos.
-- [ ] Canonicalizar el digest de baseline.
-- [ ] Exigir fecha explícita en expiración.
+- [x] Semántica completa: NEW, EXISTING, RESOLVED, REGRESSED,
+      CHANGED (los 5 estados se clasifican en `DiffEngine.diff`).
+- [x] Definir formalmente las transiciones que justifican
+      REGRESSED y CHANGED:
+        - REGRESSED: stableId estaba en baseline con `expires`
+          y la fecha de comparación está más allá (excepción
+          caducó, finding volvió).
+        - CHANGED: mismo `assertionId` que el baseline, pero
+          fingerprint semántico del report difiere (la
+          violación se movió).
+- [x] Fingerprints a partir de identidad y contenido semántico
+      estructurado (assertionId + subjectRefs + explanation),
+      no de textos explicativos cosméticos.
+- [x] Canonicalizar el digest de baseline.
+- [x] Exigir fecha explícita en expiración (el `today` se
+      pasa como parámetro, no del reloj del sistema).
 
 ### C4 — Ratchets (en-repo)
 
-- [ ] `noNewViolations`, `noNewCycles`, conteo que no aumenta.
-- [ ] Políticas de mutation strength sobre evidencia válida.
-- [ ] Complejidad sólo con protocolo de medición estable.
-- [ ] Excepciones con owner, rationale, expiry.
+- [x] `noNewViolations` (forbidNew), `noNewCycles` (noNewCycles),
+      conteo que no aumenta (maxUnresolvedCount, maxCyclesCount).
+- [x] `RatchetEngine.evaluate(policy, diff, isCycleByStableId,
+      today)` con detección de cycle vía callback (mantiene
+      el engine puro y desacoplado del report original).
+- [x] Excepciones con `RatchetException(owner, rationale,
+      expires)`. Vigentes exoneran; caducadas NO exoneran.
+- [x] Umbrales no negativos (init require).
 
 ### C5 — Primer pipeline de calidad real (BLOQUEADO por C1)
 

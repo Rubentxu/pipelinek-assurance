@@ -109,10 +109,13 @@ class M4DiffLawsTest : AnnotationSpec() {
     }
 
     @Test
-    fun M_B01_expirado_es_NEW_no_EXISTING() {
-        // Baseline expirado: el finding vuelve a NEW, no a EXISTING.
-        // No hay RESOLVED porque el finding del baseline es el mismo
-        // que el del report.
+    fun M_B01_expirado_es_REGRESSED_no_EXISTING() {
+        // Baseline expirado: el finding vuelve como REGRESSION, no
+        // como EXISTING ni como NEW. La distinción entre New y
+        // Regressed importa: Regressed indica que el dueño DECIDIÓ
+        // antes que esa violación se podía suprimir, y la excepción
+        // caducó. New sería un hallazgo que nunca estuvo en el
+        // baseline.
         val baseline = listOf(
             knownViolation(
                 id = "a-1",
@@ -128,7 +131,7 @@ class M4DiffLawsTest : AnnotationSpec() {
         )
         val today = LocalDate.of(2025, 6, 1)
         val diff = DiffEngine.diff("b", baseline, report, engineVersion, today = today)
-        diff.entries.single().state shouldBe DiffState.New
+        diff.entries.single().state shouldBe DiffState.Regressed
     }
 
     @Test
@@ -164,6 +167,95 @@ class M4DiffLawsTest : AnnotationSpec() {
         val diff = DiffEngine.diff("b", emptyList(), report, engineVersion)
         diff.entries shouldBe emptyList()
         diff.summary.total shouldBe 0
+    }
+
+    @Test
+    fun C3_finding_con_fingerprint_distinto_es_CHANGED_no_EXISTING() {
+        // Mismo assertionId en baseline y report, pero el
+        // fingerprint del report difiere del declarado en el
+        // baseline. La violación "se movió": la supresión
+        // aplicaba al fingerprint declarado, no al actual. El
+        // motor la etiqueta como CHANGED para que el ratchet
+        // pueda distinguir un cambio de posición de un hallazgo
+        // idéntico.
+        val assertionId = AssertionId("a-1")
+        val originalFingerprint = Digest.ofUtf8("original")
+        val currentFingerprint = Digest.ofUtf8("moved-to-different-line")
+        val baseline = listOf(
+            KnownViolation(
+                stableId = FindingId(assertionId, originalFingerprint),
+                assertionId = assertionId,
+                fingerprint = originalFingerprint,
+                firstSeenRevision = revision,
+            ),
+        )
+        // Construimos un Failed cuyo fingerprint (calculado por
+        // DiffEngine.fingerprintOf) sea el "moved". Como el
+        // helper `failure` usa la fórmula canónica, no podemos
+        // pasarle un fingerprint arbitrario. Pero el motor
+        // SIEMPRE clasifica por lo que el report produce, así
+        // que para este test el report lleva un failure con
+        // explanation distinta, lo que cambia su fingerprint
+        // semántico.
+        val report = reportWith(
+            failures = listOf(failure("a-1", "se movio a otra linea")),
+        )
+        val diff = DiffEngine.diff("b", baseline, report, engineVersion)
+        diff.entries.single().state shouldBe DiffState.Changed
+    }
+
+    @Test
+    fun C3_baseline_con_mismo_fingerprint_es_EXISTING() {
+        // Companion del test Changed: si el report trae el MISMO
+        // fingerprint semántico que el baseline declaraba, el
+        // finding es EXISTING. Es el caso que la supresión
+        // cubre.
+        val baseline = listOf(knownViolation("a-1", "exp", revision))
+        val report = reportWith(failures = listOf(failure("a-1", "exp")))
+        val diff = DiffEngine.diff("b", baseline, report, engineVersion)
+        diff.entries.single().state shouldBe DiffState.Existing
+    }
+
+    @Test
+    fun C3_Regressed_y_New_son_distintos_en_summary() {
+        // El plan C3 distingue explícitamente REGRESSED de NEW:
+        // un Regressed estaba suprimido por una excepción que
+        // caducó; un New nunca estuvo en el baseline. Un auditor
+        // que vea Regressed sabe que hubo una decisión previa
+        // (con owner y rationale) que dejó de aplicar. Para
+        // confirmarlo: el mismo report contra dos baselines
+        // (uno sin el finding, otro con expires vencido)
+        // produce estados distintos.
+        val assertionId = AssertionId("a-1")
+        val fingerprint = Digest.ofUtf8(
+            buildString {
+                append("a-1")
+                append("|run/1")
+                append("|").append("exp")
+            },
+        )
+        val report = reportWith(failures = listOf(failure("a-1", "exp")))
+
+        // Baseline A: no contiene el finding → New.
+        val diffNew = DiffEngine.diff("b", emptyList(), report, engineVersion)
+        diffNew.entries.single().state shouldBe DiffState.New
+
+        // Baseline B: contiene el finding con expires vencido
+        // y today posterior → Regressed.
+        val baselineExpired = listOf(
+            KnownViolation(
+                stableId = FindingId(assertionId, fingerprint),
+                assertionId = assertionId,
+                fingerprint = fingerprint,
+                firstSeenRevision = revision,
+                expires = LocalDate.of(2024, 1, 1),
+            ),
+        )
+        val diffRegressed = DiffEngine.diff(
+            "b", baselineExpired, report, engineVersion,
+            today = LocalDate.of(2025, 6, 1),
+        )
+        diffRegressed.entries.single().state shouldBe DiffState.Regressed
     }
 
     // --- helpers ---

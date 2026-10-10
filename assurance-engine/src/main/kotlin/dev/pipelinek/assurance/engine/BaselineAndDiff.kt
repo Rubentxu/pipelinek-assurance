@@ -176,7 +176,11 @@ object DiffEngine {
         engineVersion: String,
         today: LocalDate? = null,
     ): Diff {
-        val baselineById = baseline.associateBy { it.stableId }
+        // Indexamos el baseline por assertionId. Eso permite que
+        // un finding con el mismo `assertionId` pero distinto
+        // `fingerprint` se siga reconociendo como "el mismo
+        // concepto" y entre al estado CHANGED en vez de NEW.
+        val baselineByAssertionId = baseline.associateBy { it.assertionId }
         val currentFindings = currentReport.results
             .filterIsInstance<AssertionResult.Failed>()
             .map { f ->
@@ -185,20 +189,29 @@ object DiffEngine {
                     fingerprint = fingerprintOf(f),
                 ) to f
             }
-        val currentIds = currentFindings.map { it.first }.toSet()
+        val currentAssertionIds = currentFindings.map { it.first.assertionId }.toSet()
 
         val entries = mutableListOf<DiffEntry>()
 
         // Una sola pasada por finding. Cada finding del report cae en
-        // exactamente uno de tres estados:
-        //   - NEW si su stableId no está en el baseline, o si la
+        // exactamente uno de cinco estados:
+        //   - NEW si su assertionId no está en el baseline, o si la
         //     KnownViolation correspondiente ha expirado;
-        //   - EXISTING si su stableId está en el baseline y la
-        //     KnownViolation sigue activa;
+        //   - EXISTING si su assertionId está en el baseline, la
+        //     KnownViolation sigue activa, y el fingerprint semántico
+        //     no ha cambiado;
+        //   - CHANGED si su assertionId está en el baseline (la
+        //     KnownViolation con ese assertionId declara un
+        //     fingerprint), pero el fingerprint del report actual
+        //     difiere: la violación "se movió" (otra línea, otro
+        //     módulo, otra explicación);
+        //   - REGRESSED si la KnownViolation tenía `expires` y la
+        //     fecha de comparación está más allá: la excepción
+        //     caducó y el finding volvió como regresión.
         //   - (no entra si es `Passed` o cualquier otro resultado
         //     que no sea `Failed`).
         for ((id, failure) in currentFindings) {
-            val known = baselineById[id]
+            val known = baselineByAssertionId[id.assertionId]
             if (known == null) {
                 entries += DiffEntry(
                     stableId = id,
@@ -207,9 +220,29 @@ object DiffEngine {
                     explanation = failure.counterexample.explanation,
                 )
             } else {
-                val active = today?.let { known.isActive(it) } ?: true
-                entries += if (active) {
-                    DiffEntry(
+                // ¿La supresión declarada sigue vigente? Si tiene
+                // expires y hoy está más allá, la excepción cayó y
+                // el finding vuelve como regresión. Si la
+                // comparación no tiene fecha (today == null), la
+                // excepción se considera activa: esa decisión es
+                // coherente con la semántica "run determinista de
+                // CI no depende del reloj".
+                val expiredByDate = known.expires != null &&
+                    today != null && today > known.expires
+                if (expiredByDate) {
+                    entries += DiffEntry(
+                        stableId = id,
+                        state = DiffState.Regressed,
+                        subject = failure.counterexample.subjectRefs.joinToString(",") { it.value },
+                        explanation = failure.counterexample.explanation,
+                        owner = known.owner,
+                        rationale = known.rationale,
+                        expires = known.expires,
+                    )
+                } else if (id.fingerprint == known.fingerprint) {
+                    // Mismo assertionId + mismo fingerprint: la
+                    // supresión aplica tal cual.
+                    entries += DiffEntry(
                         stableId = id,
                         state = DiffState.Existing,
                         subject = failure.counterexample.subjectRefs.joinToString(",") { it.value },
@@ -219,13 +252,21 @@ object DiffEngine {
                         expires = known.expires,
                     )
                 } else {
-                    // Una excepción expirada deja de suprimir. El
-                    // finding vuelve a contarse como NEW.
-                    DiffEntry(
+                    // Mismo assertionId, fingerprint distinto: la
+                    // violación se movió (otra línea, otro módulo,
+                    // otra explicación). El baseline declaraba el
+                    // contenido original; el report trae contenido
+                    // nuevo. Esto es Changed, no Existing, porque la
+                    // supresión aplicaba al fingerprint declarado,
+                    // no al actual.
+                    entries += DiffEntry(
                         stableId = id,
-                        state = DiffState.New,
+                        state = DiffState.Changed,
                         subject = failure.counterexample.subjectRefs.joinToString(",") { it.value },
                         explanation = failure.counterexample.explanation,
+                        owner = known.owner,
+                        rationale = known.rationale,
+                        expires = known.expires,
                     )
                 }
             }
@@ -235,7 +276,7 @@ object DiffEngine {
         // Se reporta (no se borra) para que un auditor pueda ver
         // qué findings dejaron de aparecer.
         for (known in baseline) {
-            if (known.stableId !in currentIds) {
+            if (known.assertionId !in currentAssertionIds) {
                 entries += DiffEntry(
                     stableId = known.stableId,
                     state = DiffState.Resolved,
