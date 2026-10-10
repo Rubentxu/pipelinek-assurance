@@ -252,6 +252,27 @@ object CanonicalEncoder {
      * engine, este digest es identico. Eso es lo que hace que un report sea
      * comparable byte a byte entre maquinas.
      */
+    fun digestPlan(plan: dev.pipelinek.assurance.engine.RequiredAssurancePlan.Plan): Digest = Digest.ofUtf8(
+        buildString {
+            appendField("schema", "assurance-plan/v1")
+            appendField("engineVersion", plan.engineVersion)
+            appendField(
+                "selections",
+                plan.selections.joinToString("\n") { sel ->
+                    val reason = when (val r = sel.reason) {
+                        dev.pipelinek.assurance.engine.RequiredAssurancePlan.Reason.MandatoryBaseline ->
+                            "mandatory"
+                        dev.pipelinek.assurance.engine.RequiredAssurancePlan.Reason.NewFindingsPresent ->
+                            "new-findings"
+                        is dev.pipelinek.assurance.engine.RequiredAssurancePlan.Reason.TouchedByChange ->
+                            "touched:${r.path}"
+                    }
+                    "${sel.suiteId.value}=$reason"
+                },
+            )
+        },
+    )
+
     fun digestReport(report: AssuranceReport): Digest = Digest.ofUtf8(
         buildString {
             appendField("schema", REPORT_SCHEMA)
