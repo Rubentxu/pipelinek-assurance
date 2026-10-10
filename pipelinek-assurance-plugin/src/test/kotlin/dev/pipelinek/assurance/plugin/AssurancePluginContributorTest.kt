@@ -48,14 +48,15 @@ class AssurancePluginContributorTest : AnnotationSpec() {
     fun el_contributor_se_instancia_y_declara_definitions() {
         val contributor = AssurancePluginContributor()
         contributor.id shouldBe "pipelinek-assurance"
-        contributor.definitions.size shouldBe 2
+        contributor.definitions().count() shouldBe 2
     }
 
     @Test
     fun el_contributor_declara_los_dos_steps_conocidos() {
         val contributor = AssurancePluginContributor()
-        val keys = contributor.definitions.map { (it as Any).let { d -> (d as? AssuranceCheckStepAdapter)?.key
-            ?: (d as? AssuranceVerifyStepAdapter)?.key } }
+        val keys = contributor.definitions().map { d ->
+            d.contract.key.value
+        }
         keys shouldBe listOf("assurance.check", "assurance.verify")
     }
 
@@ -90,5 +91,23 @@ class AssurancePluginContributorTest : AnnotationSpec() {
                 .replace(Regex("""//[^\n]*"""), "")
             (body.contains("when (stepKey") || body.contains("when(stepKey")) shouldBe false
         }
+    }
+
+    @Test
+    fun serviceloader_del_sdk_descubre_el_contributor() {
+        // B1: el host del SDK descubre el plugin via
+        // `ServiceLoader.load(StepDefinitionContributor::class.java)`.
+        // Verificamos que, dado el classpath actual del test
+        // (que incluye el SDK 0.48.0 y el plugin), el loader
+        // encuentra al menos un contributor cuya clase sea
+        // `AssurancePluginContributor`.
+        val contributorClass = Class.forName(
+            "dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor",
+        )
+        @Suppress("UNCHECKED_CAST")
+        val loader = java.util.ServiceLoader.load(contributorClass as Class<Any>)
+        val found = loader.toList()
+        val ours = found.firstOrNull { it.javaClass.name == "dev.pipelinek.assurance.plugin.AssurancePluginContributor" }
+        (ours != null) shouldBe true
     }
 }
