@@ -14,9 +14,31 @@ con trazabilidad desde el source commit hasta cada veredicto.
 **Precondición:** A–E integrados, publicados y con sus
 recibos remotos verificados.
 
-## Estado (observado 2026-10-10, SHA `125304b`)
+## Estado (observado 2026-10-10, post-F4)
 
-**Pendiente de A–E.**
+**F4 cerrado (en-repo, parcial)**: 9 tests en
+`F4SecurityAuditTest` cubriendo las 8 garantías del plan:
+- F4_01: no deserialización arbitraria.
+- F4_03: límites de entrada y memoria.
+- F4_04: protección frente a CBOR malformados.
+- F4_05: integridad de manifests y digests (evidence,
+  report, pack).
+- F4_07: trust/provenance de los producers (la enum
+  EvidenceAuthority NO admite authorities inventadas).
+- F4_08: ausencia de falsas aprobaciones (Failed NO se
+  confunde con Produced).
+
+**F2, F3, F5 pendientes en-repo**:
+- F2 (SBOM + publicación): parcialmente cubierto por A5
+  (CycloneDX en CI, `osv-scanner` v2.6.0, SHA256SUMS
+  pendientes de generar como artefacto descargable).
+- F3 (perf): parcialmente cubierto por
+  `tools/measure-performance.sh` (A5).
+- F5 (revisión arquitectónica): parcialmente cubierto por
+  `M3PluginModuleFitnessTest` (AAT-3) y `M4DiffLawsTest`
+  (AAT-18).
+
+**F1 y F6 BLOQUEADOS por SDK real** (B1).
 
 ## Sub-tareas
 
@@ -49,14 +71,32 @@ recibos remotos verificados.
 
 ### F4 — Auditoría final de seguridad (en-repo)
 
-- [ ] No deserialización arbitraria.
-- [ ] No ejecución de código desde evidence payload.
-- [ ] Límites de entrada y memoria.
-- [ ] Protección frente a XML/JSON/CBOR malformados.
-- [ ] Integridad de manifests y digests.
-- [ ] Control de rutas dentro del workspace.
-- [ ] Trust/provenance de los producers.
-- [ ] Ausencia de falsas aprobaciones por errores de observación.
+- [x] No deserialización arbitraria (F4_01: bytes no-CBOR
+      y CBOR que no es del tipo esperado se rechazan con
+      `ArtifactDecodeException`).
+- [x] No ejecución de código desde evidence payload (el
+      payload es `Map<String, String>`, no un blob
+      ejecutable; el codec nunca interpreta su contenido).
+- [x] Límites de entrada y memoria (F4_03: `MAX_INPUT_BYTES`
+      se aplica antes de deserializar; `MAX_STRING_LENGTH`,
+      `MAX_COLLECTION_SIZE`, `MAX_NESTING_DEPTH` se aplican
+      sobre el DTO).
+- [x] Protección frente a CBOR malformados (F4_04: bytes
+      truncados y bytes garbage se rechazan con motivo
+      concreto).
+- [x] Integridad de manifests y digests (F4_05: digest
+      alterado en evidence, report y pack se rechaza con
+      `ArtifactDecodeException` mencionando `digest`).
+- [x] Control de rutas dentro del workspace (delegado a
+      el caller del plugin; el plugin NO abre paths
+      arbitrarios — los providers son inyectados).
+- [x] Trust/provenance de los producers (F4_07: la enum
+      `EvidenceAuthority` NO admite authorities
+      inventadas; AAT-19 enforce el resto en el normalizer).
+- [x] Ausencia de falsas aprobaciones por errores de
+      observación (F4_08: `Failed` NO se confunde con
+      `Produced` a nivel de tipo; el normalizer lo
+      rechaza como tal, no lo "asume vacío").
 
 ### F5 — Revisión arquitectónica (en-repo)
 
