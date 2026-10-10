@@ -1,18 +1,26 @@
-# Release Notes — v0.10.0-rc1 (draft, B+B+C+D+E+F in-repo)
+# Release Notes — v0.10.0-rc1 (tagged)
 
-> **Status:** Draft. No se tagea hasta que **B1** (SDK PipelineK
-> v0.48.0-rc2) esté verde. La rama `consolidation/A-F` contiene
-> todo el trabajo en-repo de los 6 bloques.
+> **Status:** Tag `v0.10.0-rc1` creado localmente sobre
+> `consolidation/A-F` (HEAD `efa6763`, 2026-10-10).
+> **B1 cerrado** con SDK PipelineK 0.48.0 stable instalado
+> en asdf y disponible en `~/.m2/repository/`. Push del tag
+> y merge a `main` quedan como decisión del usuario.
 
 ## Resumen
 
-Tramo de consolidación A-F sobre `consolidation/A-F` (16
-commits sobre v0.9.5-rc1, 589 tests verdes). El core gana un
+Tramo de consolidación A-F sobre `consolidation/A-F` (29
+commits sobre v0.9.5-rc1, 590 tests verdes). El core gana un
 gate basado en per-assertion enforcement (no counter), un
 orchestrator de 10 pasos, semántica completa de diff con
 5 estados, motor de ratchets, fachada Kotlin DSL para
 `assurance.check`, y cobertura de fallos/crash/replay,
 auditoría de seguridad y revisión arquitectónica.
+
+B1 integró el plugin contra el SDK real PipelineK 0.48.0:
+`AssurancePluginContributor` implementa
+`StepDefinitionContributor`, `ServiceLoader` lo descubre,
+codecs tipados (`StepCodec<I,O>` con `EncodedStepValue`)
+sustituyen al `List<Any>` falso.
 
 ## Cambios por bloque
 
@@ -37,8 +45,28 @@ auditoría de seguridad y revisión arquitectónica.
   generado dentro del job, performance budget
   (`tools/measure-performance.sh`) con min-tests como error.
 
-### Bloque B — Primer plugin PipelineK ejecutable (B1 BLOQUEADO)
+### Bloque B — Primer plugin PipelineK ejecutable (B1 cerrado)
 
+- **B1** Integración con SDK PipelineK 0.48.0 (stable):
+  - `pipelinek-assurance-plugin/build.gradle.kts` declara
+    `dev.rubentxu.pipeline.v2:pipeline-{domain,events,
+    output,scripting-api}:0.48.0` vía mavenLocal() + flatDir
+    sobre `~/.asdf/installs/pipelinek/0.48.0/lib/`.
+  - `AssurancePluginContributor` implementa la interfaz
+    `StepDefinitionContributor` del SDK (no más `List<Any>`).
+  - `definitions: Iterable<StepDefinition<*, *>>` con
+    `assurance.check` y `assurance.verify` (placeholder).
+  - `META-INF/services/dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor`
+    registra la clase; `ServiceLoader.load(...)` la descubre
+    en el test
+    `serviceloader_del_sdk_descubre_el_contributor`.
+  - Codecs JSON (`StepCodec<I,O>`) envuelven los DTOs en
+    `EncodedStepValue`; handler suspende vía `StepHandler`.
+  - Matriz de compatibilidad inicial: `06-uat/SDK_COMPATIBILITY_MATRIX.md`
+    certifica 0.48.0 stable. Versiones 0.48.0-rc1/rc2 y 0.49+
+    marcadas como `❌` (no certificables todavía).
+  - Local CI: `ci/assurance.pipeline.kts` corre con
+    PipelineK 0.48.0 (no GitHub Actions).
 - **B2** `AssuranceOrchestrator` con los 10 pasos del
   contrato (`assurance.check`): resolver suite, validar
   refs, seleccionar providers, recolectar, normalizar,
@@ -120,27 +148,26 @@ auditoría de seguridad y revisión arquitectónica.
 
 ## Verificación
 
-- **589 tests verdes** (reciente recibo:
-  `build/test-receipts/98a8bdac7b74.json`).
+- **590 tests verdes** (recuento sobre
+  `*/build/test-results/*/TEST-*.xml` a 2026-10-10).
 - **44/44 mutantes certificados** (cert v0.9.5-rc1).
-- **16 commits** sobre v0.9.5-rc1, rama
-  `consolidation/A-F` pusheada a `origin`.
+- **29 commits** sobre v0.9.5-rc1, rama
+  `consolidation/A-F`.
 
 ## STOP gates (heredados del plan)
 
-- B1 sin SDK real → no se tagea v0.10.0-rc1
 - C1 sin CogniCode real → no se tagea v0.11.0-rc1
 - D1/D3 sin Chronos/OTel real → no se tagea v0.12.0-rc1
-- F1 sin matriz SDK → no se tagea v1.0.0-rc1
+- F1 ya certificada para 0.48.0; el resto del matrix
+  depende de B1 SDK upstream → no se tagea v1.0.0-rc1
 
 ## Cómo promover
 
 ```bash
 git checkout main
 git merge --no-ff consolidation/A-F
-git tag -s v0.10.0-rc1 -m "v0.10.0-rc1: A-F in-repo consolidated"
 git push origin main v0.10.0-rc1
 ```
 
-(Requiere que B1 esté verificado antes de promover; el
-release notes se ajusta cuando el SDK real esté disponible.)
+El tag `v0.10.0-rc1` ya está creado localmente (`git tag -l
+v0.10.0-rc1`). El usuario decide push y merge.
