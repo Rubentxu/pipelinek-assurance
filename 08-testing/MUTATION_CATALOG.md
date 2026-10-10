@@ -38,6 +38,8 @@
 | M-10-CONTENT | ConnascenceLens `findConnascenceOfName` neutralizado (vuelve a `emptyList()`) | M10 / lens content |
 | M-SOLID-SRP-EMPTY | SolidLens `findSrpSignals` neutralizado a `emptyList()` | M10 / SRP heuristic |
 | M-SOLID-OCP-EMPTY | SolidLens `findOcpSignals` neutralizado a `emptyList()` | M10 / OCP heuristic |
+| M-CHRONOS-REGEX-LEGACY | ChronosArtifactProvider usa regex legacy en vez del codec | P0.4 / Chronos codec |
+| M-OTEL-REGEX-LEGACY | OtelArtifactProvider usa regex legacy en vez del codec | P0.4 / OTel codec |
 
 ## Redundancia, y por qué se importa
 
