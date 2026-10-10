@@ -100,15 +100,28 @@ recibos remotos verificados.
 
 ### F5 — Revisión arquitectónica (en-repo)
 
-- [ ] Functional core puro.
-- [ ] Providers sin authority de gate.
-- [ ] Assertions separadas de Steps.
-- [ ] Engine sin dependencias hacia implementaciones de providers.
-- [ ] Plugin sin importaciones de `pipeline-application`.
-- [ ] IDs tipados.
-- [ ] Control estructurado de cancelación.
-- [ ] Un único dueño del journal.
-- [ ] Sin dependencia MCP en ejecución determinista.
+- [x] Functional core puro (engine no hace I/O: ningún
+      `FileInputStream`, `URL`, `Socket` en `assurance-engine`).
+- [x] Providers sin authority de gate (los providers sólo
+      recolectan; el gate es del Step handler).
+- [x] Assertions separadas de Steps (`AssuranceAssertion`
+      en engine, no depende del plugin).
+- [x] Engine sin dependencias hacia implementaciones de
+      providers (engine NO importa `assurance.providers.*`).
+- [x] Plugin sin importaciones de `pipeline-application`
+      (AAT-3 elevado a F5).
+- [x] IDs tipados (`SuiteId`, `AssertionId`, `LensId`,
+      `FindingId` son value classes).
+- [x] Control estructurado de cancelación
+      (`BodyOutcome.Cancelled` y `StepOutcome.Cancelled`
+      son subtipos).
+- [x] Un único dueño del journal (plugin NO escribe
+      `JournalWriter`; el SDK es el dueño).
+- [x] Sin dependencia MCP en ejecución determinista
+      (ningún módulo importa `io.modelcontextprotocol`
+      o `io.grpc`).
+
+9 tests en `F5ArchitecturalReviewTest`.
 
 ### F6 — Release candidate (BLOQUEADO por F1–F5)
 
