@@ -4,6 +4,7 @@ import dev.pipelinek.assurance.domain.evidence.EvidenceItem
 import dev.pipelinek.assurance.domain.evidence.EvidenceSnapshot
 import dev.pipelinek.assurance.domain.evidence.ExternalNamespace
 import dev.pipelinek.assurance.domain.evidence.TypedExternalId
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.engine.AssertionId
 import dev.pipelinek.assurance.engine.AssuranceLens
 import dev.pipelinek.assurance.engine.ProjectionFailureReason
@@ -58,7 +59,7 @@ import dev.pipelinek.assurance.engine.ProjectionResult
  */
 object ConnascenceLens : AssuranceLens<EvidenceSnapshot, ConnascenceProjection> {
 
-    const val CAPABILITY: String = "architecture.dependency-graph"
+    const val CAPABILITY: String = Capabilities.ARCHITECTURE_DEPENDENCY_GRAPH
 
     override fun project(input: EvidenceSnapshot): ProjectionResult<ConnascenceProjection> {
         // Reutilizamos la `HexagonalArchitectureLens` para obtener el

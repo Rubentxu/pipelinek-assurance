@@ -36,6 +36,7 @@ CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
+CAPABILITIES = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -429,6 +430,14 @@ sealed interface AssertionResult {
             )
         }""",
         ""),
+    ])],
+    # M-CAP-DRIFT: "Capabilities cambia el valor canónico sin migrar".
+    # El símbolo `ARCHITECTURE_DEPENDENCY_GRAPH` se referencia desde
+    # 3 lenses y 1 provider. Un mutante que cambie el valor
+    # rompe todos los tests que dependen del string canónico.
+    "M-CAP-DRIFT": [(CAPABILITIES, [(
+        """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph\"""",
+        """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph-DRIFT\""""),
     ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.

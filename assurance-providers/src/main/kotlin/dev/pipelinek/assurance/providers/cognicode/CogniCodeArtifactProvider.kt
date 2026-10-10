@@ -30,6 +30,7 @@
  */
 package dev.pipelinek.assurance.providers.cognicode
 
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
 import dev.pipelinek.assurance.engine.EvidenceProviderDescriptor
@@ -80,10 +81,10 @@ class CogniCodeArtifactProvider(
         id = "cognicode",
         version = "0.1.0",
         evidenceCapabilities = listOf(
-            "architecture.dependency-graph",
-            "architecture.entities",
-            "architecture.relations",
-            "signals.solid_audit",
+            Capabilities.ARCHITECTURE_DEPENDENCY_GRAPH,
+            Capabilities.ARCHITECTURE_ENTITIES,
+            Capabilities.ARCHITECTURE_RELATIONS,
+            Capabilities.SIGNALS_SOLID_AUDIT,
         ),
         subjectKinds = listOf("Module", "Symbol", "SourceLocation"),
         classification = ProviderClassification.Deterministic,
@@ -425,13 +426,12 @@ class CogniCodeArtifactProvider(
     }
 
     private companion object {
-        // Capacidades declaradas en el descriptor; duplicadas aquí para
-        // no pagar el coste de `descriptor.evidenceCapabilities.first()`
-        // por cada ítem (y para que un cambio de descriptor fuerce un
-        // cambio aquí también).
-        const val CAPABILITY_DEPENDENCY_GRAPH = "architecture.dependency-graph"
-        const val CAPABILITY_ENTITIES = "architecture.entities"
-        const val CAPABILITY_RELATIONS = "architecture.relations"
-        const val CAPABILITY_SIGNALS = "signals.solid_audit"
+        // Capacidades declaradas en el descriptor; referencian
+        // `Capabilities` en `assurance-domain` para que un cambio del
+        // nombre canónico se haga en un solo sitio (ver M-CAP-DRIFT).
+        const val CAPABILITY_DEPENDENCY_GRAPH = Capabilities.ARCHITECTURE_DEPENDENCY_GRAPH
+        const val CAPABILITY_ENTITIES = Capabilities.ARCHITECTURE_ENTITIES
+        const val CAPABILITY_RELATIONS = Capabilities.ARCHITECTURE_RELATIONS
+        const val CAPABILITY_SIGNALS = Capabilities.SIGNALS_SOLID_AUDIT
     }
 }

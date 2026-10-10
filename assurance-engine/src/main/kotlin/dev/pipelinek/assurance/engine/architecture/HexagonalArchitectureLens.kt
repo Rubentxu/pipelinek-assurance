@@ -3,6 +3,7 @@ package dev.pipelinek.assurance.engine.architecture
 import dev.pipelinek.assurance.domain.evidence.EvidenceGap
 import dev.pipelinek.assurance.domain.evidence.EvidenceSnapshot
 import dev.pipelinek.assurance.domain.evidence.EvidenceItem
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.engine.AssuranceLens
 import dev.pipelinek.assurance.engine.ProjectionFailureReason
 import dev.pipelinek.assurance.engine.ProjectionResult
@@ -38,7 +39,7 @@ import dev.pipelinek.assurance.engine.ProjectionResult
  */
 object HexagonalArchitectureLens : AssuranceLens<EvidenceSnapshot, DependencyGraph> {
     /** Capability que la lens requiere del snapshot. */
-    const val CAPABILITY: String = "architecture.dependency-graph"
+    const val CAPABILITY: String = Capabilities.ARCHITECTURE_DEPENDENCY_GRAPH
 
     /** Predicate que declara que el `objectValue` es un grafo de dependencias. */
     const val PREDICATE: String = "declara-dependency-graph"
