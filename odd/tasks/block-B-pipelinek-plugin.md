@@ -14,9 +14,16 @@ sin cambiar una línea del core.
 **Precondición:** Bloque A cerrado (v0.9.5-rc1). SDK público de
 PipelineK con versión verificable.
 
-## Estado (observado 2026-10-10, post-B4)
+## Estado (observado 2026-10-10, post-B1)
 
-**B1 sigue BLOQUEADO** por externo (SDK v0.48.0-rc2).
+**B1 cerrado (en-repo + SDK local)**: el plugin ahora
+declara dependencias reales contra
+`dev.rubentxu.pipeline.v2:{pipeline-domain,
+pipeline-events, pipeline-output, pipeline-scripting-api}:0.48.0`.
+La integración se resuelve vía mavenLocal() + flatDir sobre
+`~/.asdf/installs/pipelinek/0.48.0/lib/`. SDK se publica
+en `~/.m2/repository/` desde la instalación asdf. El
+`./gradlew test` corre contra el SDK real.
 
 **B2, B3, B4 cerrados (en-repo, sin bloqueador)**:
 - B2: `AssuranceOrchestrator` con los 10 pasos y 9 tests.
