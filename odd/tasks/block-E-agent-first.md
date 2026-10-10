@@ -68,9 +68,10 @@ runners es una verificación pendiente.
 
 ### E3 — Runners (en-repo)
 
-- [ ] JUnit Platform y Kotest con paridad de report.
-- [ ] Comparar digests canónicos entre tres rutas:
-      evaluación pura, JUnit, Kotest, Step PipelineK.
+- [x] JUnit Platform y Kotest con paridad de report.
+- [x] Comparar digests canónicos entre tres rutas:
+      evaluación pura, JUnit, Kotest, Step PipelineK
+      (6 tests en `E3RunnerParityTest`).
 
 ### E4 — Self-hosting real (BLOQUEADO por C1)
 
