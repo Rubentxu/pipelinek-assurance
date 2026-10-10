@@ -135,6 +135,25 @@ class ChronosRuntimeEvidenceCodecTest : AnnotationSpec() {
     }
 
     @Test
+    fun coleccion_causalEdges_excede_MAX_COLLECTION_SIZE_rechazada() {
+        // M-CHRONOS-BOUNDED redundancia: el check de
+        // causalEdges.size es una segunda frontera independiente
+        // de invocations.size. Un mutante que quite el check
+        // de invocations pero olvide el de causalEdges deja
+        // pasar este test, no el anterior.
+        val real = EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        val oneEdge =
+            """{"from":"span/f","to":"span/t","kind":"causal"}"""
+        val count = real + 1
+        val edgeList = (0 until count).joinToString(",") { oneEdge }
+        val json = """{"windowToken":"wt-abc","causalEdges":[$edgeList]}"""
+        val ex = shouldThrow<IllegalArgumentException> {
+            ChronosRuntimeEvidenceCodec.decodeFromJson(json.toByteArray(Charsets.UTF_8))
+        }
+        ex.message shouldContain "causalEdges=" + count + " excede MAX_COLLECTION_SIZE"
+    }
+
+    @Test
     fun encodeToJson_incluye_digest_canonico() {
         // M-CHRONOS-REGEX-LEGACY redundancia: el encode es la
         // mitad de roundtrip; el digest embebido debe ser el

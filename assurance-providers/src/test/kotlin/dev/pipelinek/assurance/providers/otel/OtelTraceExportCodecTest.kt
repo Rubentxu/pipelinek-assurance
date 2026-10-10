@@ -128,4 +128,22 @@ class OtelTraceExportCodecTest : AnnotationSpec() {
         }
         ex.message shouldContain "resourceSpans=" + count + " excede MAX_COLLECTION_SIZE"
     }
+
+    @Test
+    fun scopeSpans_excede_MAX_COLLECTION_SIZE_rechazada() {
+        // M-OTEL-BOUNDED redundancia: el check de scopeSpans
+        // es una segunda frontera de la jerarquía OTLP. Un
+        // mutante que quite el check de resourceSpans pero
+        // olvide el de scopeSpans deja pasar este test, no
+        // el anterior.
+        val real = EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        val oneSs = """{"spans":[{"traceId":"t"}]}"""
+        val count = real + 1
+        val ssList = (0 until count).joinToString(",") { oneSs }
+        val json = """{"resourceSpans":[{"scopeSpans":[$ssList]}]}"""
+        val ex = shouldThrow<IllegalArgumentException> {
+            OtelTraceExportCodec.decodeFromJson(json.toByteArray(Charsets.UTF_8))
+        }
+        ex.message shouldContain "scopeSpans=" + count + " excede MAX_COLLECTION_SIZE"
+    }
 }

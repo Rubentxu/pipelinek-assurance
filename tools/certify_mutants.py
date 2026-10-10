@@ -33,7 +33,9 @@ CONSISTENCY = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/a
 SEAM = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architecture/SeamLens.kt"
 PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assurance/plugin/AssuranceVerifyStep.kt"
 CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
+CHRONOS_CODEC = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosRuntimeEvidenceCodec.kt"
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
+OTEL_CODEC = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelTraceExportCodec.kt"
 COGNICODE = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/cognicode/CogniCodeArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
@@ -580,25 +582,40 @@ sealed interface AssertionResult {
         }""",
         """        // AAT-13 check removed (mutated)"""),
     ])],
-    # M-CHRONOS-BOUNDED: ChronosRuntimeEvidenceCodec.remove el
-    # require de MAX_COLLECTION_SIZE. Un mutante que lo quite
-    # acepta exports con millones de invocations (DoS).
-    "M-CHRONOS-BOUNDED": [(CHRONOS, [(
+    # M-CHRONOS-BOUNDED: ChronosRuntimeEvidenceCodec.remove los
+    # require de MAX_COLLECTION_SIZE sobre invocations y causalEdges
+    # (mismo defecto de bounded decoding al mismo nivel). Un mutante
+    # que los quite acepta exports con millones de elementos (DoS).
+    # El test de invocations Y el de causalEdges cazan este mutante.
+    "M-CHRONOS-BOUNDED": [(CHRONOS_CODEC, [(
         """        require(dto.invocations.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
             \"invocations=${dto.invocations.size} excede MAX_COLLECTION_SIZE=\" +
                 EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }
+        require(dto.causalEdges.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            \"causalEdges=${dto.causalEdges.size} excede MAX_COLLECTION_SIZE=\" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
         }""",
-        """        // MAX_COLLECTION_SIZE check removed (mutated)"""),
+        """        // MAX_COLLECTION_SIZE checks removed (mutated)"""),
     ])],
-    # M-OTEL-BOUNDED: OtelTraceExportCodec.remove el require
-    # de MAX_COLLECTION_SIZE en resourceSpans. Mismo bug que
-    # M-CHRONOS-BOUNDED, distinto nivel de la jerarquía.
-    "M-OTEL-BOUNDED": [(OTEL, [(
+    # M-OTEL-BOUNDED: OtelTraceExportCodec.remove los require
+    # de MAX_COLLECTION_SIZE en resourceSpans y scopeSpans
+    # (mismo defecto a dos niveles de la jerarquía OTLP).
+    "M-OTEL-BOUNDED": [(OTEL_CODEC, [(
         """        require(dto.resourceSpans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
             \"resourceSpans=${dto.resourceSpans.size} excede MAX_COLLECTION_SIZE=\" +
                 EvidenceArtifactCodec.MAX_COLLECTION_SIZE
-        }""",
-        """        // MAX_COLLECTION_SIZE check removed (mutated)"""),
+        }
+        dto.resourceSpans.forEach { rs ->
+            require(rs.scopeSpans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+                \"scopeSpans=${rs.scopeSpans.size} excede MAX_COLLECTION_SIZE=\" +
+                    EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+            }
+            rs.scopeSpans.forEach { ss ->""",
+        """        // resourceSpans + scopeSpans MAX_COLLECTION_SIZE checks removed (mutated)
+        dto.resourceSpans.forEach { rs ->
+            // scopeSpans check removed (mutated)
+            rs.scopeSpans.forEach { ss ->"""),
     ])],
 }
 
