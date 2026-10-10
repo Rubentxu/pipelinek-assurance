@@ -121,6 +121,50 @@ class EvidenceNormalizerTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_NORM_01_mezcla_de_items_validos_e_invalidos_aborta() {
+        // M-NORM-01 redundancia: si el normalizer acepta un item
+        // con id sin namespace porque está en una lista con
+        // otros items válidos, la enforce AAT-13 falla por
+        // una segunda vía. Verificamos que un item "huérfano"
+        // (id sin /) hace abortar la normalización aunque
+        // haya otros items correctos en la misma lista.
+        val result = produced(
+            rawItems = listOf(
+                RawEvidenceItem(
+                    kind = RawItemKind.Fact,
+                    id = "test/fact/valido",
+                    subjectRef = "module:core",
+                    authority = EvidenceAuthority.DeterministicAdapter.name,
+                    payload = mapOf(
+                        "predicate" to "imports",
+                        "object" to "core.Bar",
+                        "capability" to "architecture.dependency-graph",
+                    ),
+                ),
+                RawEvidenceItem(
+                    kind = RawItemKind.Fact,
+                    id = "id-huerfano-sin-slash",
+                    subjectRef = "module:core",
+                    authority = EvidenceAuthority.DeterministicAdapter.name,
+                    payload = mapOf("predicate" to "calls", "object" to "core.Foo"),
+                ),
+            ),
+        )
+        val ex = shouldThrow<EvidenceNormalizer.NormalizerException> {
+            EvidenceNormalizer.normalize(
+                result = result,
+                producerId = "test",
+                producerVersion = "0.1.0",
+                subjectRevision = RevisionRef("0000000000000000000000000000000000000000"),
+                subject = EvidenceSubject.Module("self"),
+                snapshotId = SnapshotId("s/norm"),
+                requestedCapabilities = emptyList(),
+            )
+        }
+        ex.message shouldContain "rawItem sin namespace"
+    }
+
+    @Test
     fun normalize_signal_con_authority_deterministic_aborta() {
         // M-H01: un Signal nunca puede tener authority
         // determinista. El normalizer refuse la combinación
