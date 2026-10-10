@@ -44,6 +44,8 @@
 | M-CHRONOS-REGEX-LEGACY | ChronosArtifactProvider usa regex legacy en vez del codec | P0.4 / Chronos codec |
 | M-OTEL-REGEX-LEGACY | OtelArtifactProvider usa regex legacy en vez del codec | P0.4 / OTel codec |
 | M-NORM-01 | EvidenceNormalizer remueve chequeo AAT-13 (id debe contener '/') | AAT-13 / namespacing |
+| M-CHRONOS-BOUNDED | ChronosRuntimeEvidenceCodec remueve checks de MAX_COLLECTION_SIZE en invocations y causalEdges | AAT-1 / bounded decoding |
+| M-OTEL-BOUNDED | OtelTraceExportCodec remueve checks de MAX_COLLECTION_SIZE en resourceSpans y scopeSpans | AAT-1 / bounded decoding |
 
 ## Redundancia, y por qué se importa
 
