@@ -121,6 +121,43 @@ class RequiredAssurancePlanTest : AnnotationSpec() {
         CanonicalEncoder.digestPlan(p1).hex shouldBe CanonicalEncoder.digestPlan(p2).hex
     }
 
+    @Test
+    fun pack_basico_se_compone_y_sus_suites_son_unicas() {
+        // M5.6: AssurancePack es el input natural del plan. El pack
+        // declara suites y reglas; el plan los cruza con el diff.
+        val pack = AssurancePack(
+            name = "release-m10",
+            packVersion = "1.0.0",
+            description = "Suites obligatorias para un release de M10",
+            suites = listOf(
+                AssurancePack.SuiteRef(suiteId = SuiteId("architecture.hexagonal"), suiteVersion = "1.0.0"),
+                AssurancePack.SuiteRef(suiteId = SuiteId("test.topology"), suiteVersion = "1.0.0"),
+            ),
+            rules = listOf(
+                AssurancePack.Rule.Mandatory(SuiteId("architecture.hexagonal")),
+            ),
+        )
+        pack.suites.size shouldBe 2
+        pack.rules.size shouldBe 1
+    }
+
+    @Test
+    fun pack_con_suites_duplicadas_rechazado() {
+        val ex = io.kotest.assertions.throwables.shouldThrowAny {
+            AssurancePack(
+                name = "bad-pack",
+                packVersion = "1.0.0",
+                description = "duplicado",
+                suites = listOf(
+                    AssurancePack.SuiteRef(suiteId = SuiteId("dup"), suiteVersion = "1.0.0"),
+                    AssurancePack.SuiteRef(suiteId = SuiteId("dup"), suiteVersion = "1.0.0"),
+                ),
+                rules = emptyList(),
+            )
+        }
+        (ex.message?.contains("duplicadas") ?: false) shouldBe true
+    }
+
     // --- helpers ---
 
     private fun suite(
