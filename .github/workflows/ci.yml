@@ -61,3 +61,52 @@ jobs:
             **/build/test-results/test/*.xml
             **/build/reports/tests/test/
           if-no-files-found: ignore
+
+  # M11.6 — security scan con `osv-scanner` sobre el
+  # `settings-gradle.lockfile` y el SBOM CycloneDX. La CI
+  # aborta si se detecta una vulnerabilidad con severidad >= HIGH.
+  # Independiente del job `check`: queremos que el scan corra
+  # también en PRs de forks (donde `check` no se ejecuta).
+  security-scan:
+    name: osv-scanner (lockfile + SBOM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # El lockfile es la fuente de verdad de qué versiones
+      # están en uso. osv-scanner lo ingiere directamente y
+      # consulta la base de datos de vulnerabilidades de OSV.
+      - name: Generate lockfile if missing
+        # `settings-gradle.lockfile` existe en el repo, pero si
+        # un cambio introduce una dependencia nueva sin lock,
+        # queremos regenerarlo en CI.
+        run: |
+          if [[ ! -f settings-gradle.lockfile ]]; then
+            ./gradlew --no-daemon --write-locks
+          fi
+
+      - name: Run osv-scanner on lockfile
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: >-
+            --lockfile=settings-gradle.lockfile
+            --sbom=pipelinek-assurance-plugin/build/reports/bom.json
+            --format=markdown
+            --output=osv-report.md
+            --fail-on=high
+        env:
+          # osv-scanner consulta la API pública; no necesita
+          # credenciales. Si la organización quiere usar un
+          # mirror privado, este env var es el punto de override.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload osv report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-scan-report
+          path: osv-report.md
+          if-no-files-found: ignore
