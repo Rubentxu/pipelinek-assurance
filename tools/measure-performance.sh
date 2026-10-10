@@ -44,12 +44,17 @@ TESTS=$(find . -path "*/build/test-results/*/TEST-*.xml" -not -path "*/.gradle/*
     | awk -F'"' '{s+=$2} END{print s+0}')
 
 # Mínimo absoluto: si tenemos menos de 300 tests, el budget se está
-# midiendo sobre un subset. Fallar loud antes de reportar un budget
-# falsamente verde.
+# midiendo sobre un subset. A5 (Bloque A): esto era un WARNING que
+# silenciosamente saltaba el budget. Convertido en ERROR porque un
+# budget "falsamente verde" (porque no se midió nada) es peor que
+# un budget rojo: te dice que la performance está bien cuando no
+# la has medido.
 MIN_TESTS=300
 if [[ "$TESTS" -lt "$MIN_TESTS" ]]; then
-    echo "[perf] WARNING: only $TESTS tests ran (min expected $MIN_TESTS); budget check skipped"
-    echo "[perf] see /tmp/perf-check.log for the test run output"
+    echo "[perf] STOP: only $TESTS tests ran (min expected $MIN_TESTS)." >&2
+    echo "[perf] see /tmp/perf-check.log for the test run output" >&2
+    echo "[perf] Refusing to report a budget that wasn't measured." >&2
+    exit 1
 fi
 
 OVER_BUDGET=false

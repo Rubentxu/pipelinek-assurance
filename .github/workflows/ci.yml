@@ -106,8 +106,21 @@ jobs:
             ./gradlew --no-daemon --write-locks
           fi
 
+      # A5 (Bloque A): generar el SBOM CycloneDX dentro del job
+      # para que osv-scanner consuma un artefacto verificable del
+      # propio build, no uno preexistente en la rama. El SBOM
+      # contiene el árbol transitivo real que se está evaluando.
+      - name: Generate SBOM
+        if: hashFiles('pipelinek-assurance-plugin/build.gradle.kts') != ''
+        run: ./gradlew --no-daemon :pipelinek-assurance-plugin:cyclonedxBom
+
       - name: Run osv-scanner on lockfile
-        uses: google/osv-scanner-action@v1
+        # A5 (Bloque A): v1 está obsoleta y falla en CI. v2.x es la
+        # línea estable; usamos v2.6.0 (latest). El nombre del step
+        # inputs/outputs cambió entre v1 y v2 — en v2 se llama
+        # `scan-args` (igual) y el formato de output también, así
+        # que la migración es 1:1, sólo cambia el tag de la action.
+        uses: google/osv-scanner-action@v2.6.0
         with:
           scan-args: >-
             --lockfile=settings-gradle.lockfile
@@ -128,3 +141,19 @@ jobs:
           name: osv-scan-report
           path: osv-report.md
           if-no-files-found: ignore
+
+      # A5 (Bloque A): el job debe comprobar que el scan se ejecutó
+      # realmente. La action v2 falla el step si encuentra vulns
+      # >= high, pero no es prueba suficiente: queremos un marcador
+      # explícito de que el artefacto existe. Sin este step, un
+      # fallo silencioso de la action (sin report generado, sin
+      # exit code != 0) podría pasar.
+      - name: Verify osv scan completed
+        if: always()
+        run: |
+          if [[ ! -f osv-report.md ]]; then
+            echo "STOP: osv-scanner no produjo osv-report.md."
+            echo "El scan no se ejecutó o falló sin generar artefacto."
+            exit 1
+          fi
+          echo "osv scan completed, report size: $(wc -c < osv-report.md) bytes"

@@ -7,7 +7,14 @@ documento de origen; este es el que manda para los agentes.
 
 ## Estado actual
 
-Hito activo: **W0 cerrado, M0 en curso**.
+Hitos cerrados: **M0..M11** (v0.8.0). Cierre post-audit: v0.9.0..v0.9.4.
+
+Estado verificado (v0.9.4, SHA `df44ea5`): 495 tests verdes,
+44/44 mutantes certificados con redundancia >= 2.
+
+Plan de consolidación activo: **Bloques A → F** (ver
+`ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
+vayan apareciendo). El orden A→B→C→D→E→F es estricto.
 
 Mapa de hitos y gates: `ROADMAP.md` (autoridad única de secuenciación).
 
