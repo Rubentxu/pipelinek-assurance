@@ -35,6 +35,7 @@
 | M-CAP-DRIFT | Capabilities cambia valor canónico sin migrar | AAT-13 / namespacing |
 | M-COGN01 | CogniCodeProvider: authority desconocida re-clasificada como DeterministicAnalyzer | AAT-19 / authority law |
 | M-COGN02 | CogniCodeProvider: gap reason desconocido re-clasificado como PartialProduced | AAT-13 / drift visible |
+| M-10-CONTENT | ConnascenceLens `findConnascenceOfName` neutralizado (vuelve a `emptyList()`) | M10 / lens content |
 
 ## Redundancia, y por qué se importa
 

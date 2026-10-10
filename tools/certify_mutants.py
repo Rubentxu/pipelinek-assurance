@@ -504,14 +504,14 @@ sealed interface AssertionResult {
     # CoN/CoP/CoM; con este mutante detectaría 0, que es
     # exactamente el bug que el audit senior marcó como P0.1.
     "M-10-CONTENT": [(CONNASCENCE, [(
-        """        for ((target, dependents) in targetCounts) {
-            if (dependents.size >= 2) {
-                val a = dependents[0]
-                val b = dependents[1]""",
-        """        for ((target, dependents) in targetCounts) {
-            if (false) {
-                val a = dependents[0]
-                val b = dependents[1]"""),
+        """            for ((target, dependents) in targetCounts) {
+                if (dependents.size >= 2) {
+                    val a = dependents[0]
+                    val b = dependents[1]""",
+        """            for ((target, dependents) in targetCounts) {
+                if (false) {
+                    val a = dependents[0]
+                    val b = dependents[1]"""),
     ])],
 }
 
