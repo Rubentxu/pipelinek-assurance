@@ -78,6 +78,9 @@ object AssureCli {
             "report" -> report(operand, leeGrafo)
             "explain" -> explicar(operand)
             "evidence path" -> evidencePath(operand)
+            "capabilities" -> capabilities()
+            "providers" -> providers()
+            "next" -> next(operand)
             // Registry y dispatcher han divergido. Es un error de construccion
             // del propio CLI, no del usuario, y por eso se dice como tal en vez
             // de caer en "comando desconocido".
@@ -86,6 +89,93 @@ object AssureCli {
                 mapOf("comando" to nombre, "registrados" to CapabilityRegistry.nombres.joinToString(", ")),
             )
         }
+    }
+
+    /**
+     * E1 (Bloque E): lista los comandos disponibles. La respuesta
+     * se genera del registry: si el comando no está registrado,
+     * no aparece aquí. Eso preserva la ley "registrar y probar"
+     * del WP-004.
+     */
+    private fun capabilities(): CommandResult {
+        val data = mapOf(
+            "apiVersion" to CapabilityRegistry.API_VERSION,
+            "comandos" to CapabilityRegistry.comandos.joinToString("\n") {
+                "${it.name} :: ${it.summary}"
+            },
+            "count" to CapabilityRegistry.comandos.size.toString(),
+        )
+        return CommandResult(
+            Envelope(
+                apiVersion = CapabilityRegistry.API_VERSION,
+                kind = "Capabilities",
+                subject = "capabilities",
+                data = data,
+                actions = emptyList(),
+            ),
+            ExitCode.OK,
+        )
+    }
+
+    /**
+     * E1: providers de evidencia disponibles. Mientras el SDK real
+     * no esté conectado, los providers efectivos son los
+     * built-in (BuiltinLens + BuiltinAssertion, que son la única
+     * garantía que el plugin puede dar en su modo mínimo). El
+     * comando documenta esa realidad.
+     */
+    private fun providers(): CommandResult {
+        val data = mapOf(
+            "apiVersion" to CapabilityRegistry.API_VERSION,
+            "lenses" to "BuiltinLens (architecture.dependency-graph)",
+            "assertions" to "BuiltinAssertion (architecture.no-domain-to-external)",
+            "note" to "El SDK real conecta providers externos; en MockSdkHost solo hay built-in.",
+        )
+        return CommandResult(
+            Envelope(
+                apiVersion = CapabilityRegistry.API_VERSION,
+                kind = "Providers",
+                subject = "providers",
+                data = data,
+                actions = emptyList(),
+            ),
+            ExitCode.OK,
+        )
+    }
+
+    /**
+     * E1: siguiente acción sugerida a partir de un veredicto.
+     * Recibe "passed", "failed" o "inconclusive" y devuelve el
+     * comando a ejecutar. Es la versión "explícita" de las
+     * actions que el envelope ya adjunta al report.
+     */
+    private fun next(veredicto: String?): CommandResult {
+        if (veredicto == null) {
+            return uso("'next' necesita el veredicto (passed|failed|inconclusive)", CapabilityRegistry.nombres)
+        }
+        val sugerencia = when (veredicto.trim().lowercase()) {
+            "passed" -> "assure report <ref> # veredicto verde; nada que hacer"
+            "failed" -> "assure explain <finding> # explica el contraejemplo"
+            "inconclusive" -> "assure evidence path <finding> # qué evidencia falta"
+            else -> return uso(
+                "veredicto no reconocido: $veredicto (usa passed|failed|inconclusive)",
+                CapabilityRegistry.nombres,
+            )
+        }
+        val data = mapOf(
+            "veredicto" to veredicto,
+            "sugerencia" to sugerencia,
+        )
+        return CommandResult(
+            Envelope(
+                apiVersion = CapabilityRegistry.API_VERSION,
+                kind = "Next",
+                subject = veredicto,
+                data = data,
+                actions = emptyList(),
+            ),
+            ExitCode.OK,
+        )
     }
 
     /**

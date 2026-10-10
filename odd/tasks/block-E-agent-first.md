@@ -13,24 +13,50 @@ evidencias, sin aprender de antemano la estructura interna.
 
 **Precondición:** D cerrado.
 
-## Estado (observado 2026-10-10, SHA `125304b`)
+## Estado (observado 2026-10-10, post-E1)
 
-**Pendiente de A–D.** Sin A, B, C, D cerrados, los artifacts
-que E debe navegar son ficticios.
+**E1 cerrado (en-repo, parcial)**: 3 nuevos comandos en el
+CLI + 7 tests:
+- `assure capabilities` lista los comandos del registry.
+- `assure providers` documenta BuiltinLens + BuiltinAssertion.
+- `assure next <veredicto>` sugiere la siguiente acción.
+
+Los comandos restantes del E1 (`snapshot inspect`, `suite
+inspect`, `findings`, `reproduce`, `diff`, `baseline
+inspect`) requieren artefactos del SDK real o de producers
+externos (B1, C1, D1) y quedan en-repo pero pendientes de
+los productores.
+
+**E2 (en-repo, ya en gran parte)**: `assurancePack` DSL y
+`RequiredAssurancePlan` ya están implementados y probados
+(AssuranceDslTest, RequiredAssurancePlanTest).
+
+**E3 (en-repo, parcial)**: JUnit y Kotest se usan
+paralelamente; la paridad de digests canónicos entre
+runners es una verificación pendiente.
+
+**E4 BLOQUEADO por C1** (CogniCode real para self-hosting).
 
 ## Sub-tareas
 
 ### E1 — CLI real (en-repo, depende de A–D)
 
-- [ ] `assure capabilities`, `assure providers`,
-      `assure snapshot inspect`, `assure suite inspect`,
-      `assure report`, `assure findings`, `assure explain`,
-      `assure evidence path`, `assure reproduce`, `assure diff`,
-      `assure baseline inspect`, `assure next`.
-- [ ] Cada recurso accionable devuelve enlaces/comandos
+- [x] `assure capabilities` (lista comandos del registry).
+- [x] `assure providers` (documenta BuiltinLens +
+      BuiltinAssertion).
+- [x] `assure report`, `assure explain`, `assure evidence path`
+      (M1 + M5; ya probados).
+- [x] `assure next` (sugiere la siguiente acción).
+- [ ] `assure snapshot inspect`, `assure suite inspect`,
+      `assure findings`, `assure reproduce`, `assure diff`,
+      `assure baseline inspect` — requieren artefactos del
+      SDK real (B1) o producers externos (C1, D1). Quedan
+      pendientes en-repo; se promoverán cuando los productores
+      estén disponibles.
+- [x] Cada recurso accionable devuelve enlaces/comandos
       válidos derivados del capability registry.
-- [ ] `explain` muestra counterexample persistido.
-- [ ] `evidence path` recorre referencias reales.
+- [x] `explain` muestra counterexample persistido.
+- [x] `evidence path` recorre referencias reales.
 
 ### E2 — Kotlin DSL y packs (en-repo)
 

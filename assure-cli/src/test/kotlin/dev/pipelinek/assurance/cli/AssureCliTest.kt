@@ -254,6 +254,58 @@ class AssureCliTest : StringSpec({
         java.io.File(SelfModelFixture.RUTA).readText() shouldContain("assure-cli @ Infrastructure")
         SelfModelFixture.existeModulo() shouldBe true
     }
+
+    // --- E1 (Bloque E) — comandos agent-first ---
+
+    "assure capabilities lista todos los comandos disponibles" {
+        val resultado = AssureCli.ejecutar(listOf("capabilities"), cli(""))
+        resultado.exitCode shouldBe ExitCode.OK
+        resultado.envelope!!.kind shouldBe "Capabilities"
+        resultado.envelope.data["count"] shouldBe "6"
+        resultado.envelope.data["comandos"] shouldContain "report"
+        resultado.envelope.data["comandos"] shouldContain "explain"
+        resultado.envelope.data["comandos"] shouldContain "evidence path"
+        resultado.envelope.data["comandos"] shouldContain "capabilities"
+        resultado.envelope.data["comandos"] shouldContain "providers"
+        resultado.envelope.data["comandos"] shouldContain "next"
+    }
+
+    "assure providers documenta los built-in (BuiltinLens + BuiltinAssertion)" {
+        val resultado = AssureCli.ejecutar(listOf("providers"), cli(""))
+        resultado.exitCode shouldBe ExitCode.OK
+        resultado.envelope!!.kind shouldBe "Providers"
+        resultado.envelope.data["lenses"] shouldContain "BuiltinLens"
+        resultado.envelope.data["assertions"] shouldContain "BuiltinAssertion"
+    }
+
+    "assure next passed devuelve OK con el veredicto" {
+        val resultado = AssureCli.ejecutar(listOf("next", "passed"), cli(""))
+        resultado.exitCode shouldBe ExitCode.OK
+        resultado.envelope!!.kind shouldBe "Next"
+        resultado.envelope.data["veredicto"] shouldBe "passed"
+    }
+
+    "assure next failed sugiere explain" {
+        val resultado = AssureCli.ejecutar(listOf("next", "failed"), cli(""))
+        resultado.exitCode shouldBe ExitCode.OK
+        resultado.envelope!!.data["sugerencia"] shouldContain "explain"
+    }
+
+    "assure next inconclusive sugiere evidence path" {
+        val resultado = AssureCli.ejecutar(listOf("next", "inconclusive"), cli(""))
+        resultado.exitCode shouldBe ExitCode.OK
+        resultado.envelope!!.data["sugerencia"] shouldContain "evidence path"
+    }
+
+    "assure next sin veredicto da error legible (exit 2, no trace)" {
+        val resultado = AssureCli.ejecutar(listOf("next"), cli(""))
+        resultado.exitCode shouldBe ExitCode.USAGE
+    }
+
+    "assure next con veredicto desconocido da error legible" {
+        val resultado = AssureCli.ejecutar(listOf("next", "blue"), cli(""))
+        resultado.exitCode shouldBe ExitCode.USAGE
+    }
 })
 
 /**

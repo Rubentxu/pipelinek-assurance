@@ -54,6 +54,9 @@ object CapabilityRegistry {
         Command("report", "Veredicto de un snapshot sobre un grafo de dependencias", "ref"),
         Command("explain", "Explicación de un contraejemplo, con su camino o ciclo", "finding"),
         Command("evidence path", "Ruta de evidencia que sustenta el contraejemplo", "finding"),
+        Command("capabilities", "Comandos disponibles, con su forma de invocacion", null),
+        Command("providers", "Providers de evidencia registrados (lens + assertion)", null),
+        Command("next", "Siguiente accion sugerida a partir de un veredicto", "veredicto"),
     )
 
     private val porNombre: Map<String, Command> = comandos.associateBy { it.name }
