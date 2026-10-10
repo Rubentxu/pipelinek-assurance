@@ -25,3 +25,4 @@ build/
 *.pem
 *.key
 *.p12
+tools/__pycache__/
