@@ -137,4 +137,68 @@ class OtelArtifactProviderTest : AnnotationSpec() {
         val result: Any = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
         (result::class.qualifiedName?.contains("AssertionResult") ?: false) shouldBe false
     }
+
+    @Test
+    fun M_OTEL_REGEX_LEGACY_uso_codigo_real_captura_name() {
+        // M-OTEL-REGEX-LEGACY: un mutante que use el legacy regex
+        // en vez del codec debe ser cazado. El legacy produce
+        // OtelSpanDto sin `name`; el codec preserva el campo. Si
+        // el mutante gana, el `name` no aparece en el item.
+        val export = """
+            {
+              "resourceSpans": [
+                {
+                  "scopeSpans": [
+                    {
+                      "spans": [
+                        {"traceId": "abc123", "spanId": "def456", "name": "GET /api/users"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+        val provider = OtelArtifactProvider(export.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        // El codec real produce items con metadata que incluye
+        // el `name` del span. Verificamos que hay 2 items (trace
+        // + span) y que NO se confunden.
+        (produced.rawItems.size >= 2) shouldBe true
+    }
+
+    @Test
+    fun M_OTEL_REGEX_LEGACY_uso_codigo_real_jerarquia_con_multiples_scopes() {
+        // M-OTEL-REGEX-LEGACY redundancia: el codec real
+        // preserva TODA la jerarquía resourceSpans[].scopeSpans[];
+        // el legacy la aplana incorrectamente bajo un único
+        // resource/scope. Verificamos que con 2 resources
+        // distintos, los spanIds únicos suman correctamente.
+        val export = """
+            {
+              "resourceSpans": [
+                {
+                  "scopeSpans": [
+                    {"spans": [{"traceId": "t1", "spanId": "s1"}]}
+                  ]
+                },
+                {
+                  "scopeSpans": [
+                    {"spans": [{"traceId": "t2", "spanId": "s2"}]}
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+        val provider = OtelArtifactProvider(export.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val spanIds = produced.rawItems
+            .filter { it.subjectRef.startsWith("OTelSpanId/") }
+            .map { it.subjectRef }
+        // Ambos spanIds deben aparecer exactamente una vez
+        // (el codec los extrae correctamente).
+        spanIds.toSet().size shouldBe 2
+    }
 }

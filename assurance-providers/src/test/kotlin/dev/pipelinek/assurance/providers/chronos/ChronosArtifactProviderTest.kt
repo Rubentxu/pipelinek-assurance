@@ -135,4 +135,50 @@ class ChronosArtifactProviderTest : AnnotationSpec() {
         partialGaps.size shouldBe 1
         partialGaps[0].capability shouldBe "runtime.window"
     }
+
+    @Test
+    fun M_CHRONOS_REGEX_LEGACY_uso_codigo_real_captura_durationMs() {
+        // M-CHRONOS-REGEX-LEGACY: un mutante que use el legacy
+        // regex en vez del codec debe ser cazado por este test.
+        // El legacy asigna durationMs=0 siempre; el codec real
+        // preserva el valor del JSON. Si el mutante gana,
+        // durationMs del item será "0" en vez de "42".
+        val export = """
+            {
+              "windowToken": "wt-abc",
+              "sessionRef": "sess-1",
+              "invocations": [
+                {"id": "inv-1", "outcome": "ok", "durationMs": 42}
+              ]
+            }
+        """.trimIndent()
+        val provider = ChronosArtifactProvider(export.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val item = produced.rawItems.find { it.id == "chronos/invocation/inv-1" }
+        (item != null) shouldBe true
+        item!!.payload["durationMs"] shouldBe "42"
+    }
+
+    @Test
+    fun M_CHRONOS_REGEX_LEGACY_uso_codigo_real_captura_subjectRef_explicito() {
+        // M-CHRONOS-REGEX-LEGACY redundancia: el codec
+        // preserva `subjectRef` del JSON; el legacy lo
+        // sintetiza como "span/<id>". Verificamos que un
+        // subjectRef explícito se respeta.
+        val export = """
+            {
+              "windowToken": "wt-abc",
+              "sessionRef": "sess-1",
+              "invocations": [
+                {"id": "inv-1", "subjectRef": "my-custom-ref", "outcome": "ok", "durationMs": 10}
+              ]
+            }
+        """.trimIndent()
+        val provider = ChronosArtifactProvider(export.toByteArray())
+        val outcome = provider.collect(EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")))
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val item = produced.rawItems.find { it.id == "chronos/invocation/inv-1" }
+        item!!.subjectRef shouldBe "my-custom-ref"
+    }
 }
