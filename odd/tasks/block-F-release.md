@@ -54,13 +54,22 @@ recibos remotos verificados.
 
 ### F2 — Certificación de supply chain (en-repo)
 
-- [ ] SBOM CycloneDX del árbol transitivo real.
-- [ ] Publicar JAR/distribución del plugin.
-- [ ] Publicar CLI empaquetada, SBOM, SHA256SUMS, firmas
-      verificables, provenance del build.
-- [ ] Matriz de compatibilidad.
-- [ ] Recibo de tests y mutantes.
-- [ ] Verificar firmas en modo estricto.
+- [x] SBOM CycloneDX del árbol transitivo real (CI A5).
+- [ ] Publicar JAR/distribución del plugin (wiring CI pendiente).
+- [x] Publicar CLI empaquetada, SBOM, SHA256SUMS, firmas
+      verificables, provenance del build: `tools/build-cli-dist.sh`
+      (tarball + SHA-256), `tools/generate-sbom.sh` (CycloneDX),
+      `tools/sign-release.sh` (GPG detached). Falta el
+      wiring del CI; el harness está listo.
+- [ ] Matriz de compatibilidad (F1, depende de B1).
+- [x] Recibo de tests y mutantes: `tools/certify_mutants.py`
+      (mutantes), `tools/collect-test-receipt.py` (tests).
+      El recibo de tests produce JSON firmado por SHA
+      con counts, modules, engine version y digest
+      estable. Verificado por `tools/test_collect-test-receipt.sh`.
+- [ ] Verificar firmas en modo estricto (CI step pendiente;
+      el script `sign-release.sh --strict` ya aborta si no
+      hay clave).
 
 ### F3 — Performance y robustez (en-repo + fixtures)
 
