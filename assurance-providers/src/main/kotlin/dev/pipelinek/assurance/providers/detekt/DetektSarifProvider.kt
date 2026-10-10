@@ -551,7 +551,6 @@ internal object DetektSarifCodec {
      * Aceptamos ambos.
      */
     private fun parseResult(obj: JsonObject, rulesByIndex: List<String>): SarifResult {
-        val id = obj["ruleId"]?.let { null }  // placeholder para compilador; se sustituye abajo
         // `ruleId` puede venir como string (`ruleId: "Foo"`) o como índice
         // (`ruleIndex: 3`). La spec SARIF dice que `ruleId` es preferible;
         // aceptamos `ruleIndex` como fallback.

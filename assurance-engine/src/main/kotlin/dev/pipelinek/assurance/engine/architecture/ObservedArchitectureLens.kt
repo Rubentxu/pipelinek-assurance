@@ -116,7 +116,15 @@ object ObservedArchitectureLens : AssuranceLens<EvidenceSnapshot, DependencyGrap
         // provider, no de la lens).
         val payload: Map<String, String> = when (item) {
             is EvidenceItem.Observation -> parseKeyValue(item.observation)
-            else -> emptyMap()
+            // Otros tipos de EvidenceItem no son edges runtime. Un
+            // item sin edge se ignora silenciosamente (no falla la
+            // lens, porque Chronos puede emitir items adicionales
+            // que no son edges — la granularidad es del provider,
+            // no de la lens). Se enumeran explícitamente para
+            // cumplir el invariante "sealed when sin else".
+            is EvidenceItem.Fact,
+            is EvidenceItem.Signal,
+            is EvidenceItem.Hypothesis -> emptyMap()
         }
         val edge = payload[EDGE_PAYLOAD_KEY] ?: return null
         val parts = edge.split("->", limit = 2)

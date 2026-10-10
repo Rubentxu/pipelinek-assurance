@@ -32,6 +32,7 @@
 | M-10-04 | SeamLens: TODOS los módulos clasificados como seam | M10 Seam |
 | M-DSL01 | assurancePack DSL `mandatory(id)` no bridgea a `metadata["mandatory"]` | M10 DSL bridge |
 | M-CODEC01 | PackArtifactCodec no verifica digest del plan al decodificar | M10 plan integrity |
+| M-CAP-DRIFT | Capabilities cambia valor canónico sin migrar | AAT-13 / namespacing |
 
 ## Redundancia, y por qué se importa
 
