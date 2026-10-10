@@ -90,6 +90,19 @@ class ChronosRuntimeEvidenceCodecTest : AnnotationSpec() {
         ex.message shouldContain "decode JSON"
     }
 
+    @Test
+    fun encodeToJson_incluye_digest_canonico() {
+        // M-CHRONOS-REGEX-LEGACY redundancia: el encode es la
+        // mitad de roundtrip; el digest embebido debe ser el
+        // canónico (SHA-256 sobre el JSON con `digest=""`).
+        val dto = sampleDto()
+        val bytes = ChronosRuntimeEvidenceCodec.encodeToJson(dto)
+        val text = String(bytes, Charsets.UTF_8)
+        text shouldContain "\"digest\":\""
+        // El digest es hex de 64 chars.
+        Regex("\"digest\":\"[0-9a-f]{64}\"").containsMatchIn(text) shouldBe true
+    }
+
     private fun sampleDto(): ChronosExportDto = ChronosExportDto(
         windowToken = "wt-abc",
         sessionRef = "sess-1",

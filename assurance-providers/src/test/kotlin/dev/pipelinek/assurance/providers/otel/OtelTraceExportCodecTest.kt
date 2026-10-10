@@ -97,4 +97,17 @@ class OtelTraceExportCodecTest : AnnotationSpec() {
         }
         ex.message shouldContain "decode JSON"
     }
+
+    @Test
+    fun empty_resourceSpans_produce_spans_vacio() {
+        // M-OTEL-REGEX-LEGACY redundancia: un export con
+        // `resourceSpans: []` se decodifica sin error pero
+        // `spans()` devuelve lista vacía. Esto es un caso
+        // límite que un mutante que cambie el path "no
+        // resourceSpans" no cazaría.
+        val dto = OtelExportDto(resourceSpans = emptyList())
+        val bytes = OtelTraceExportCodec.encodeToJson(dto)
+        val decoded = OtelTraceExportCodec.decodeFromJson(bytes)
+        decoded.spans() shouldBe emptyList()
+    }
 }
