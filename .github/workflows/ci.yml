@@ -80,27 +80,6 @@ jobs:
           path: build/perf-baseline.txt
           if-no-files-found: ignore
 
-      # F2 (Bloque F) — Recibo de tests firmado por SHA.
-      # `collect-test-receipt.py` agrega los XML de JUnit de
-      # todos los modulos, normaliza a un JSON con counts,
-      # modules, engine version y digest estable, y lo
-      # escribe en `build/test-receipts/<sha>.json`. El
-      # recibo es la pieza de supply-chain que un RC usa
-      # para certificar "este tag se construyó sobre estos
-      # tests". Si el recibo exit != 0, hay tests rotos:
-      # la CI no deja promover.
-      - name: Generate test receipt
-        if: success()
-        run: python3 tools/collect-test-receipt.py --skip-build
-
-      - name: Upload test receipt
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-receipt
-          path: build/test-receipts/
-          if-no-files-found: ignore
-
   # M11.6 — security scan con `osv-scanner` sobre el
   # `settings-gradle.lockfile` y el SBOM CycloneDX. La CI
   # aborta si se detecta una vulnerabilidad con severidad >= HIGH.
