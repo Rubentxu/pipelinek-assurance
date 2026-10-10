@@ -1,0 +1,66 @@
+# CODEOWNERS — pipelinek-assurance
+#
+# Cada cambio PR debe tener aprobación de los owners del path tocado.
+# El formato es `<patrón> <owner1> <owner2> ...`. El último patrón que
+# matchea una línea gana.
+#
+# Owners son equipos (no personas) en este momento porque el proyecto
+# es monoautor. Cuando haya多人 en el equipo, los handles de GitHub
+# sustituyen a los placeholders.
+#
+# Mapeo módulo → owner:
+#   assurance-domain          → @pipelinek/domain
+#   assurance-engine          → @pipelinek/engine
+#   assurance-artifact        → @pipelinek/artifact
+#   assurance-testkit         → @pipelinek/quality
+#   assurance-providers       → @pipelinek/providers
+#   assure-cli                → @pipelinek/cli
+#   pipelinek-assurance-plugin → @pipelinek/plugin
+#   docs/                     → @pipelinek/docs
+#   tools/                    → @pipelinek/ops
+#   .github/                  → @pipelinek/ops
+#   ROADMAP.md                → @pipelinek/leadership
+
+# === raíz ===
+/ROADMAP.md                @pipelinek/leadership
+/PACKAGE_MANIFEST.md       @pipelinek/leadership
+/SECURITY.md               @pipelinek/leadership
+
+# === settings y build ===
+/settings.gradle.kts        @pipelinek/ops
+/build.gradle.kts           @pipelinek/ops
+/settings-gradle.lockfile   @pipelinek/ops
+/gradle/                    @pipelinek/ops
+
+# === módulos Gradle ===
+/assurance-domain/          @pipelinek/domain
+/assurance-engine/          @pipelinek/engine
+/assurance-artifact/        @pipelinek/artifact
+/assurance-testkit/         @pipelinek/quality
+/assurance-providers/       @pipelinek/providers
+/assure-cli/                @pipelinek/cli
+/pipelinek-assurance-plugin/ @pipelinek/plugin
+
+# === specs y docs (cambios de diseño) ===
+/00-overview/               @pipelinek/leadership
+/01-product/                @pipelinek/leadership
+/02-architecture/           @pipelinek/leadership
+/03-specifications/         @pipelinek/leadership
+/04-adrs/                   @pipelinek/leadership
+/05-roadmap/                @pipelinek/leadership
+/06-uat/                    @pipelinek/quality
+/07-integrations/           @pipelinek/leadership
+/08-testing/                @pipelinek/quality
+/09-operations/             @pipelinek/ops
+/10-research/               @pipelinek/leadership
+/docs/                      @pipelinek/docs
+
+# === tooling ===
+/tools/                     @pipelinek/ops
+/install.sh                 @pipelinek/ops
+
+# === workflows y CI ===
+/.github/                   @pipelinek/ops
+
+# === catch-all ===
+*                           @pipelinek/leadership
