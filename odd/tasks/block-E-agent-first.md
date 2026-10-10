@@ -60,11 +60,18 @@ runners es una verificación pendiente.
 
 ### E2 — Kotlin DSL y packs (en-repo)
 
-- [ ] Fachadas idiomáticas para autoría de suites y packs.
-- [ ] IR cerrado, serializable, versionado.
-- [ ] Conectar `AssurancePack.Rule` directamente con
-      `RequiredAssurancePlan`, eliminando deducciones frágiles.
-- [ ] Selección por ownership, capabilities, cambios, findings.
+- [x] Fachadas idiomáticas para autoría de suites y packs
+      (`assurancePack { suite { ... } }` en `AssuranceDsl.kt`,
+      tests en `AssuranceDslTest`).
+- [x] IR cerrado, serializable, versionado
+      (`SuiteArtifactCodec` y `PackArtifactCodec` con
+      apiVersion y digest).
+- [x] Conectar `AssurancePack.Rule` directamente con
+      `RequiredAssurancePlan` (`AssuranceDslTest`:
+      `mandatory_bridgea_metadata_para_RequiredAssurancePlan`).
+- [x] Selección por ownership, capabilities, cambios, findings
+      (reglas `Mandatory`/`Touched`/`NewFindings` en
+      `AssurancePack.Rule`).
 
 ### E3 — Runners (en-repo)
 

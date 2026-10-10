@@ -47,16 +47,20 @@ PipelineK con versión verificable.
 
 ### B2 — Application Service (en-repo, sin bloqueador)
 
-- [ ] Resolver suite.
-- [ ] Leer referencias a artifacts.
-- [ ] Validar esquema y digest.
-- [ ] Seleccionar providers.
-- [ ] Recolectar evidencia.
-- [ ] Normalizar.
-- [ ] Congelar registries de lenses/assertions.
-- [ ] Evaluar.
-- [ ] Codificar y publicar report.
-- [ ] Devolver resultado tipado.
+- [x] Resolver suite (`AssuranceOrchestrator.orchestrate` paso 1,
+      `validateSuite`).
+- [x] Leer referencias a artifacts (paso 2-3, `validateEvidenceRefs`).
+- [x] Validar esquema y digest (paso 3, `require` de 64 hex).
+- [x] Seleccionar providers (paso 4, `providers.find`).
+- [x] Recolectar evidencia (paso 5, `provider.collect`).
+- [x] Normalizar (paso 6, `EvidenceNormalizer.normalize`).
+- [x] Congelar registries de lenses/assertions (paso 7,
+      `runtime.lenses`).
+- [x] Evaluar (paso 8, `AssuranceEngine.evaluateSuite`).
+- [x] Codificar y publicar report (paso 9, `report.suiteDigest`).
+- [x] Devolver resultado tipado (paso 10, `OrchestrationResult`).
+
+(SHA `aa7e5c0`, 9 tests en `AssuranceOrchestratorTest`.)
 
 ### B3 — `assurance.check` real (en-repo, sin bloqueador)
 
