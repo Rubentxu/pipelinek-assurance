@@ -580,6 +580,26 @@ sealed interface AssertionResult {
         }""",
         """        // AAT-13 check removed (mutated)"""),
     ])],
+    # M-CHRONOS-BOUNDED: ChronosRuntimeEvidenceCodec.remove el
+    # require de MAX_COLLECTION_SIZE. Un mutante que lo quite
+    # acepta exports con millones de invocations (DoS).
+    "M-CHRONOS-BOUNDED": [(CHRONOS, [(
+        """        require(dto.invocations.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            \"invocations=${dto.invocations.size} excede MAX_COLLECTION_SIZE=\" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }""",
+        """        // MAX_COLLECTION_SIZE check removed (mutated)"""),
+    ])],
+    # M-OTEL-BOUNDED: OtelTraceExportCodec.remove el require
+    # de MAX_COLLECTION_SIZE en resourceSpans. Mismo bug que
+    # M-CHRONOS-BOUNDED, distinto nivel de la jerarquía.
+    "M-OTEL-BOUNDED": [(OTEL, [(
+        """        require(dto.resourceSpans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            \"resourceSpans=${dto.resourceSpans.size} excede MAX_COLLECTION_SIZE=\" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }""",
+        """        // MAX_COLLECTION_SIZE check removed (mutated)"""),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
