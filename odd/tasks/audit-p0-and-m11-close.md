@@ -21,14 +21,19 @@ description: Feature document for the post-v0.8.0 work plan. Closes 6 P0 audit f
 - **v0.9.0** released: 21 commits, **439 tests** verde (+41 vs v0.8.0), 38 mutantes certificados.
 - **v0.9.1** released: capabilities refactor (5 providers), M-CAP-DRIFT-2
   mutante, **440 tests**, 41 mutantes certificados.
+- **v0.9.2** released: API_VERSION refactor + codec tests, **442 tests**.
+- **v0.9.3** released: M2-T8 EvidenceNormalizer, **447 tests**, 42 mutantes
+  certificados (con M-NORM-01 attack AAT-13).
 - New mutantes este ciclo: M-COGN01, M-COGN02, M-CAP-DRIFT, M-CAP-DRIFT-2,
   M-10-CONTENT, M-SOLID-SRP-EMPTY, M-SOLID-OCP-EMPTY, M-CHRONOS-REGEX-LEGACY,
-  M-OTEL-REGEX-LEGACY.
+  M-OTEL-REGEX-LEGACY, M-NORM-01.
 - Decisión: el mock SDK host (M11.8) sustituye al SDK real de PipelineK
   para tests E2E hasta que el SDK esté disponible.
 - Refactor post-v0.9.0: JUnitXmlCodec.API_VERSION, Chronos y OTel
   descriptor.outputSchemaVersion referencian la constante del
   codec (no literales duplicados).
+- M2-T8 Normalizer cierra la frontera cruda/normalizada (era
+  in-test, ahora en `assurance-testkit` con enforce AAT-13 + AAT-19).
 
 ## Scope (this cycle)
 
