@@ -370,18 +370,129 @@ data class EvidenceSnapshot(
         require(sources.isNotEmpty()) { "Un snapshot necesita al menos un source manifest" }
     }
 
-    /** `Partial` si algún manifest declara incompletitud, si no `Complete`. */
+    /**
+     * Completitud global del snapshot, combinando las declaraciones
+     * por capability de cada source.
+     *
+     * A2 (Bloque A): cuatro formas exhaustivas, no dos. La versión
+     * previa colapsaba a `Complete` o `Partial` y silenciaba
+     * `Unknown` y `Unsupported`, que es exactamente la mentira que
+     * la spec prohíbe: un productor que no pudo observar no
+     * equivale a uno que observó todo.
+     *
+     * Reglas de combinación (por capability, sobre los manifests
+     * que la declaran):
+     *
+     *   1. Si ALGÚN manifest declara `Unsupported(cap)`: el
+     *      snapshot es `Unsupported` (no fabricamos `Complete`
+     *      cuando un productor requerido no pudo observar).
+     *   2. Si ALGÚN manifest declara `Unknown(cap)` y ninguno
+     *      declara `Unsupported`: el snapshot es `Unknown` (alguien
+     *      dijo "no sé", nadie dijo "no puedo").
+     *   3. Si TODOS los manifests declaran `Complete(cap)`: el
+     *      snapshot es `Complete` para esa capability.
+     *   4. Si ALGÚN manifest declara `Partial(cap)` y los demás
+     *      son `Complete` o `Unknown`: el snapshot es `Partial`
+     *      con la unión de los gaps.
+     *   5. Si no hay manifests para una capability: queda fuera
+     *      del cómputo (es problema del caller declarar la
+     *      requiredEvidence; aquí sólo combinamos lo declarado).
+     *
+     * El nivel snapshot (no por capability) toma la peor
+     * clasificación presente: Unsupported > Unknown > Partial >
+     * Complete. El gap set es la unión deduplicada.
+     *
+     * La distinción entre ausencia de hallazgos, ausencia de datos
+     * y ausencia de soporte se preserva: un snapshot puede ser
+     * `Complete` (todos los productores vieron) o `Unknown`
+     * (alguno no supo) o `Partial` (alguno vio con gaps) o
+     * `Unsupported` (alguno no pudo observar — esto es lo que el
+     * plan A2 marca como no fabricable a `Complete`).
+     */
     val overallCompleteness: Completeness
         get() {
-            val allGaps = sources.flatMap { it.completenessByCapability.values }
+            // 1) Aggregate per-capability.
+            val perCapability: Map<String, List<Completeness>> =
+                sources.flatMap { it.completenessByCapability.entries }
+                    .groupBy({ it.key }, { it.value })
+
+            val combined: List<Completeness> = perCapability.values.map { declarations ->
+                combineCompletenessForCapability(declarations)
+            }
+
+            // 2) Reduce across capabilities: worst wins.
+            val worst = combined.reduceOrNull { acc, c -> worstOf(acc, c) }
+
+            // 3) Aggregate the gap set: from Partial declarations AND
+            // from the snapshot-level gaps (which can be declared
+            // even when the manifests don't break down per capability).
+            val allGaps = (gaps + sources.flatMap { it.completenessByCapability.values }
                 .filterIsInstance<Completeness.Partial>()
-                .flatMap { it.gaps }
-            // El mismo gap puede declararse a nivel snapshot y en el manifest
-            // que lo produjo. Sin deduplicar, el reporte cuenta dos veces la
-            // misma carencia y el digest de completitud se deforma.
-            val gaps = (gaps + allGaps).distinct()
-            return if (gaps.isEmpty()) Completeness.Complete else Completeness.Partial(gaps)
+                .flatMap { it.gaps }).distinct()
+
+            return when (worst) {
+                null -> Completeness.Complete  // No declarations: nothing incomplete.
+                is Completeness.Unsupported -> worst  // Preserve the reason.
+                is Completeness.Unknown -> worst
+                is Completeness.Partial ->
+                    if (allGaps.isEmpty()) worst else Completeness.Partial(allGaps)
+                is Completeness.Complete ->
+                    if (allGaps.isEmpty()) Completeness.Complete else Completeness.Partial(allGaps)
+            }
         }
+}
+
+/**
+ * Combina N declaraciones de completitud para UNA capability.
+ *
+ * Las reglas son la columna vertebral de A2:
+ *
+ * - Cualquier `Unsupported` ⇒ `Unsupported` (no fabricamos Complete).
+ * - Si no, cualquier `Unknown` ⇒ `Unknown`.
+ * - Si no, cualquier `Partial` ⇒ `Partial` con la unión de gaps.
+ * - Si todos `Complete` ⇒ `Complete`.
+ *
+ * Esta función es pura y exhaustiva; el orden de los argumentos
+ * no afecta el resultado. Es pública para que los fitness tests
+ * la prueben aisladamente; el contrato de combinación por
+ * capability es tan fundamental que conviene exponerlo.
+ */
+fun combineCompletenessForCapability(
+    declarations: List<Completeness>,
+): Completeness {
+    if (declarations.isEmpty()) return Completeness.Complete
+    if (declarations.any { it is Completeness.Unsupported }) {
+        // Preserve the first Unsupported reason (the rest is
+        // redundant; deterministic on the order in `sources`).
+        return declarations.first { it is Completeness.Unsupported }
+    }
+    if (declarations.any { it is Completeness.Unknown }) return Completeness.Unknown
+    val partials = declarations.filterIsInstance<Completeness.Partial>()
+    if (partials.isNotEmpty()) {
+        val gaps = partials.flatMap { it.gaps }.distinct()
+        return Completeness.Partial(gaps)
+    }
+    return Completeness.Complete
+}
+
+/**
+ * Toma la peor de dos completitudes. Útil para reducir entre
+ * capabilities en `overallCompleteness`. El orden de severidad
+ * es: Unsupported > Unknown > Partial > Complete.
+ */
+private fun worstOf(a: Completeness, b: Completeness): Completeness = when {
+    a is Completeness.Unsupported || b is Completeness.Unsupported -> {
+        // Preserve the Unsupported side that actually fired; if both,
+        // take the first.
+        if (a is Completeness.Unsupported) a else b
+    }
+    a is Completeness.Unknown || b is Completeness.Unknown -> Completeness.Unknown
+    a is Completeness.Partial || b is Completeness.Partial -> {
+        val gaps = (listOf(a, b).filterIsInstance<Completeness.Partial>())
+            .flatMap { it.gaps }.distinct()
+        Completeness.Partial(gaps)
+    }
+    else -> Completeness.Complete
 }
 
 /**
