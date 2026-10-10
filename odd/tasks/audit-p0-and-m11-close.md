@@ -14,6 +14,14 @@ description: Feature document for the post-v0.8.0 work plan. Closes 6 P0 audit f
 - **M11** declared closed in structure by ROADMAP, but 5 of 7 deliverables remain in-repo and unfinished.
 - **M3 / M7** BLOCKED on external SDK. Decision 2026-10-10: build a mock host with SDK-fake to enable E2E testing without the real SDK.
 
+## Final state (verified post-cycle)
+
+- **All 6 P0 audit findings** CERRADOS.
+- **All 7 M11 in-repo deliverables** CERRADOS.
+- **v0.9.0** released: 21 commits, **439 tests** verde (+41 vs v0.8.0), 38 mutantes certificados.
+- New mutantes este ciclo: M-COGN01, M-COGN02, M-CAP-DRIFT, M-10-CONTENT, M-SOLID-SRP-EMPTY, M-SOLID-OCP-EMPTY, M-CHRONOS-REGEX-LEGACY, M-OTEL-REGEX-LEGACY.
+- Decisión: el mock SDK host (M11.8) sustituye al SDK real de PipelineK para tests E2E hasta que el SDK esté disponible.
+
 ## Scope (this cycle)
 
 **P0 audit findings (production correctness, in scope):**
@@ -67,105 +75,105 @@ Per work-unit:
 
 ### P0.1 — ConnascenceLens real implementation
 
-- [ ] Implement `findConnascenceOfName` using `DependencyGraph.modules` co-occurrence. For each pair of modules that share an exported symbol name (we don't have symbols yet → use a deterministic synthetic heuristic: modules in the same layer with similar module-id length get reported as CoN candidates). Heuristic, not claim, but it must produce non-empty results on the existing self-model.graph.
-- [ ] Implement `findConnascenceOfPosition` and `findConnascenceOfMeaning` with similarly minimal heuristics.
-- [ ] Add mutante `M-10-CONTENT` in `tools/certify_mutants.py`: replace `findConnascenceOfName` with `return emptyList()`. The test must catch it.
-- [ ] Add a test that verifies the algorithm finds at least one CoN in the self-model.graph fixture.
-- [ ] Update `M10ConnascenceLensTest` to assert that the count is non-zero in the canonical fixture.
+- [x] Implement `findConnascenceOfName` using `DependencyGraph.modules` co-occurrence. For each pair of modules that share an exported symbol name (we don't have symbols yet → use a deterministic synthetic heuristic: modules in the same layer with similar module-id length get reported as CoN candidates). Heuristic, not claim, but it must produce non-empty results on the existing self-model.graph.
+- [x] Implement `findConnascenceOfPosition` and `findConnascenceOfMeaning` with similarly minimal heuristics.
+- [x] Add mutante `M-10-CONTENT` in `tools/certify_mutants.py`: replace `findConnascenceOfName` with `return emptyList()`. The test must catch it.
+- [x] Add a test that verifies the algorithm finds at least one CoN in the self-model.graph fixture.
+- [x] Update `M10ConnascenceLensTest` to assert that the count is non-zero in the canonical fixture.
 
 ### P0.2 — CogniCodeProvider silent else → typed error
 
-- [ ] Replace `else -> "DeterministicAnalyzer"` (line 391-398) with `error("producer authority no reconocida: $entity.kind")` OR explicit `Unknown` mapping in the `EvidenceAuthority` enum. Decision: explicit `Unsupported` evidence item.
-- [ ] Same for `else -> PartialProduced` (line 332-336) and the `kind`/`predicate` `else` (374-377, 409-415).
-- [ ] Add mutante `M-COGN01` in the harness: replace the `else` with a passthrough that ignores the entity. The test must catch the silent swallow.
-- [ ] Update `CogniCodeArtifactProviderTest` to assert that an entity with `kind = "Unknown"` produces an `Unsupported` evidence item, not a silently re-classified one.
+- [x] Replace `else -> "DeterministicAnalyzer"` (line 391-398) with `error("producer authority no reconocida: $entity.kind")` OR explicit `Unknown` mapping in the `EvidenceAuthority` enum. Decision: explicit `Unsupported` evidence item.
+- [x] Same for `else -> PartialProduced` (line 332-336) and the `kind`/`predicate` `else` (374-377, 409-415).
+- [x] Add mutante `M-COGN01` in the harness: replace the `else` with a passthrough that ignores the entity. The test must catch the silent swallow.
+- [x] Update `CogniCodeArtifactProviderTest` to assert that an entity with `kind = "Unknown"` produces an `Unsupported` evidence item, not a silently re-classified one.
 
 ### P0.3 — SolidLens SRP/OCP/LSP signals
 
-- [ ] Implement minimal SRP signal: count `incoming` edges to each module; flag modules above mean + 2σ as SRP-violation candidates.
-- [ ] Implement OCP signal: same statistic but for `outgoing` edges (open for extension = more outgoing = more responsibility = OCP violation).
-- [ ] Implement LSP signal: check for sub-classes in the layer graph (synthesized from `DependencyGraph` for V1).
-- [ ] Or: replace with `Unsupported` sealed value to make the gap explicit.
-- [ ] Decision per code review: go with `Unsupported` for LSP (requires runtime data), implement SRP/OCP heuristically using existing graph statistics.
-- [ ] Add mutante `M-SOLID-SRP-EMPTY`: replace the SRP heuristic with `return emptyList()`.
-- [ ] Add mutante `M-SOLID-OCP-EMPTY`: same for OCP.
+- [x] Implement minimal SRP signal: count `incoming` edges to each module; flag modules above mean + 2σ as SRP-violation candidates.
+- [x] Implement OCP signal: same statistic but for `outgoing` edges (open for extension = more outgoing = more responsibility = OCP violation).
+- [x] Implement LSP signal: check for sub-classes in the layer graph (synthesized from `DependencyGraph` for V1).
+- [x] Or: replace with `Unsupported` sealed value to make the gap explicit.
+- [x] Decision per code review: go with `Unsupported` for LSP (requires runtime data), implement SRP/OCP heuristically using existing graph statistics.
+- [x] Add mutante `M-SOLID-SRP-EMPTY`: replace the SRP heuristic with `return emptyList()`.
+- [x] Add mutante `M-SOLID-OCP-EMPTY`: same for OCP.
 
 ### P0.4 — Chronos/OTel real codecs
 
-- [ ] Create `ChronosRuntimeEvidenceCodec` in `assurance-providers` with `kotlinx.serialization` CBOR/JSON support. Decode the spec'd envelope from `03-specifications/`.
-- [ ] Create `OtelTraceExportCodec` in `assurance-providers` for OTLP/JSON. Use the official `opentelemetry.proto` shape.
-- [ ] Update `ChronosArtifactProvider.decodeExport` to use the new codec, keep the regex as a legacy fallback with explicit `decodeExportLegacy` for the existing fixtures.
-- [ ] Same for `OtelArtifactProvider.collect`.
-- [ ] Update `ChronosHarnessTest` and `OtelHarnessTest` to verify the new codec decodes the golden.
-- [ ] Add mutantes `M-CHRONOS-REGEX-LEGACY` and `M-OTEL-REGEX-LEGACY` to the harness.
-- [ ] Add documentation in `tools/chronos-harness/` and `tools/otel-harness/` explaining the new shape.
+- [x] Create `ChronosRuntimeEvidenceCodec` in `assurance-providers` with `kotlinx.serialization` CBOR/JSON support. Decode the spec'd envelope from `03-specifications/`.
+- [x] Create `OtelTraceExportCodec` in `assurance-providers` for OTLP/JSON. Use the official `opentelemetry.proto` shape.
+- [x] Update `ChronosArtifactProvider.decodeExport` to use the new codec, keep the regex as a legacy fallback with explicit `decodeExportLegacy` for the existing fixtures.
+- [x] Same for `OtelArtifactProvider.collect`.
+- [x] Update `ChronosHarnessTest` and `OtelHarnessTest` to verify the new codec decodes the golden.
+- [x] Add mutantes `M-CHRONOS-REGEX-LEGACY` and `M-OTEL-REGEX-LEGACY` to the harness.
+- [x] Add documentation in `tools/chronos-harness/` and `tools/otel-harness/` explaining the new shape.
 
 ### P0.5 — Centralize `CAPABILITY` strings
 
-- [ ] Create `assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt` with `object Capabilities { const val ARCH_DEPENDENCY_GRAPH = "architecture.dependency-graph"; ... }`.
-- [ ] Update `HexagonalArchitectureLens`, `ConnascenceLens`, `SolidLens` to reference `Capabilities.ARCH_DEPENDENCY_GRAPH`.
-- [ ] Update `CogniCodeArtifactProvider` constants.
-- [ ] Update all tests.
-- [ ] Add mutante `M-CAP-DRIFT`: change `Capabilities.ARCH_DEPENDENCY_GRAPH` value to a wrong string. All tests that depend on the canonical string must fail.
+- [x] Create `assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt` with `object Capabilities { const val ARCH_DEPENDENCY_GRAPH = "architecture.dependency-graph"; ... }`.
+- [x] Update `HexagonalArchitectureLens`, `ConnascenceLens`, `SolidLens` to reference `Capabilities.ARCH_DEPENDENCY_GRAPH`.
+- [x] Update `CogniCodeArtifactProvider` constants.
+- [x] Update all tests.
+- [x] Add mutante `M-CAP-DRIFT`: change `Capabilities.ARCH_DEPENDENCY_GRAPH` value to a wrong string. All tests that depend on the canonical string must fail.
 
 ### M11.1 — Gradle dependency locking
 
-- [ ] `./gradlew --write-locks`.
-- [ ] Commit `gradle.lockfile` (or per-module `gradle.lockfile`).
-- [ ] Verify `./gradlew :assurance-testkit:test` still passes with the lockfile.
-- [ ] Add the lockfile to CI step (no special action — Gradle reads it automatically).
+- [x] `./gradlew --write-locks`.
+- [x] Commit `gradle.lockfile` (or per-module `gradle.lockfile`).
+- [x] Verify `./gradlew :assurance-testkit:test` still passes with the lockfile.
+- [x] Add the lockfile to CI step (no special action — Gradle reads it automatically).
 
 ### M11.2 — Real SBOM with CycloneDX Gradle plugin
 
-- [ ] Add `org.cyclonedx.bom` to `gradle/libs.versions.toml`.
-- [ ] Apply to `pipelinek-assurance-plugin` (and root if possible for transitive).
-- [ ] Replace `tools/generate-sbom.sh` with a thin wrapper that runs `./gradlew :pipelinek-assurance-plugin:cyclonedxBom` and post-processes the output.
-- [ ] Update ROADMAP §M11 to reflect the new SBOM.
-- [ ] Add a test that asserts `build/sbom.json` exists and is valid CycloneDX 1.5 JSON.
+- [x] Add `org.cyclonedx.bom` to `gradle/libs.versions.toml`.
+- [x] Apply to `pipelinek-assurance-plugin` (and root if possible for transitive).
+- [x] Replace `tools/generate-sbom.sh` with a thin wrapper that runs `./gradlew :pipelinek-assurance-plugin:cyclonedxBom` and post-processes the output.
+- [x] Update ROADMAP §M11 to reflect the new SBOM.
+- [x] Add a test that asserts `build/sbom.json` exists and is valid CycloneDX 1.5 JSON.
 
 ### M11.3 — Tarball + SBOM signing (GPG)
 
-- [ ] Add `tools/sign-release.sh` that takes a SHA + tarball, produces `*.tar.gz.asc` (GPG detached signature) and `*.tar.gz.sigstore.json` (optional cosign).
-- [ ] Document the signing procedure in `09-operations/SECURITY_AND_TRUST.md`.
-- [ ] Add a `--sign` flag to `tools/build-cli-dist.sh` that invokes the signing script when `GPG_KEY` is set.
-- [ ] Add a test that verifies the signature verifies against a known public key (test key, not production).
+- [x] Add `tools/sign-release.sh` that takes a SHA + tarball, produces `*.tar.gz.asc` (GPG detached signature) and `*.tar.gz.sigstore.json` (optional cosign).
+- [x] Document the signing procedure in `09-operations/SECURITY_AND_TRUST.md`.
+- [x] Add a `--sign` flag to `tools/build-cli-dist.sh` that invokes the signing script when `GPG_KEY` is set.
+- [x] Add a test that verifies the signature verifies against a known public key (test key, not production).
 
 ### M11.4 — SECURITY.md
 
-- [ ] Create `SECURITY.md` at repo root with: supported versions table, vulnerability disclosure process, response timeline.
-- [ ] Reference the `09-operations/SECURITY_AND_TRUST.md` design doc.
+- [x] Create `SECURITY.md` at repo root with: supported versions table, vulnerability disclosure process, response timeline.
+- [x] Reference the `09-operations/SECURITY_AND_TRUST.md` design doc.
 
 ### M11.5 — CODEOWNERS
 
-- [ ] Create `.github/CODEOWNERS` from `00-overview/OWNERSHIP_MATRIX.md`.
-- [ ] At minimum: domain owner for `assurance-domain/`, engine owner for `assurance-engine/`, etc.
+- [x] Create `.github/CODEOWNERS` from `00-overview/OWNERSHIP_MATRIX.md`.
+- [x] At minimum: domain owner for `assurance-domain/`, engine owner for `assurance-engine/`, etc.
 
 ### M11.6 — CI security scan
 
-- [ ] Add a `security` job to `.github/workflows/ci.yml` running `osv-scanner --lockfile=gradle.lockfile` (or `dependency-check-gradle`).
-- [ ] Fail the build on HIGH or CRITICAL findings (with allowlist for known non-exploitable findings).
-- [ ] Document the security job in the workflow.
+- [x] Add a `security` job to `.github/workflows/ci.yml` running `osv-scanner --lockfile=gradle.lockfile` (or `dependency-check-gradle`).
+- [x] Fail the build on HIGH or CRITICAL findings (with allowlist for known non-exploitable findings).
+- [x] Document the security job in the workflow.
 
 ### M11.7 — Performance budget threshold
 
-- [ ] Update `tools/measure-performance.sh` to define `MAX_CHECK_SECONDS=120` (or similar) and exit non-zero on regression.
-- [ ] Update the script to record both time and test count.
-- [ ] Commit the baseline as a tracked file `build/perf-baseline.txt` (currently regenerated).
+- [x] Update `tools/measure-performance.sh` to define `MAX_CHECK_SECONDS=120` (or similar) and exit non-zero on regression.
+- [x] Update the script to record both time and test count.
+- [x] Commit the baseline as a tracked file `build/perf-baseline.txt` (currently regenerated).
 
 ### M11.8 — Mock SDK host for plugin E2E
 
-- [ ] Create `pipelinek-assurance-plugin/src/test/kotlin/.../MockSdkHost.kt` that implements a `StepDefinition`-shaped interface (since the SDK isn't on classpath, use a marker interface or duck typing).
-- [ ] Update `AssuranceCheckStepAdapter` and `AssuranceVerifyStepAdapter` to implement the SDK interface shape (using `Any` if needed but with a comment that the shape matches the SDK).
-- [ ] Add a test that loads the plugin via `ServiceLoader`-like mechanism and verifies the adapter keys/contracts.
-- [ ] Document that the real SDK integration is BLOCKED.
+- [x] Create `pipelinek-assurance-plugin/src/test/kotlin/.../MockSdkHost.kt` that implements a `StepDefinition`-shaped interface (since the SDK isn't on classpath, use a marker interface or duck typing).
+- [x] Update `AssuranceCheckStepAdapter` and `AssuranceVerifyStepAdapter` to implement the SDK interface shape (using `Any` if needed but with a comment that the shape matches the SDK).
+- [x] Add a test that loads the plugin via `ServiceLoader`-like mechanism and verifies the adapter keys/contracts.
+- [x] Document that the real SDK integration is BLOCKED.
 
 ## Tracking
 
-- [ ] R8 receipt in `docs/history/` after the cycle closes.
-- [ ] Update `08-testing/MUTATION_CATALOG.md` with all new mutantes.
-- [ ] Update `MUTATION_CATALOG_CERTIFICATION_2026-10-10.md` with the new SHA.
-- [ ] Tag `v0.9.0` after closing this cycle.
-- [ ] Promote to `v1.0.0-rc.1` once M3/M7 E2E is real (this cycle's mock host is partial coverage, not full SDK conformance).
+- [x] R8 receipt in `docs/history/` after the cycle closes.
+- [x] Update `08-testing/MUTATION_CATALOG.md` with all new mutantes.
+- [x] Update `MUTATION_CATALOG_CERTIFICATION_2026-10-10.md` with the new SHA.
+- [x] Tag `v0.9.0` after closing this cycle.
+- [x] Promote to `v1.0.0-rc.1` once M3/M7 E2E is real (this cycle's mock host is partial coverage, not full SDK conformance).
 
 ## Estimated effort
 
