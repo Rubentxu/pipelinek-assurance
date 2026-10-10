@@ -64,10 +64,18 @@ recibos remotos verificados.
 
 ### F3 — Performance y robustez (en-repo + fixtures)
 
-- [ ] Benchmarks sobre corpus estático, 10k invocaciones
-      Chronos, 100k trazas OTel, reports grandes, baselines
-      extensas, repeticiones.
-- [ ] Presupuestos sobre medidas reproducibles y comparables.
+- [x] Benchmarks sobre corpus estático
+      (`F3EngineBenchmarkTest` con 1k y 10k modules).
+- [ ] 10k invocaciones Chronos — depende del export real
+      de Chronos (D1, BLOQUEADO).
+- [ ] 100k trazas OTel — depende del collector real (D3,
+      BLOQUEADO).
+- [x] Reports grandes: codificación de 500 failed en <2s
+      (medido: 24ms).
+- [x] Repeticiones: digest estable a través de 5 invocaciones
+      consecutivas.
+- [x] Presupuestos sobre medidas reproducibles y comparables
+      (baselines: 1k=79ms, 10k=5s, 500-report=24ms).
 
 ### F4 — Auditoría final de seguridad (en-repo)
 
