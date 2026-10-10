@@ -14,6 +14,9 @@ sin cambiar una línea del core.
 **Precondición:** Bloque A cerrado (v0.9.5-rc1). SDK público de
 PipelineK con versión verificable.
 
+**Tag:** `v0.10.0-rc1` creado localmente sobre `consolidation/A-F`
+(2026-10-10, 28 commits sobre v0.9.5-rc1). Push queda al usuario.
+
 ## Estado (observado 2026-10-10, post-B1)
 
 **B1 cerrado (en-repo + SDK local)**: el plugin ahora
@@ -36,21 +39,32 @@ en `~/.m2/repository/` desde la instalación asdf. El
 
 ## Sub-tareas
 
-### B1 — Integración con SDK público (BLOQUEADO)
+### B1 — Integración con SDK público (cerrado 2026-10-10)
 
-- [ ] Tomar `pipeline-kotlin` como productor de los contratos
+- [x] Tomar `pipeline-kotlin` como productor de los contratos
       (referencias: `v2/pipeline-domain/.../step/StepDefinitionContributor.kt`,
       `examples/example-uppercase-plugin`, `examples/example-block-plugin`,
       `v2/pipeline-step-sdk/http/.../HttpStepDefinitionContributor.kt`).
-- [ ] Convertir `AssurancePluginContributor` en una implementación
+      SDK 0.48.0 instalado en asdf, JARs en
+      `~/.m2/repository/dev/rubentxu/pipeline/v2/`.
+- [x] Convertir `AssurancePluginContributor` en una implementación
       real de `StepDefinitionContributor`.
-- [ ] Implementar contratos, codecs, handlers, registro y
+      (SHA `c9ff955` + `f955782`.)
+- [x] Implementar contratos, codecs, handlers, registro y
       metadata del plugin.
-- [ ] Eliminar el uso de `List<Any>` como falsa integración
-      tipada.
-- [ ] `ServiceLoader` carga las clases; el host rechaza
+      `AssuranceCheckStepDefinitionImpl : StepDefinition<I,O>`;
+      `AssuranceCheckStepHandler : StepHandler<I,O>` (suspend
+      `execute`); `StepCodec<I>` con `EncodedStepValue`.
+- [x] Eliminar el uso de `List<Any>` como falsa integración
+      tipada. Ahora `definitions: Iterable<StepDefinition<*, *>>`.
+- [x] `ServiceLoader` carga las clases; el host rechaza
       contribuciones malformadas.
-- [ ] Consumir la versión publicada del SDK.
+      Test `serviceloader_del_sdk_descubre_el_contributor` verde
+      sobre el SDK real 0.48.0.
+- [x] Consumir la versión publicada del SDK.
+      `pipelinek-assurance-plugin/build.gradle.kts` con
+      `dev.rubentxu.pipeline.v2:pipeline-{domain,events,output,scripting-api}:0.48.0`
+      vía mavenLocal() + flatDir.
 
 ### B2 — Application Service (en-repo, sin bloqueador)
 
@@ -119,3 +133,7 @@ específico en core PipelineK.
 - `v0.10.0-rc1` con JAR instalable, ejemplo ejecutable, reporte
   de compatibilidad y evidencia de run real.
 - Sólo se promueve cuando B1 está verde.
+
+**Estado 2026-10-10:** tag `v0.10.0-rc1` creado localmente sobre
+`consolidation/A-F`. B1, B2, B3, B4 cerrados. Pendiente push del
+tag y merge a `main` (decisión del usuario).
