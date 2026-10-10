@@ -14,16 +14,18 @@ sin cambiar una línea del core.
 **Precondición:** Bloque A cerrado (v0.9.5-rc1). SDK público de
 PipelineK con versión verificable.
 
-## Estado (observado 2026-10-10, SHA `d497d41`)
+## Estado (observado 2026-10-10, post-B4)
 
 **B1 sigue BLOQUEADO** por externo (SDK v0.48.0-rc2).
 
-**B2 y B3 cerrados (en-repo, sin bloqueador)**:
-- B2: `AssuranceOrchestrator` con los 10 pasos y 9 tests (SHA `aa7e5c0`).
+**B2, B3, B4 cerrados (en-repo, sin bloqueador)**:
+- B2: `AssuranceOrchestrator` con los 10 pasos y 9 tests.
 - B3: `BuiltinLens` + `BuiltinAssertion` + `assurance.check` real
   end-to-end. `AssuranceCheckStepDefinition.run` overload que
-  delega al orchestrator. 8 E2E tests (4 del orchestrator + 4
-  del step handler wired) — todos PASSED. SHA `d497d41`.
+  delega al orchestrator. 8 E2E tests.
+- B4: contrato de report artifact (escritura completa, digest
+  estable, replay reproducibilidad, rechazo de incompleto).
+  7 tests en `B4ReportArtifactContractTest`.
 
 ## Sub-tareas
 
@@ -70,10 +72,14 @@ PipelineK con versión verificable.
 
 ### B4 — Artifact y replay (en-repo, sin bloqueador)
 
-- [ ] Contrato genérico de report artifact con escritura
-      completa, digest, referencia estable.
-- [ ] Fingerprint + mismos artifacts → mismo veredicto.
-- [ ] Report incompleto NO se publica como válido.
+- [x] Contrato genérico de report artifact con escritura
+      completa, digest, referencia estable (7 tests PASSED,
+      `B4ReportArtifactContractTest`).
+- [x] Fingerprint + mismos artifacts → mismo veredicto
+      (roundtrip preserva `summary`).
+- [x] Report incompleto NO se publica como válido
+      (digest alterado, bytes truncados y garbage rechazados
+      con `ArtifactDecodeException`).
 
 ## Acceptance
 
