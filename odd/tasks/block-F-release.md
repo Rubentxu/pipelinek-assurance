@@ -77,9 +77,12 @@ recibos remotos verificados.
       El recibo de tests produce JSON firmado por SHA
       con counts, modules, engine version y digest
       estable. Verificado por `tools/test_collect-test-receipt.sh`.
-- [ ] Verificar firmas en modo estricto (CI step pendiente;
-      el script `sign-release.sh --strict` ya aborta si no
-      hay clave).
+- [x] Verificar firmas en modo estricto:
+      `tools/verify-signatures.sh` valida GPG detached
+      sobre cada artefacto del directorio de distribución.
+      Modo estricto: aborta si algún artefacto está sin
+      firmar o con firma inválida. Verificado con un
+      tarball firmado y otro sin firmar.
 
 ### F3 — Performance y robustez (en-repo + fixtures)
 
