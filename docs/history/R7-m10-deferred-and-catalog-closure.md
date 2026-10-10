@@ -3,7 +3,7 @@
 **Bloque:** R7 — cierre de la deuda M10 explícita + mutantes M-P03/M-I01 + consolidación M11.
 **Release propuesta:** `v0.8.0`.
 **Fecha:** 2026-10-10.
-**SHA integrado:** `b23b594` (HEAD tras la certificación del catálogo de mutantes).
+**SHA integrado:** `5ff8457` (HEAD tras la DSL del M10).
 
 ## Trabajo ejecutado
 
@@ -41,6 +41,28 @@ Validación en `init`:
 - `name` y `packVersion` no vacíos.
 - `suuites` no vacías.
 - `suiteId` únicos.
+
+### R7.7 — DSL `assurancePack { suite { ... } }` (M10 "façade assurance-dsl")
+
+El ROADMAP §3 M0/M1/M10 menciona una "façade `assurance-dsl`" que
+nunca aterrizó como módulo ni como API. R7 la entrega como una
+**builder DSL Kotlin** dentro de `assure-cli/src/main/.../dsl/`,
+expuesta por la función top-level `assurancePack(name, version) { ... }`:
+
+- Bloques anidados: `suite(id) { lens { ... }; assertion { ... } }`.
+- Reglas: `mandatory(id)`, `touched(id, prefix?)`, `newFindings(id)`.
+- `mandatory(id)` bridgea la regla a `metadata["mandatory"]=true` en
+  la `AssuranceSuiteIR` para que `RequiredAssurancePlan.build` la
+  detecte como `MandatoryBaseline` sin que el caller duplique el flag.
+- `@DslMarker` evita que un `lens {...}` accidental de una suite
+  externa entre en el bloque de la suite equivocada.
+- 4 tests cubren: pack básico, IR canonizable, integración con
+  `RequiredAssurancePlan`, y exposición de las 3 reglas.
+
+El DSL es opcional: el `AssurancePack` data class sigue siendo la API
+pública estable; la DSL es una conveniencia. Cuando se materialice
+el codec JSON del pack (pendiente en la deuda R7), el DSL también
+podrá serializarse a un manifiesto versionado.
 
 ### R7.3 — `CanonicalEncoder.digestPlan(...)`
 
@@ -127,6 +149,8 @@ Tras la redundancia:
   tests de pack.
 - R5.6 (AssurancePack) implementado: data class versionada con
   reglas que se mapean 1:1 a las razones del plan.
+- M10 DSL `assurancePack { suite { ... } }`: builder Kotlin con
+  `@DslMarker`; 4 tests de composicion + bridge a `RequiredAssurancePlan`.
 - M-P03 certificado con `killed=2` en el harness de mutantes.
 - M-I01 certificado con `killed=3` en el harness de mutantes.
 - M-10-01..M-10-04: redundancia >= 2 (sin AVISO en el harness).
@@ -136,8 +160,8 @@ Tras la redundancia:
 ## Build
 
 - `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in 1m`.
-- 387 tests, 0 failures, 0 skipped (incremento de 25 vs R6).
-- SHA de cierre: `9528cb5`.
+- 391 tests, 0 failures, 0 skipped (incremento de 29 vs R6).
+- SHA de cierre: `5ff8457`.
 
 ## Riesgos y deuda
 
