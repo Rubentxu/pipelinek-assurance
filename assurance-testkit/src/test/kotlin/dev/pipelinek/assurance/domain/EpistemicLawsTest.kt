@@ -256,6 +256,23 @@ class EpistemicLawsTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_I01_value_blanco_rechazado_por_init_distinto_namespace() {
+        // M-I01 redundancia 2: el init rechaza value == "   "
+        // (no solo ""). Un mutante que quite isNotBlank() deja
+        // pasar el whitespace, que es igualmente un id "desnudo"
+        // (AAT-13: una identidad sin contenido no es una identidad).
+        // Distinto namespace al test anterior para no ser la
+        // misma ruta de código.
+        val ex = shouldThrow<IllegalArgumentException> {
+            dev.pipelinek.assurance.domain.evidence.TypedExternalId(
+                dev.pipelinek.assurance.domain.evidence.ExternalNamespace.ChronosInvocationId,
+                "   ",
+            )
+        }
+        ex.message?.contains("no puede estar vacio") shouldBe true
+    }
+
+    @Test
     fun authority_and_completeness_are_orthogonal() {
         // Un Signal completo sigue siendo heuristico: completitud no es
         // confianza.
