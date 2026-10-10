@@ -14,10 +14,23 @@ preservando causalidad, cancelación y fallos.
 **Precondición:** C cerrado. Contrato de BodyContinuation
 certificado. Export Chronos real disponible.
 
-## Estado (observado 2026-10-10, SHA `125304b`)
+## Estado (observado 2026-10-10, post-D5)
 
-**Bloqueado por externo.** D1 requiere la release firmada de
-Chronos con el contrato `assurance-runtime-evidence/v1`.
+**D1, D2, D3 siguen BLOQUEADOS** por externo (Chronos, SDK real,
+collector OTel real).
+
+**D5 cerrado (en-repo, sin bloqueador)**: fallos, crash y
+replay. 7 tests en `D5FailureModesTest`:
+- Provider que lanza excepción → gap `Lost`, no aborta.
+- Provider declara gap `Lost` → assertion cae a
+  `Inconclusive`.
+- `BodyContinuation` que lanza → `BodyOutcome.Failure`.
+- `combine(body_failure, report_pass)` preserva el failure
+  (no se oculta tras el pass de assurance).
+- `Cancelled` no se confunde con `Failure` en el combine.
+- Normalizer aborta cuando el producer miente →
+  `OrchestrationResult.Failed` con motivo (no se publica
+  report parcial).
 
 ## Sub-tareas
 
@@ -53,9 +66,18 @@ Chronos con el contrato `assurance-runtime-evidence/v1`.
 
 ### D5 — Fallos, crash y replay (en-repo)
 
-- [ ] Cancelación del ancestro, body fallido, fallo del
-      observer, pérdida de evidencia, caída antes/después del
-      sellado, interrupción al publicar.
+- [x] Cancelación del ancestro (M_P02, ya en
+      `AssuranceVerifyStepTest`).
+- [x] Body fallido (M_P01, ya en `AssuranceVerifyStepTest`).
+- [x] Fallo del observer: provider que lanza excepción →
+      gap `Lost` (7 tests nuevos en `D5FailureModesTest`).
+- [x] Pérdida de evidencia: provider declara gap `Lost` →
+      assertion cae a `Inconclusive`.
+- [x] Caída antes/después del sellado: handler que lanza →
+      `BodyOutcome.Failure`; combine preserva el failure.
+- [x] Interrupción al publicar: orchestrator devuelve
+      `Failed` con `evaluationId` `eval-failed-*` (no se
+      publica como artifact válido).
 
 ## Acceptance
 
