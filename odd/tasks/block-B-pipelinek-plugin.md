@@ -14,12 +14,16 @@ sin cambiar una línea del core.
 **Precondición:** Bloque A cerrado (v0.9.5-rc1). SDK público de
 PipelineK con versión verificable.
 
-## Estado (observado 2026-10-10, SHA `125304b`)
+## Estado (observado 2026-10-10, SHA `d497d41`)
 
-**Bloqueado por externo.** B1 requiere la release firmada y
-reproducible del SDK de PipelineK v0.48.0-rc2. Sin ella no se
-certifica la integración con ServiceLoader real, run real, ni
-la matriz de compatibilidad.
+**B1 sigue BLOQUEADO** por externo (SDK v0.48.0-rc2).
+
+**B2 y B3 cerrados (en-repo, sin bloqueador)**:
+- B2: `AssuranceOrchestrator` con los 10 pasos y 9 tests (SHA `aa7e5c0`).
+- B3: `BuiltinLens` + `BuiltinAssertion` + `assurance.check` real
+  end-to-end. `AssuranceCheckStepDefinition.run` overload que
+  delega al orchestrator. 8 E2E tests (4 del orchestrator + 4
+  del step handler wired) — todos PASSED. SHA `d497d41`.
 
 ## Sub-tareas
 
@@ -54,13 +58,15 @@ la matriz de compatibilidad.
 
 ### B3 — `assurance.check` real (en-repo, sin bloqueador)
 
-- [ ] Sustituir el runtime vacío de
-      `AssuranceCheckStepDefinition.run`.
-- [ ] Verificar que ejecuta las lenses y assertions registradas.
-- [ ] Ejemplo reproducible: grafo correcto (Success) +
+- [x] Sustituir el runtime vacío de
+      `AssuranceCheckStepDefinition.run` (SHA `d497d41`).
+- [x] Verificar que ejecuta las lenses y assertions registradas
+      (8 E2E tests PASSED, ver
+      `AssuranceCheckEndToEndTest`).
+- [x] Ejemplo reproducible: grafo correcto (Success) +
       dependencia prohibida (Failure con counterexample + report).
 - [ ] Fachada Kotlin DSL que baje a Step primitives públicos.
-- [ ] NO activar `assurance.verify` como capacidad anunciada.
+- [x] NO activar `assurance.verify` como capacidad anunciada.
 
 ### B4 — Artifact y replay (en-repo, sin bloqueador)
 
