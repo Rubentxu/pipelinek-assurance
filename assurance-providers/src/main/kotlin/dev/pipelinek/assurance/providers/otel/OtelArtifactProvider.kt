@@ -54,7 +54,7 @@ class OtelArtifactProvider(
         subjectKinds = listOf("RuntimeSpan"),
         classification = ProviderClassification.Runtime,
         inputFormats = listOf("application/vnd.otel.trace+json;version=1"),
-        outputSchemaVersion = "otel/trace/v1",
+        outputSchemaVersion = OtelTraceExportCodec.API_VERSION,
     )
 
     override fun collect(request: EvidenceRequest): EvidenceCollectionResult {

@@ -58,7 +58,7 @@ class ChronosArtifactProvider(
         subjectKinds = listOf("RuntimeSpan", "SourceLocation"),
         classification = ProviderClassification.Runtime,
         inputFormats = listOf("application/vnd.chronos.assurance-runtime-evidence+cbor;version=1"),
-        outputSchemaVersion = "assurance-runtime-evidence/v1",
+        outputSchemaVersion = ChronosRuntimeEvidenceCodec.API_VERSION,
     )
 
     override fun collect(request: EvidenceRequest): EvidenceCollectionResult {
