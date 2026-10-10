@@ -2088,3 +2088,157 @@ repos de ejemplo).
 
 El conocimiento negativo en §8 deja escrito lo que se intentó y
 no funcionó, para que un próximo ciclo no lo redescubra.
+
+---
+
+## 10. Tramo de consolidación A–F
+
+A partir de v0.9.4 (cierre del M11 segundo pase) y antes de
+`v1.0.0-rc1`, este repo entra en un tramo de consolidación que
+endurece la frontera entre los entregables M0–M11 y el primer
+release 1.0. El tramo se divide en seis bloques con un orden
+estricto A→B→C→D→E→F. Cada bloque cierra con un release
+candidate etiquetado; las precondiciones entre bloques son
+duras (un bloque no empieza si el anterior no está en verde).
+
+Esta sección NO reemplaza los hitos M0–M11 ni sus recibos.
+Añade un tramo nuevo. Los recibos M0–M11 se preservan tal
+cual, sin reescritura. Los nuevos hitos A–F viven en sus
+propios `odd/tasks/block-*.md` y se documentan a medida que
+cierran.
+
+### Convenciones del tramo A–F
+
+- SHA ancla del inicio: `df44ea5` (v0.9.4). Cada bloque
+  documenta su SHA de cierre.
+- `odd/tasks/block-A-integrity.md` ... `block-F-release.md`
+  son los features documents; siguen el formato de los
+  features M0–M11 (objetivo, scope, constraints, routes,
+  tasks, acceptance criteria, tracking, recibo).
+- Tests, mutantes, UAT y AAT se siguen contando desde el
+  baseline. La cifra total avanza hacia ~500+ tests,
+  ~50 mutantes, 33 UAT, 20 AAT al cerrar F.
+- Las versiones externas se fijan en SHA + digest, no en
+  etiquetas flotantes. Si el productor externo no tiene
+  release firmada, el trabajo cruzado se bloquea.
+- `clean check`, `certify_mutants.py` y `measure-performance.sh`
+  son los tres gates que todo bloque debe pasar antes de
+  declarar cierre.
+
+### Bloque A — Integridad semántica y CI reproducible
+
+**Release objetivo: `v0.9.5-rc1`.**
+
+Valor: un motor de assurance que no pueda comunicar éxito
+cuando la evidencia, su procedencia o la evaluación no sean
+suficientes, y un gate de CI remoto completamente verde.
+
+Sub-tareas: A1 pure `evaluateEnforcement`; A2 álgebra de
+completitud; A3 normalizer de frontera; A4 endurecer
+`certify_mutants.py`; A5 CI osv-scanner + perf + AGENTS.md.
+
+Estado (observado 2026-10-10, SHA `125304b`): **cerrado**.
+Cinco commits pequeños (abf886d, a2565e6, ddfae99, 093d98d,
+c3df2a7) más el fix M-I01 redundancia (125304b). 496 tests
+verdes, 44/44 mutantes DEAD con recibos JSON en
+`build/mutant-receipts/`. Tag `v0.9.5-rc1` publicado en
+`origin/main`. Detalle en
+`odd/tasks/block-A-integrity.md`.
+
+### Bloque B — Primer plugin PipelineK realmente ejecutable
+
+**Release objetivo: `v0.10.0-rc1`.**
+
+Valor: un usuario puede instalar el JAR de Assurance en una
+distribución auténtica de PipelineK y ejecutar
+`assurance.check` sin cambiar una línea del core.
+
+Sub-tareas: B1 integración con SDK público (real); B2
+application service (orquestación interna); B3 `assurance.check`
+real end-to-end; B4 artifact y replay.
+
+Estado (observado 2026-10-10, SHA `125304b`): **bloqueado por
+externo**. B1 requiere una versión publicable y reproducible
+del SDK de PipelineK v0.48.0-rc2; sin ella no se certifica la
+integración con ServiceLoader real, run real, ni la matriz de
+compatibilidad. El plan upstream queda registrado; mientras,
+B2–B4 se pueden ejecutar como trabajo defensivo (codecs,
+contratos, mock host). Sin promoción a `v0.10.0-rc1` hasta
+resolver B1.
+
+### Bloque C — Assurance estático real, baselines y ratchets
+
+**Release objetivo: `v0.11.0-rc1`.**
+
+Valor: analizar un repositorio real con CogniCode y Detekt,
+generar findings arquitectónicos, compararlos contra baseline
+y bloquear sólo las regresiones que la política declare
+relevantes.
+
+Sub-tareas: C1 consumir productor real de CogniCode; C2
+endurecer adapters JaCoCo/PIT; C3 baselines y diff
+completo; C4 ratchets; C5 pipeline de calidad real.
+
+Estado: **bloqueado por externo**. C1 requiere la release
+firmada de CogniCode `v0.101.10` con el export
+`assurance-evidence/v1` consumible por nuestro codec.
+Diferido a cuando esa release exista.
+
+### Bloque D — Assurance runtime mediante Chronos, OTel y BodyContinuation
+
+**Release objetivo: `v0.12.0-rc1`.**
+
+Valor: ejecutar un body de PipelineK y verificar propiedades
+runtime con ventana de evidencia real, preservando
+causalidad, cancelación y fallos.
+
+Sub-tareas: D1 productor Chronos; D2 `assurance.verify`
+body-owning real; D3 OTel collector real; D4 lenses runtime;
+D5 crash, cancelación, replay.
+
+Estado: **bloqueado por externo**. D1 requiere la release
+firmada de Chronos con el contrato
+`assurance-runtime-evidence/v1`. D2 y D3 son trabajo cruzado
+que sólo se certifica con el SDK real y el collector OTel
+real. Diferido.
+
+### Bloque E — Experiencia agent-first, packs y self-hosting
+
+**Release objetivo: `v0.13.0-rc1`.**
+
+Valor: una persona o un agente puede seleccionar suites,
+ejecutar assurance y navegar desde un fallo hasta sus
+evidencias, sin aprender de antemano la estructura interna.
+
+Sub-tareas: E1 CLI real (capacidades declaradas, ejecutables);
+E2 Kotlin DSL y packs; E3 runners JUnit/Kotest con paridad de
+digest; E4 self-hosting con CogniCode real.
+
+Estado: **pendiente de A–D**. Sin A, B, C, D cerrados, los
+artifacts que E debe navegar son ficticios.
+
+### Bloque F — Certificación de producción y primera candidata 1.0
+
+**Release objetivo: `v1.0.0-rc1`.**
+
+Valor: candidata de producción instalable, verificable,
+auditable y reproducible sobre una distribución de PipelineK,
+con trazabilidad desde el source commit hasta cada veredicto.
+
+Sub-tareas: F1 matriz de compatibilidad con SDK real; F2
+certificación de supply chain (SBOM, firmas, provenance); F3
+performance con cargas representativas; F4 auditoría final
+de seguridad; F5 revisión arquitectónica; F6 release
+candidate.
+
+Estado: **pendiente de A–E**.
+
+### Regla de orden
+
+El orden A→B→C→D→E→F es estricto. Saltarse un bloque o
+promover el SHA de un bloque antes de cerrar su gate es STOP.
+El trabajo preparatorio en repos externos (PipelineK,
+CogniCode, Chronos) puede ocurrir en paralelo y se registra
+como workstream upstream; no promueve el bloque cruzado
+hasta que su release exista, esté firmada, y el consumidor
+la certifique con bytes reales.
