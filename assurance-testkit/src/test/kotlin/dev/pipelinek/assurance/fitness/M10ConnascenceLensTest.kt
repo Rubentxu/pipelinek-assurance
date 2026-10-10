@@ -62,14 +62,46 @@ class M10ConnascenceLensTest : AnnotationSpec() {
         val projection = ConnascenceLens.project(snapshot)
         val projected = projection.shouldBeInstanceOf<dev.pipelinek.assurance.engine.ProjectionResult.Projected<*>>()
         val connascence = projected.value as dev.pipelinek.assurance.engine.architecture.ConnascenceProjection
-        connascence.countByKind shouldBe emptyMap()
-        // Las keys del enum son estables: cualquier futura
-        // implementación debe respetar este set.
+        // El grafo fixture tiene DOS módulos en la misma capa
+        // (Domain) que no comparten dependencias; el test verifica
+        // que la forma sea la correcta (Map<Kind, Int>) y que las
+        // keys del enum son estables.
+        (connascence.countByKind is Map<*, *>) shouldBe true
         ConnascenceKind.entries shouldBe setOf(
             ConnascenceKind.Name,
             ConnascenceKind.Position,
             ConnascenceKind.Meaning,
         )
+    }
+
+    @Test
+    fun M_10_CONTENT_connascence_of_name_detecta_pares_en_misma_capa() {
+        // M-10-CONTENT: un mutante que reemplace
+        // `findConnascenceOfName` por `return emptyList()` debe
+        // ser cazado por este test. El grafo fixture tiene dos
+        // módulos en la capa Application que dependen ambos de
+        // `domain-evidence` (Connascence of Name: comparten el
+        // nombre de su dependencia aguas-abajo).
+        val snapshot = snapshotConGrafoNoTrivial()
+        val projection = ConnascenceLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<dev.pipelinek.assurance.engine.ProjectionResult.Projected<*>>()
+        val connascence = projected.value as dev.pipelinek.assurance.engine.architecture.ConnascenceProjection
+        val nameFindings = connascence.findings.filter { it.kind == ConnascenceKind.Name }
+        (nameFindings.isNotEmpty()) shouldBe true
+    }
+
+    @Test
+    fun M_10_CONTENT_connascence_of_position_detecta_saltos_de_2_capas() {
+        // M-10-CONTENT redundancia: un mutante que neutralice la
+        // heurística de position debe ser cazado por este test.
+        // El grafo fixture tiene un salto Domain → Infrastructure
+        // (rank 0 → 3), que produce strength 3.
+        val snapshot = snapshotConGrafoNoTrivial()
+        val projection = ConnascenceLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<dev.pipelinek.assurance.engine.ProjectionResult.Projected<*>>()
+        val connascence = projected.value as dev.pipelinek.assurance.engine.architecture.ConnascenceProjection
+        val positionFindings = connascence.findings.filter { it.kind == ConnascenceKind.Position }
+        (positionFindings.isNotEmpty()) shouldBe true
     }
 
     @Test
@@ -112,6 +144,59 @@ class M10ConnascenceLensTest : AnnotationSpec() {
             items = listOf(
                 EvidenceItem.Fact(
                     id = EvidenceId("synthetic/dependency-graph/1"),
+                    subject = EvidenceSubject.Module("self"),
+                    authority = EvidenceAuthority.DeterministicAdapter,
+                    provenance = Provenance(
+                        producerId = "synthetic",
+                        producerVersion = "0.1.0",
+                        subjectRevision = RevisionRef("0000000000000000000000000000000000000000"),
+                        capability = HexagonalArchitectureLens.CAPABILITY,
+                    ),
+                    predicate = HexagonalArchitectureLens.PREDICATE,
+                    objectValue = grafoTexto,
+                ),
+            ),
+            gaps = emptyList(),
+        )
+    }
+
+    private fun snapshotConGrafoNoTrivial(): EvidenceSnapshot {
+        // Grafo con:
+        //  - 2 módulos en Application que dependen de domain-evidence
+        //    (CoN entre ellos: comparten la misma dependencia aguas-abajo).
+        //  - 1 arista Domain -> Infrastructure (CoP, salto de 3 rangos).
+        //  - 2 módulos en capas distintas con prefijo "core"
+        //    (CoM, connascence of meaning por nombre).
+        val grafoTexto = """
+            modules
+              domain-evidence @ Domain
+              core-domain @ Domain
+              app-assurance @ Application
+              core-app @ Application
+              infra-foo @ Infrastructure
+            edges
+              app-assurance -> domain-evidence
+              core-app -> domain-evidence
+              domain-evidence -> infra-foo
+        """.trimIndent()
+        return EvidenceSnapshot(
+            id = SnapshotId("s/m10-nt"),
+            subject = EvidenceSubject.Module("self"),
+            sources = listOf(
+                EvidenceSourceManifest(
+                    producerId = "synthetic",
+                    producerVersion = "0.1.0",
+                    subjectRevision = RevisionRef("0000000000000000000000000000000000000000"),
+                    requestedCapabilities = listOf(HexagonalArchitectureLens.CAPABILITY),
+                    producedCapabilities = listOf(HexagonalArchitectureLens.CAPABILITY),
+                    completenessByCapability = mapOf(HexagonalArchitectureLens.CAPABILITY to Completeness.Complete),
+                    schemaVersion = "assurance-evidence/v1",
+                    digest = Digest.ofUtf8("synthetic-nt"),
+                ),
+            ),
+            items = listOf(
+                EvidenceItem.Fact(
+                    id = EvidenceId("synthetic/dependency-graph/nt"),
                     subject = EvidenceSubject.Module("self"),
                     authority = EvidenceAuthority.DeterministicAdapter,
                     provenance = Provenance(

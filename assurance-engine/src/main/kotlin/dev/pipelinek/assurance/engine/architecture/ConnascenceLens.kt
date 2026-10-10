@@ -96,23 +96,106 @@ object ConnascenceLens : AssuranceLens<EvidenceSnapshot, ConnascenceProjection> 
     }
 
     private fun findConnascenceOfName(graph: DependencyGraph): List<ConnascenceFinding> {
-        // V1 simplificado: lista vacía. La forma del finding existe
-        // para que las assertions puedan razonar sobre connascence
-        // sin acoplar al tipo concreto. Cuando haya un provider de
-        // symbols (CogniCode M2, Detekt M5), esta función se
-        // materializa leyendo el capability `architecture.entities`
-        // y comparando nombres.
-        return emptyList()
+        // V1 heurística: dos módulos en la MISMA capa que dependen
+        // ambos del mismo módulo "aguas abajo" comparten nombre de
+        // dependencia — la firma del módulo objetivo se convierte en
+        // connascence of name entre los dos consumidores. Cuando
+        // CogniCode M2 entregue nombres de símbolos, esta heurística
+        // se reemplaza por coincidencia exacta de `Symbol.name`.
+        //
+        // M-10-CONTENT: un mutante que devuelva `emptyList()` debe
+        // ser cazado por el test que afirma `countByKind[Name] > 0`
+        // en un grafo no trivial.
+        val byLayer = graph.modules.groupBy { graph.layers.getValue(it) }
+        val findings = mutableListOf<ConnascenceFinding>()
+        for ((layer, modules) in byLayer) {
+            if (modules.size < 2) continue
+            val targetCounts = HashMap<String, MutableList<String>>()
+            for (module in modules) {
+                for (edge in graph.edges) {
+                    if (edge.from == module) {
+                        targetCounts.getOrPut(edge.to) { mutableListOf() }.add(module)
+                    }
+                }
+            }
+            for ((target, dependents) in targetCounts) {
+                if (dependents.size >= 2) {
+                    val a = dependents[0]
+                    val b = dependents[1]
+                    findings.add(
+                        ConnascenceFinding(
+                            kind = ConnascenceKind.Name,
+                            from = a,
+                            to = b,
+                            subject = "dependen de $target en $layer",
+                            strength = 2,
+                        ),
+                    )
+                }
+            }
+        }
+        return findings
     }
 
     private fun findConnascenceOfPosition(graph: DependencyGraph): List<ConnascenceFinding> {
-        // V1: idem.
-        return emptyList()
+        // V1 heurística: una arista que cruza dos o más rangos de
+        // capa de una vez (e.g. Domain → Infrastructure) implica
+        // connascence of position: la posición del módulo productor
+        // en su capa determina la posición del consumidor, no su
+        // nombre. La fuerza es proporcional al salto de rangos.
+        val findings = mutableListOf<ConnascenceFinding>()
+        for (edge in graph.edges) {
+            val fromLayer = graph.layers[edge.from] ?: continue
+            val toLayer = graph.layers[edge.to] ?: continue
+            val jump = (toLayer.rank - fromLayer.rank).coerceAtLeast(0)
+            if (jump >= 2) {
+                findings.add(
+                    ConnascenceFinding(
+                        kind = ConnascenceKind.Position,
+                        from = edge.from,
+                        to = edge.to,
+                        subject = "salto de $jump rangos de capa (${fromLayer.name} -> ${toLayer.name})",
+                        strength = jump,
+                    ),
+                )
+            }
+        }
+        return findings
     }
 
     private fun findConnascenceOfMeaning(graph: DependencyGraph): List<ConnascenceFinding> {
-        // V1: idem.
-        return emptyList()
+        // V1 heurística: dos módulos en capas DIFERENTES con
+        // prefijos de nombre compartidos sugieren la misma
+        // intención (e.g. `core-` y `core-domain`). Es connascence
+        // of meaning: el significado del prefijo es compartido sin
+        // que haya un tipo que lo declare. Fuerza 1 (la más débil).
+        //
+        // Esta heurística es deliberadamente burda; cuando llegue
+        // un provider de symbols con `Symbol.name`, se sustituye
+        // por la comparación de nombres canónicos del catálogo.
+        val findings = mutableListOf<ConnascenceFinding>()
+        val withLayer = graph.modules.map { it to graph.layers.getValue(it) }
+        for (i in withLayer.indices) {
+            for (j in (i + 1) until withLayer.size) {
+                val (a, layerA) = withLayer[i]
+                val (b, layerB) = withLayer[j]
+                if (layerA == layerB) continue
+                val prefixA = a.substringBefore('-', a)
+                val prefixB = b.substringBefore('-', b)
+                if (prefixA.length >= 3 && prefixA == prefixB) {
+                    findings.add(
+                        ConnascenceFinding(
+                            kind = ConnascenceKind.Meaning,
+                            from = a,
+                            to = b,
+                            subject = "prefijo compartido '$prefixA' en capas ${layerA.name}/${layerB.name}",
+                            strength = 1,
+                        ),
+                    )
+                }
+            }
+        }
+        return findings
     }
 }
 
