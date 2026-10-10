@@ -334,7 +334,11 @@ class CogniCodeArtifactProvider(
                 "Unsupported" -> RawGapReason.Unsupported
                 "Unknown" -> RawGapReason.Unknown
                 "Lost" -> RawGapReason.Lost
-                else -> RawGapReason.PartialProduced(g.reason)
+                // M-COGN01: un reason no reconocido NO se re-clasifica
+                // silenciosamente como PartialProduced. Eso ocultaba
+                // drift del producer. Se reporta como Other(rawReason)
+                // para que el motor pueda reportarlo.
+                else -> RawGapReason.Other(g.reason)
             }
             RawEvidenceGap(capability = g.capability, reason = r, detail = g.detail)
         }
@@ -379,40 +383,43 @@ class CogniCodeArtifactProvider(
     }
 
     /**
-     * Resuelve la autoridad a partir del string de CogniCode, con fallback.
+     * Resuelve la autoridad a partir del string de CogniCode.
      *
-     * Si el producer declara una autoridad no conocida, el decoder ya
-     * pasó la cadena sin error; aquí decidimos qué hacer. La política
-     * conservadora es degradar a `DeterministicAnalyzer`: CogniCode es
-     * determinista por descriptor, así que cualquier autoridad que declare
-     * debería caer dentro de `Deterministic*`. Una cadena inesperada se
-     * trata como `DeterministicAnalyzer` y se deja al motor el gap si
-     * la assertion exige más.
+     * M-COGN01: una autoridad no reconocida NO se re-clasifica
+     * silenciosamente como `DeterministicAnalyzer`. Eso corrompía la
+     * señal AAT-19 (un producer declarando `HeuristicAnalyzer` para un
+     * Fact se re-clasificaba como determinista, y el motor podía
+     * promover un Signal a Fact sin que nadie lo supiera).
+     *
+     * Política V1: si el producer declara una autoridad que este
+     * provider no reconoce, se devuelve la cadena original sin
+     * coerción. El motor downstream (EvidenceNormalizer) es el
+     * responsable de aplicar la coerción tipada, no este provider.
      */
-    private fun deterministicOrFallback(rawAuthority: String): String =
-        when (rawAuthority) {
-            "DeterministicAdapter",
-            "DeterministicAnalyzer",
-            "RuntimeObserver",
-            -> rawAuthority
-            else -> "DeterministicAnalyzer"
-        }
+    private fun deterministicOrFallback(rawAuthority: String): String = when (rawAuthority) {
+        "DeterministicAdapter",
+        "DeterministicAnalyzer",
+        "RuntimeObserver",
+        -> rawAuthority
+        else -> rawAuthority
+    }
 
     /**
      * Heurística de capacidad para un Fact.
      *
      * Mapea el predicado a una de las capabilities del descriptor cuando
-     * es posible. Predicados desconocidos caen a
-     * `architecture.dependency-graph` porque es la capability genérica
-     * para hechos relacionales (imports/calls/depends-on). Cualquier
-     * service de aplicación puede refinar.
+     * es posible. Predicados NO reconocidos se marcan con el prefijo
+     * `unknown.` para que un downstream los reporte como gap, en lugar
+     * de absorberlos silenciosamente como
+     * `architecture.dependency-graph` (que era el bug que M-COGN01
+     * atacaba en los gaps; aquí lo aplicamos también a los facts).
      */
     private fun capabilityForFact(predicate: String): String =
         when (predicate) {
             "imports", "calls", "depends-on", "extends", "implements" ->
                 CAPABILITY_DEPENDENCY_GRAPH
             "owns-module", "contains-symbol" -> CAPABILITY_ENTITIES
-            else -> CAPABILITY_DEPENDENCY_GRAPH
+            else -> "unknown.fact.${predicate}"
         }
 
     /** ¿Los bytes parecen JSON? Probe barato (primeros bytes no-espacio). */

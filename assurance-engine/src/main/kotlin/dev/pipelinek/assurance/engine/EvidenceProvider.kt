@@ -272,6 +272,15 @@ sealed interface RawGapReason {
 
     /** La evidencia se perdió después de producirse. */
     data object Lost : RawGapReason
+
+    /**
+     * El producer declaró una razón que el provider no reconoce. Se
+     * mantiene el string original en [rawReason] para que el motor
+     * pueda reportarlo, pero el provider NO la re-clasifica
+     * silenciosamente como `PartialProduced` (que era el bug que
+     * M-COGN01 ataca).
+     */
+    data class Other(val rawReason: String) : RawGapReason
 }
 
 /**

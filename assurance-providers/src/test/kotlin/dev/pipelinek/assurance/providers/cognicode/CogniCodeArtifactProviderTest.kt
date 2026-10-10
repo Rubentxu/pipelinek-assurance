@@ -34,6 +34,7 @@ import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
@@ -239,6 +240,56 @@ class CogniCodeArtifactProviderTest : AnnotationSpec() {
     }
 
     // -----------------------------------------------------------------------
+    // M-COGN01 — redundancia para los fixes de silent-else
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun M_COGN01_authority_desconocida_no_se_reclasifica_como_deterministic() {
+        // M-COGN01: una autoridad que el provider no reconoce
+        // (ej. "HeuristicAnalyzer" en una entidad que dice ser
+        // determinista) NO debe re-clasificarse como
+        // "DeterministicAnalyzer". Eso corrompe la señal AAT-19.
+        val bytes = exportWithUnknownAuthority(authority = "HeuristicAnalyzer")
+        val provider = CogniCodeArtifactProvider(bytes)
+        val outcome = provider.collect(
+            EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")),
+        )
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        // El fact `imports` del export declara `HeuristicAnalyzer` como
+        // autoridad. El provider NO debe re-clasificarlo a
+        // `DeterministicAnalyzer` (comportamiento previo que M-COGN01
+        // caza). Verificamos que el item conserva la autoridad original.
+        val itemsForPredicate = produced.rawItems.filter {
+            it.payload["predicate"] == "imports"
+        }
+        itemsForPredicate.forEach { it.authority shouldBe "HeuristicAnalyzer" }
+    }
+
+    @Test
+    fun M_COGN01_reason_desconocido_se_reporta_como_Other_no_como_PartialProduced() {
+        // M-COGN01 redundancia: un gap reason desconocido se
+        // reporta como `Other(rawReason)`, NO como
+        // `PartialProduced` (que era el comportamiento previo y
+        // que ocultaba drift del producer).
+        //
+        // Estructura: el export declara `signals.solid_audit` como
+        // `Complete` en `capabilityCompleteness` (para que esa rama
+        // NO emita nada) y declara en la sección raíz `gaps` un gap
+        // con reason desconocido. Así la única fuente de gaps es
+        // la sección `gaps`, y la deduplicación no oculta el
+        // `Other` que queremos verificar.
+        val bytes = exportWithUnknownGapReason(reason = "DriftedFromProducer")
+        val provider = CogniCodeArtifactProvider(bytes)
+        val outcome = provider.collect(
+            EvidenceRequest(RevisionRef("0000000000000000000000000000000000000000")),
+        )
+        val produced = outcome.shouldBeInstanceOf<EvidenceCollectionResult.Produced>()
+        val other = produced.declaredGaps.find { it.reason is RawGapReason.Other }
+        (other != null) shouldBe true
+        (other!!.reason as RawGapReason.Other).rawReason shouldBe "DriftedFromProducer"
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers — construcción de exports sintéticos
     // -----------------------------------------------------------------------
 
@@ -298,6 +349,90 @@ class CogniCodeArtifactProviderTest : AnnotationSpec() {
             ),
         )
         return CogniCodeEvidenceExportCodec.encodeToCbor(dto)
+    }
+
+    private fun exportWithUnknownAuthority(authority: String): ByteArray {
+        val dto = buildWellFormed(
+            facts = listOf(
+                FactDto(
+                    id = "f-1",
+                    entityRef = "sym-foo",
+                    predicate = "imports",
+                    objectValue = "core.Bar",
+                    authority = authority,
+                    sourceAnchorRef = null,
+                ),
+            ),
+        )
+        return CogniCodeEvidenceExportCodec.encodeToCbor(dto)
+    }
+
+    private fun exportWithUnknownGapReason(reason: String): ByteArray {
+        // Para verificar el `Other(rawReason)`: declaramos TODAS las
+        // capabilities como `Complete` en `capabilityCompleteness` (esa
+        // rama NO emite gap) y añadimos un gap con reason desconocido en
+        // la sección raíz `gaps`. Así la única fuente del gap que
+        // esperamos es la sección raíz, y la deduplicación
+        // `distinctBy { capability to reason }` no puede ocultar el
+        // `Other`.
+        val placeholder = CogniCodeEvidenceExportDto(
+            apiVersion = CogniCodeEvidenceExportCodec.API_VERSION,
+            kind = "EvidenceExport",
+            producer = ProducerInfoDto(id = "cognicode", version = "0.1.0", schemaVersion = "1"),
+            subject = SubjectRefDto(revision = "rev-001", kind = "Module"),
+            manifest = ManifestSectionDto(
+                requestedCapabilities = listOf(
+                    "architecture.dependency-graph",
+                    "architecture.entities",
+                    "architecture.relations",
+                    "signals.solid_audit",
+                ),
+                producedCapabilities = listOf(
+                    "architecture.dependency-graph",
+                    "architecture.entities",
+                    "architecture.relations",
+                    "signals.solid_audit",
+                ),
+                completenessByCapability = mapOf(
+                    "architecture.dependency-graph" to CapabilityCompletenessDto.CompleteDto,
+                    "architecture.entities" to CapabilityCompletenessDto.CompleteDto,
+                    "architecture.relations" to CapabilityCompletenessDto.CompleteDto,
+                    "signals.solid_audit" to CapabilityCompletenessDto.CompleteDto,
+                ),
+                schemaVersion = CogniCodeEvidenceExportCodec.API_VERSION,
+                digest = "0".repeat(64),
+            ),
+            entities = listOf(
+                EntityDto(id = "mod-core", kind = "Module", name = "core", layer = "domain"),
+            ),
+            facts = emptyList(),
+            relations = emptyList(),
+            signals = emptyList(),
+            sourceAnchors = emptyList(),
+            provenance = ProvenanceDto(
+                producerId = "cognicode",
+                producerVersion = "0.1.0",
+                subjectRevision = "rev-001",
+                capability = "architecture.entities",
+            ),
+            capabilityCompleteness = mapOf(
+                "architecture.dependency-graph" to CapabilityCompletenessDto.CompleteDto,
+                "architecture.entities" to CapabilityCompletenessDto.CompleteDto,
+                "architecture.relations" to CapabilityCompletenessDto.CompleteDto,
+                "signals.solid_audit" to CapabilityCompletenessDto.CompleteDto,
+            ),
+            gaps = listOf(
+                CapabilityGapDto(
+                    capability = "signals.solid_audit",
+                    reason = reason,
+                    detail = "drift del producer",
+                ),
+            ),
+            digest = "",
+        )
+        return CogniCodeEvidenceExportCodec.encodeToCbor(
+            placeholder.copy(digest = CogniCodeEvidenceExportCodec.digestOf(placeholder).hex),
+        )
     }
 
     /**

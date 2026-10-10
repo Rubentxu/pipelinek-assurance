@@ -34,6 +34,7 @@ SEAM = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/architec
 PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assurance/plugin/AssuranceVerifyStep.kt"
 CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
+COGNICODE = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/cognicode/CogniCodeArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
 CAPABILITIES = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt"
@@ -438,6 +439,29 @@ sealed interface AssertionResult {
     "M-CAP-DRIFT": [(CAPABILITIES, [(
         """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph\"""",
         """    const val ARCHITECTURE_DEPENDENCY_GRAPH: String = \"architecture.dependency-graph-DRIFT\""""),
+    ])],
+    # M-COGN01: "CogniCodeProvider re-clasifica authority desconocida
+    # como DeterministicAnalyzer". La función `deterministicOrFallback`
+    # degradaba cualquier cadena no reconocida a
+    # `"DeterministicAnalyzer"`, lo que corrompe AAT-19 (un
+    # producer declarando `HeuristicAnalyzer` para un Fact se
+    # aceptaba como determinista). El mutante reintroduce la
+    # coerción; los tests redundantes `M_COGN01_*` lo cazan.
+    "M-COGN01": [(COGNICODE, [(
+        """    private fun deterministicOrFallback(rawAuthority: String): String = when (rawAuthority) {
+        \"DeterministicAdapter\",
+        \"DeterministicAnalyzer\",
+        \"RuntimeObserver\",
+        -> rawAuthority
+        else -> rawAuthority
+    }""",
+        """    private fun deterministicOrFallback(rawAuthority: String): String = when (rawAuthority) {
+        \"DeterministicAdapter\",
+        \"DeterministicAnalyzer\",
+        \"RuntimeObserver\",
+        -> rawAuthority
+        else -> \"DeterministicAnalyzer\"
+    }"""),
     ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.
