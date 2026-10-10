@@ -463,6 +463,17 @@ sealed interface AssertionResult {
         else -> \"DeterministicAnalyzer\"
     }"""),
     ])],
+    # M-COGN02: "CogniCodeProvider re-clasifica gap reason
+    # desconocido como PartialProduced". La rama `else` de la
+    # sección `gaps` raíz degradaba cualquier reason no
+    # reconocido a `PartialProduced`, ocultando drift del
+    # producer. El mutante reintroduce la coerción; el test
+    # `M_COGN01_reason_desconocido_se_reporta_como_Other_*` lo
+    # caza.
+    "M-COGN02": [(COGNICODE, [(
+        """                else -> RawGapReason.Other(g.reason)""",
+        """                else -> RawGapReason.PartialProduced(g.reason)"""),
+    ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.
     #
