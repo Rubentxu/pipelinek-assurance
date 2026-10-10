@@ -35,6 +35,7 @@ PLUGIN_VERIFY = "pipelinek-assurance-plugin/src/main/kotlin/dev/pipelinek/assura
 CHRONOS = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/chronos/ChronosArtifactProvider.kt"
 OTEL = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/otel/OtelArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
+PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
 # `internal`), asi que su informe cuenta igual que el del testkit. Sin esta
@@ -414,6 +415,20 @@ sealed interface AssertionResult {
             if (ref != null) {
                 suiteRefs[suiteId] = ref.copy(suiteVersion = existing.suiteVersion)
             }"""),
+    ])],
+    # M-CODEC01: "PackArtifactCodec no verifica digest del plan".
+    # El plan codifica el digest canónico de `CanonicalEncoder.
+    # digestPlan(plan)` en el DTO, y el decoder lo compara al
+    # decodificar. Un mutante que quite la comprobación acepta un
+    # plan con digest alterado.
+    "M-CODEC01": [(PACK_CODEC, [(
+        """        if (digest != canonical) {
+            throw EvidenceArtifactCodec.ArtifactDecodeException(
+                \"digest de plan declarado ${digest.take(12)} no coincide con el canónico \" +
+                    \"${canonical.take(12)} (payload alterado en tránsito)\",
+            )
+        }""",
+        ""),
     ])],
     # M10 — un mutante por cada lens nueva declarada en el catálogo.
     # Cada uno ataca la lógica de filtrado/clasificación de su lens.
