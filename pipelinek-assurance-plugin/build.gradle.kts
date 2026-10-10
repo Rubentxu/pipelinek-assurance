@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    `maven-publish`
 }
 
 // CycloneDX 1.4.0 no expone plugin id público; se aplica por
@@ -94,4 +95,74 @@ dependencies {
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
     testImplementation(libs.junit.jupiter)
+}
+
+// F2 (Bloque F) — Publicar JAR del plugin.
+//
+// El plugin se publica como artefacto Maven local para que la
+// distribución de PipelineK (instalada por el operador) lo pueda
+// consumir via classpath. Sin esta pieza, el plugin queda en
+// `build/libs/*.jar` pero NO tiene POM ni coordinate
+// resoluble. La publicación a un repo remoto real (Maven
+// Central, GitHub Packages) es wiring de CI; aquí dejamos
+// la frontera del plugin lista: `publishToMavenLocal` produce
+// `~/.m2/dev/pipelinek/pipelinek-assurance-plugin/...`.
+//
+// El `version` se inyecta vía gradle property `-Pversion=...`
+// o desde una variable de entorno `VERSION`. El default
+// `0.10.0-rc1-SNAPSHOT` refleja el tramo actual: v0.9.5-rc1
+// ya tagged, el siguiente tag depende de B1.
+group = "dev.pipelinek"
+// `version` se inyecta vía gradle property `-Pversion=...` o
+// desde una variable de entorno `VERSION`. Sin ambas, el
+// default `0.10.0-rc1-SNAPSHOT` refleja el tramo actual:
+// v0.9.5-rc1 ya tagged, el siguiente tag depende de B1.
+//
+// `project.setVersion(...)` es la API explícita de
+// Gradle 7+; el setter `version =` puede ser shadowed
+// por un local con el mismo nombre.
+val rawVersion: String? = project.findProperty("version") as? String
+val pluginVersion: String = when {
+    rawVersion == null -> System.getenv("VERSION") ?: "0.10.0-rc1-SNAPSHOT"
+    rawVersion == "unspecified" -> System.getenv("VERSION") ?: "0.10.0-rc1-SNAPSHOT"
+    else -> rawVersion
+}
+project.setVersion(pluginVersion)
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            artifactId = "pipelinek-assurance-plugin"
+            version = pluginVersion
+            pom {
+                name = "pipelinek-assurance-plugin"
+                description =
+                    "Plugin externo de PipelineK para software assurance determinista."
+                url = "https://github.com/Rubentxu/pipelinek-assurance"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://opensource.org/licenses/MIT"
+                    }
+                }
+                developers {
+                    developer {
+                        name = "Rubentxu"
+                        url = "https://github.com/Rubentxu"
+                    }
+                }
+                scm {
+                    url = "https://github.com/Rubentxu/pipelinek-assurance"
+                    connection = "scm:git:git://github.com/Rubentxu/pipelinek-assurance.git"
+                    developerConnection = "scm:git:ssh://git@github.com/Rubentxu/pipelinek-assurance.git"
+                }
+            }
+        }
+    }
+    // F2 sin repo remoto: la pieza se documenta pero
+    // no se configura. Un repo real (Maven Central, GitHub
+    // Packages) se añade en CI; el caller puede sobreescribir
+    // con `publishing.repositories { ... }` desde un init
+    // script de Gradle sin tocar este archivo.
 }

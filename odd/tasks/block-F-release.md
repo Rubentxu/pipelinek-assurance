@@ -55,7 +55,17 @@ recibos remotos verificados.
 ### F2 — Certificación de supply chain (en-repo)
 
 - [x] SBOM CycloneDX del árbol transitivo real (CI A5).
-- [ ] Publicar JAR/distribución del plugin (wiring CI pendiente).
+- [x] Publicar JAR/distribución del plugin: el módulo
+      `pipelinek-assurance-plugin` ahora aplica
+      `maven-publish`. `./gradlew publishToMavenLocal`
+      produce `~/.m2/repository/dev/pipelinek/
+      pipelinek-assurance-plugin/<version>/` con
+      JAR + POM + Gradle module metadata. El `version`
+      se inyecta vía `-Pversion=...`, `VERSION` env, o
+      default `0.10.0-rc1-SNAPSHOT`. Publicar a Maven
+      Central o GitHub Packages queda como wiring de CI
+      (repositorio en `publishing.repositories { ... }`
+      desde un init script).
 - [x] Publicar CLI empaquetada, SBOM, SHA256SUMS, firmas
       verificables, provenance del build: `tools/build-cli-dist.sh`
       (tarball + SHA-256), `tools/generate-sbom.sh` (CycloneDX),
