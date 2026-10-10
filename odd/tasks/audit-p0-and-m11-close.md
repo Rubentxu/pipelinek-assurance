@@ -24,9 +24,12 @@ description: Feature document for the post-v0.8.0 work plan. Closes 6 P0 audit f
 - **v0.9.2** released: API_VERSION refactor + codec tests, **442 tests**.
 - **v0.9.3** released: M2-T8 EvidenceNormalizer, **447 tests**, 42 mutantes
   certificados (con M-NORM-01 attack AAT-13).
+- **v0.9.4** released: redundancia de bounded decoding (AAT-1) en
+  Chronos/OTel codecs — M-CHRONOS-BOUNDED y M-OTEL-BOUNDED con
+  killed=2, **453 tests**, 44 mutantes certificados.
 - New mutantes este ciclo: M-COGN01, M-COGN02, M-CAP-DRIFT, M-CAP-DRIFT-2,
   M-10-CONTENT, M-SOLID-SRP-EMPTY, M-SOLID-OCP-EMPTY, M-CHRONOS-REGEX-LEGACY,
-  M-OTEL-REGEX-LEGACY, M-NORM-01.
+  M-OTEL-REGEX-LEGACY, M-NORM-01, M-CHRONOS-BOUNDED, M-OTEL-BOUNDED.
 - Decisión: el mock SDK host (M11.8) sustituye al SDK real de PipelineK
   para tests E2E hasta que el SDK esté disponible.
 - Refactor post-v0.9.0: JUnitXmlCodec.API_VERSION, Chronos y OTel

@@ -95,6 +95,9 @@ description: Feature document tracking M2..M11 of ROADMAP.md. Source of truth fo
 | M11 | closed | 440 | `7ee42bb` CycloneDX SBOM, `b04786e` GPG signing, `50bb9eb` osv-scanner, `66d8cbc` Mock SDK host |
 | v0.9.0 | released | 440 | `fd16bde` (release commit) |
 | v0.9.1 | released | 440 | `89d515a` (capabilities refactor) |
+| v0.9.2 | released | 442 | `5f2e8df` (API_VERSION refactor) |
+| v0.9.3 | released | 447 | `1c40b66` (M2-T8 Normalizer) |
+| v0.9.4 | released | 453 | `305ecf8` (bounded decoding redundancia) |
 
 ## Bloqueadores externos (no cerrables sin acceso a los repos)
 
