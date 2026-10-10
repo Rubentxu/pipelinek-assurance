@@ -1,5 +1,6 @@
 package dev.pipelinek.assurance.providers.otel
 
+import dev.pipelinek.assurance.artifact.EvidenceArtifactCodec
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.AnnotationSpec
 import io.kotest.matchers.shouldBe
@@ -109,5 +110,22 @@ class OtelTraceExportCodecTest : AnnotationSpec() {
         val bytes = OtelTraceExportCodec.encodeToJson(dto)
         val decoded = OtelTraceExportCodec.decodeFromJson(bytes)
         decoded.spans() shouldBe emptyList()
+    }
+
+    @Test
+    fun resourceSpans_excede_MAX_COLLECTION_SIZE_rechazada() {
+        // AAT-1: bounded decoding. El check vive en
+        // `decodeFromJson`. Construimos un JSON con
+        // `MAX_COLLECTION_SIZE + 1` resourceSpans sin
+        // asignar 1M de objects en memoria.
+        val real = EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        val oneRs = """{"scopeSpans":[{"spans":[{"traceId":"t"}]}]}"""
+        val count = real + 1
+        val rsList = (0 until count).joinToString(",") { oneRs }
+        val json = """{"resourceSpans":[$rsList]}"""
+        val ex = shouldThrow<IllegalArgumentException> {
+            OtelTraceExportCodec.decodeFromJson(json.toByteArray(Charsets.UTF_8))
+        }
+        ex.message shouldContain "resourceSpans=" + count + " excede MAX_COLLECTION_SIZE"
     }
 }

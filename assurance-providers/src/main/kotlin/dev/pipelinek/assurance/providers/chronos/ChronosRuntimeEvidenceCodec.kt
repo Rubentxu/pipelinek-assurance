@@ -95,6 +95,30 @@ object ChronosRuntimeEvidenceCodec {
         } catch (e: kotlinx.serialization.SerializationException) {
             throw CodecException("decode JSON: ${e.message}")
         }
+        // Bounded decoding (AAT-1): después de construir el DTO,
+        // aplicamos las cotas de colección y longitud. Misma
+        // política que CogniCodeEvidenceExportCodec.
+        require(dto.invocations.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "invocations=${dto.invocations.size} excede MAX_COLLECTION_SIZE=" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }
+        require(dto.causalEdges.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "causalEdges=${dto.causalEdges.size} excede MAX_COLLECTION_SIZE=" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }
+        dto.invocations.forEach { inv ->
+            require(inv.id.length <= EvidenceArtifactCodec.MAX_STRING_LENGTH) {
+                "invocation id longitud ${inv.id.length} excede MAX_STRING_LENGTH"
+            }
+        }
+        dto.causalEdges.forEach { edge ->
+            require(edge.from.length <= EvidenceArtifactCodec.MAX_STRING_LENGTH) {
+                "causalEdge from longitud ${edge.from.length} excede MAX_STRING_LENGTH"
+            }
+            require(edge.to.length <= EvidenceArtifactCodec.MAX_STRING_LENGTH) {
+                "causalEdge to longitud ${edge.to.length} excede MAX_STRING_LENGTH"
+            }
+        }
         if (verifyDigest && !dto.digest.isNullOrEmpty()) {
             val expected = dto.digest
             val placeholder = dto.copy(digest = "")

@@ -1,5 +1,6 @@
 package dev.pipelinek.assurance.providers.chronos
 
+import dev.pipelinek.assurance.artifact.EvidenceArtifactCodec
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.AnnotationSpec
 import io.kotest.matchers.shouldBe
@@ -88,6 +89,49 @@ class ChronosRuntimeEvidenceCodecTest : AnnotationSpec() {
             ChronosRuntimeEvidenceCodec.decodeFromJson(garbage)
         }
         ex.message shouldContain "decode JSON"
+    }
+
+    @Test
+    fun coleccion_invocations_excede_MAX_COLLECTION_SIZE_rechazada() {
+        // AAT-1: bounded decoding. El check vive en
+        // `decodeFromJson` después de construir el DTO. Para
+        // no pagar el coste de MAX_COLLECTION_SIZE=1M de
+        // allocations en el test runner, validamos con un
+        // payload JSON sintético que declara `MAX_COLLECTION_SIZE+1`
+        // entries (el tamaño del JSON es ~30MB pero no
+        // requiere construir 1M de DTOs en memoria).
+        //
+        // Cómo lo conseguimos: usamos el formato crudo (no
+        // construimos 1M de DTOs). El codec decodifica el
+        // JSON; si el check existe, aborta con el mensaje
+        // esperado.
+        val real = EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        // Construimos un JSON manualmente con `real + 1`
+        // invocations. Para evitar 1M de líneas, usamos un
+        // patrón compacto: `"id":"inv-X","outcome":"ok","durationMs":0`.
+        val oneInvocation =
+            """{"id":"inv-X","outcome":"ok","durationMs":0}"""
+        // Generar N invocaciones separadas por comas.
+        val count = real + 1
+        val invocations = (0 until count).joinToString(",") { oneInvocation }
+        val json = """{"windowToken":"wt-abc","invocations":[$invocations]}"""
+        val ex = shouldThrow<IllegalArgumentException> {
+            ChronosRuntimeEvidenceCodec.decodeFromJson(json.toByteArray(Charsets.UTF_8))
+        }
+        ex.message shouldContain "excede MAX_COLLECTION_SIZE"
+    }
+
+    @Test
+    fun string_muy_larga_en_invocation_id_rechazada() {
+        // AAT-1: bounded string decoding. El check vive en
+        // decode, así que ejercitamos con un JSON sintético
+        // que tiene un id de longitud > MAX_STRING_LENGTH.
+        val longId = "x".repeat(EvidenceArtifactCodec.MAX_STRING_LENGTH + 1)
+        val json = """{"windowToken":"wt-abc","invocations":[{"id":"$longId","outcome":"ok","durationMs":0}]}"""
+        val ex = shouldThrow<IllegalArgumentException> {
+            ChronosRuntimeEvidenceCodec.decodeFromJson(json.toByteArray(Charsets.UTF_8))
+        }
+        ex.message shouldContain "MAX_STRING_LENGTH"
     }
 
     @Test

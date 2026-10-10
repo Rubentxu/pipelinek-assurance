@@ -76,11 +76,33 @@ object OtelTraceExportCodec {
             throw CodecException("input ${bytes.size} excede MAX_INPUT_BYTES=${EvidenceArtifactCodec.MAX_INPUT_BYTES}")
         }
         val text = bytes.toString(Charsets.UTF_8)
-        return try {
+        val dto = try {
             json.decodeFromString(OtelExportDto.serializer(), text)
         } catch (e: kotlinx.serialization.SerializationException) {
             throw CodecException("decode JSON: ${e.message}")
         }
+        // Bounded decoding (AAT-1): la jerarquía OTLP es
+        // anidada (resourceSpans[].scopeSpans[].spans[]), así
+        // que un export malicioso podría inflar el árbol
+        // arbitrariamente. Aplicamos las cotas de colección
+        // en cada nivel después del decode.
+        require(dto.resourceSpans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+            "resourceSpans=${dto.resourceSpans.size} excede MAX_COLLECTION_SIZE=" +
+                EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+        }
+        dto.resourceSpans.forEach { rs ->
+            require(rs.scopeSpans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+                "scopeSpans=${rs.scopeSpans.size} excede MAX_COLLECTION_SIZE=" +
+                    EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+            }
+            rs.scopeSpans.forEach { ss ->
+                require(ss.spans.size <= EvidenceArtifactCodec.MAX_COLLECTION_SIZE) {
+                    "spans=${ss.spans.size} excede MAX_COLLECTION_SIZE=" +
+                        EvidenceArtifactCodec.MAX_COLLECTION_SIZE
+                }
+            }
+        }
+        return dto
     }
 
     fun encodeToJson(dto: OtelExportDto): ByteArray =
