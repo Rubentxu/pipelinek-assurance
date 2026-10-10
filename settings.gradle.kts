@@ -16,6 +16,17 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
+        mavenLocal()
+        flatDir {
+            // B1 (Bloque B): PipelineK 0.48.0 se obtiene del
+            // local Maven repo (`~/.m2/repository/...`) o, en
+            // su defecto, de la instalación asdf. El caller
+            // puede sobreescribir la ruta con `PIPELINEK_SDK_LIB`.
+            dirs(
+                System.getenv("PIPELINEK_SDK_LIB")
+                    ?: "${System.getProperty("user.home")}/.asdf/installs/pipelinek/0.48.0/lib",
+            )
+        }
     }
 }
 

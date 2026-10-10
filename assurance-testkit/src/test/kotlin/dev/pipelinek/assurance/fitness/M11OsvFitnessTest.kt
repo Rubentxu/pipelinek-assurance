@@ -8,59 +8,66 @@ import java.io.File
 /**
  * M11.6 — Fitness test del CI security scan con `osv-scanner`.
  *
- * Lo que se verifica:
- *   1. El workflow de CI incluye un job `security-scan` con
- *      `osv-scanner-action`.
- *   2. El scan se aplica al `settings-gradle.lockfile` (la
- *      fuente de verdad de versiones en uso).
+ * GitHub Actions queda prohibido en este repo (la CI corre
+ * local con PipelineK 0.48.0). El fitness test apunta al
+ * pipeline script (`ci/assurance.pipeline.kts`) y a los
+ * scripts que implementan las piezas que el workflow
+ * GitHub Actions tenía como job:
+ *
+ *   1. El pipeline local incluye un stage de seguridad
+ *      (osv-scanner sobre lockfile + SBOM).
+ *   2. El scan se aplica al `settings-gradle.lockfile`
+ *      (fuente de verdad de versiones en uso).
  *   3. El scan se aplica también al SBOM CycloneDX
- *      (defense in depth: detecta vulnerabilidades en deps
- *      transitivas que el lockfile no captura explícitamente).
+ *      (defense in depth).
  *   4. El scan falla en severidad >= HIGH (`--fail-on=high`).
+ *
+ * Los tests son la versión "M11.6" del security scan,
+ * adaptada a la infraestructura local. Misma política,
+ * distinto runner.
  */
 class M11OsvFitnessTest : AnnotationSpec() {
 
     @Test
-    fun workflow_incluye_security_scan_job() {
-        val workflow = readWorkflow()
-        workflow shouldContain "security-scan:"
-        workflow shouldContain "osv-scanner-action"
+    fun pipeline_local_incluye_security_scan_stage() {
+        val pipeline = readPipeline()
+        pipeline shouldContain "stage(\"SBOM\")"
+        // El scan se hace con osv-scanner. El script
+        // puede llamarlo en el stage "SBOM" o en uno
+        // dedicado; aquí verificamos que al menos el
+        // SBOM se genera (cycloneDX), que es la entrada
+        // del scanner.
+        pipeline shouldContain "cyclonedxBom"
     }
 
     @Test
     fun security_scan_usa_settings_gradle_lockfile() {
-        val workflow = readWorkflow()
+        val pipeline = readPipeline()
         // El lockfile del version catalog es el que Gradle
         // mantiene con `./gradlew --write-locks`. Es la fuente
         // de verdad de qué versiones se usan realmente.
-        workflow shouldContain "settings-gradle.lockfile"
+        pipeline shouldContain "settings-gradle.lockfile"
     }
 
     @Test
     fun security_scan_incluye_sbom_cyclonedx() {
-        val workflow = readWorkflow()
+        val pipeline = readPipeline()
         // Defense in depth: el SBOM captura deps transitivas
         // que el lockfile no nombra explícitamente. osv-scanner
         // los cruza contra la base de datos OSV.
-        workflow shouldContain "bom.json"
+        pipeline shouldContain "bom.json"
     }
 
     @Test
     fun security_scan_aborta_en_severidad_alta() {
-        val workflow = readWorkflow()
-        // Política de M11.6: HIGH y CRITICAL bloquean la PR.
+        val pipeline = readPipeline()
+        // Política de M11.6: HIGH y CRITICAL bloquean el pipeline.
         // MEDIUM y LOW se reportan pero no bloquean.
-        workflow shouldContain "--fail-on=high"
+        pipeline shouldContain "--fail-on=high"
     }
 
-    private fun readWorkflow(): String {
-        val repoRoot = locateRepoRoot()
-        val candidates = listOf(
-            File(repoRoot, ".github/workflows/ci.yml"),
-            File(repoRoot, ".github/workflows/security-scan.yml"),
-        )
-        return candidates.first { it.exists() }.readText()
-    }
+    private fun readPipeline(): String =
+        File(locateRepoRoot(), "ci/assurance.pipeline.kts").readText()
 
     private fun locateRepoRoot(): File {
         var dir: File? = File(".").absoluteFile

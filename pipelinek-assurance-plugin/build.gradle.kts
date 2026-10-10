@@ -4,6 +4,16 @@ plugins {
     `maven-publish`
 }
 
+// B1 (Bloque B) — SDK de PipelineK como dependencia local.
+//
+// El SDK 0.48.0-rc2 se declara en `settings.gradle.kts` como
+// `flatDir` repository (no project-level, que Gradle 8
+// rechaza). La frontera AAT-3 sigue verde: el core
+// (assurance-engine, assurance-domain) NO importa
+// pipeline-application — solo este módulo de plugin lo hace.
+// La fitness test F5 valida que el plugin no importa el
+// paquete del core (pipeline-application).
+
 // CycloneDX 1.4.0 no expone plugin id público; se aplica por
 // clase vía buildscript classpath del root project.
 apply<org.cyclonedx.gradle.CycloneDxPlugin>()
@@ -83,6 +93,24 @@ dependencies {
     implementation(project(":assurance-providers"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.serialization.json)
+
+    // B1 (Bloque B): el SDK de PipelineK 0.48.0 ya está
+    // localmente disponible (asdf install, jar en
+    // ~/.asdf/installs/pipelinek/0.48.0/lib/, o publicado
+    // en el Maven local de `~/.m2/repository/`). El plugin
+    // declara las dependencias como `implementation` (no
+    // `api`) para que la frontera de tipos del SDK NO se
+    // filtre fuera del módulo del plugin. La fitness test
+    // F5_plugin_NO_importa_pipeline_application valida
+    // que el plugin no importa el paquete del core
+    // (`pipeline-application`); aquí importamos sólo el
+    // SDK público (`api`, `pipeline-domain`), que es la
+    // dirección permitida: el plugin depende del SDK, no
+    // al revés.
+    implementation("dev.rubentxu.pipeline.v2:pipeline-domain:0.48.0")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-events:0.48.0")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-output:0.48.0")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-scripting-api:0.48.0")
 
     // Testkit: el plugin se prueba contra fixtures del core, no contra
     // un PipelineK real. La UAT-008 (instalado en distribución real)
