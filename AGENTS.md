@@ -9,12 +9,20 @@ documento de origen; este es el que manda para los agentes.
 
 Hitos cerrados: **M0..M11** (v0.8.0). Cierre post-audit: v0.9.0..v0.9.4.
 
-Estado verificado (v0.9.4, SHA `df44ea5`): 495 tests verdes,
-44/44 mutantes certificados con redundancia >= 2.
+Estado verificado (HEAD `0dd93af`): 589 tests verdes,
+v0.9.5-rc1 tagged (cierre Bloque A con A1-A5). Tramo de
+consolidación A-F cerrado **en-repo** sobre la rama
+`consolidation/A-F` (16 commits ahead de v0.9.5-rc1):
+A1-A5, B2-B4 (+ DSL facade), C2-C4, D5, E1-E3, F2-F5.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
 vayan apareciendo). El orden A→B→C→D→E→F es estricto.
+
+Pendiente por externo (no se cierra en-repo): B1 SDK
+PipelineK v0.48.0-rc2, C1 CogniCode v0.101.10, D1 Chronos,
+D3 OTel collector, F1 matriz de compatibilidad, F6 RC
+v1.0.0-rc1. Sin tag v0.10.0-rc1 hasta que B1 esté verde.
 
 Mapa de hitos y gates: `ROADMAP.md` (autoridad única de secuenciación).
 
