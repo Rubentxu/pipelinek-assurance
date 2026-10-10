@@ -90,9 +90,9 @@ class DetektSarifProvider(
         id = "detekt-sarif",
         version = "0.1.0",
         evidenceCapabilities = listOf(
-            "signals.detekt",
-            "signals.solid_audit",
-            "test.topology",
+            Capabilities.SIGNALS_DETEKT,
+            Capabilities.SIGNALS_SOLID_AUDIT,
+            Capabilities.TEST_TOPOLOGY,
         ),
         subjectKinds = listOf("SourceLocation", "Symbol"),
         classification = ProviderClassification.Heuristic,

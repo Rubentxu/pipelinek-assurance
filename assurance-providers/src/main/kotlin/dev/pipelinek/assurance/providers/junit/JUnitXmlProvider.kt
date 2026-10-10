@@ -85,8 +85,8 @@ class JUnitXmlProvider(
         id = "junit-xml",
         version = "0.1.0",
         evidenceCapabilities = listOf(
-            "test.results",
-            "test.topology",
+            Capabilities.TEST_RESULTS,
+            Capabilities.TEST_TOPOLOGY,
         ),
         subjectKinds = listOf("Test"),
         classification = ProviderClassification.Deterministic,

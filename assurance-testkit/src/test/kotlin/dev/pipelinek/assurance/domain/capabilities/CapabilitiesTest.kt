@@ -47,6 +47,8 @@ class CapabilitiesTest : AnnotationSpec() {
             Capabilities.TEST_TOPOLOGY,
             Capabilities.SIGNALS_SOLID_AUDIT,
             Capabilities.SIGNALS_DETEKT,
+            Capabilities.OBSERVABILITY_TRACE,
+            Capabilities.OBSERVABILITY_SPAN,
         )
         for (capability in all) {
             (capability.contains(".")) shouldBe true

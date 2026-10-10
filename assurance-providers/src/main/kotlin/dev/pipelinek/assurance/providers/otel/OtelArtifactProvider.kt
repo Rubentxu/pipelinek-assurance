@@ -1,5 +1,6 @@
 package dev.pipelinek.assurance.providers.otel
 
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
 import dev.pipelinek.assurance.engine.EvidenceProviderDescriptor
@@ -47,8 +48,8 @@ class OtelArtifactProvider(
         id = "otel",
         version = "0.1.0",
         evidenceCapabilities = listOf(
-            "observability.trace",
-            "observability.span",
+            Capabilities.OBSERVABILITY_TRACE,
+            Capabilities.OBSERVABILITY_SPAN,
         ),
         subjectKinds = listOf("RuntimeSpan"),
         classification = ProviderClassification.Runtime,

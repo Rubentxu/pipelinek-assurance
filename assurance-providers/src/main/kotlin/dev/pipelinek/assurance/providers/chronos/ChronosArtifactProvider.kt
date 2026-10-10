@@ -1,5 +1,6 @@
 package dev.pipelinek.assurance.providers.chronos
 
+import dev.pipelinek.assurance.domain.capabilities.Capabilities
 import dev.pipelinek.assurance.domain.evidence.RevisionRef
 import dev.pipelinek.assurance.engine.EvidenceCollectionResult
 import dev.pipelinek.assurance.engine.EvidenceProvider
@@ -50,9 +51,9 @@ class ChronosArtifactProvider(
         id = "chronos",
         version = "0.1.0",
         evidenceCapabilities = listOf(
-            "runtime.invocation-chain",
-            "runtime.causal-slice",
-            "runtime.window",
+            Capabilities.RUNTIME_INVOCATION_CHAIN,
+            Capabilities.RUNTIME_CAUSAL_SLICE,
+            Capabilities.RUNTIME_WINDOW,
         ),
         subjectKinds = listOf("RuntimeSpan", "SourceLocation"),
         classification = ProviderClassification.Runtime,

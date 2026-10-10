@@ -53,4 +53,10 @@ object Capabilities {
 
     /** Señales heurísticas de Detekt (reglas SARIF). */
     const val SIGNALS_DETEKT: String = "signals.detekt"
+
+    /** Trazas de observabilidad (OTel trace). */
+    const val OBSERVABILITY_TRACE: String = "observability.trace"
+
+    /** Spans de observabilidad (OTel span). */
+    const val OBSERVABILITY_SPAN: String = "observability.span"
 }
