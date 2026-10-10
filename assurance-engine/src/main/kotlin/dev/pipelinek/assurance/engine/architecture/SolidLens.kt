@@ -68,9 +68,16 @@ object SolidLens : AssuranceLens<EvidenceSnapshot, SolidProjection> {
         // como Signal. V1 devuelve Signal global sin clasificar.
         val ispSignals = findIspSignals(graph)
 
-        // SRP/OCP: heurísticas. V1 no las calcula — son placeholder
-        // explícito (LENSES.md).
-        val srpSignals = emptyList<HeuristicSignal>()
+        // SRP/OCP: heurísticas V1. Misma forma que ISP (desviación
+        // estándar sobre outgoing edges). V1 entrega 0 hallazgos en
+        // grafos pequeños como el self-model.graph del proyecto, pero
+        // produce señales útiles en grafos grandes (multi-módulo) y
+        // es cazada por los mutantes M-SOLID-SRP-EMPTY y
+        // M-SOLID-OCP-EMPTY. LSP queda documentado como `Unsupported`
+        // en el KDoc: requiere `RuntimeObserver` (Chronos M7) y no
+        // tiene fuente de datos en V1.
+        val srpSignals = findSrpSignals(graph)
+        val ocpSignals = findOcpSignals(graph)
 
         return ProjectionResult.Projected(
             SolidProjection(
@@ -78,6 +85,7 @@ object SolidLens : AssuranceLens<EvidenceSnapshot, SolidProjection> {
                 dipViolations = dipViolations,
                 ispSignals = ispSignals,
                 srpSignals = srpSignals,
+                ocpSignals = ocpSignals,
             ),
         )
     }
@@ -111,18 +119,71 @@ object SolidLens : AssuranceLens<EvidenceSnapshot, SolidProjection> {
         val incoming = graph.modules.associateWith { name ->
             graph.edges.count { it.to == name }
         }
-        if (incoming.isEmpty()) return emptyList()
-        val mean = incoming.values.average()
-        val variance = incoming.values.sumOf { (it - mean) * (it - mean) } / incoming.size
+        return statisticalOutliers(
+            counts = incoming,
+            principle = "ISP",
+            metricName = "dependientes_entrantes",
+        )
+    }
+
+    /**
+     * SRP V1: módulos con muchas dependencias SALIENTES sugieren
+     * varias responsabilidades (un módulo que "sabe de todo" lo
+     * delata su fan-out). Misma forma estadística que ISP, sobre
+     * outgoing.
+     */
+    private fun findSrpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        val outgoing = graph.modules.associateWith { name ->
+            graph.edges.count { it.from == name }
+        }
+        return statisticalOutliers(
+            counts = outgoing,
+            principle = "SRP",
+            metricName = "dependientes_salientes",
+        )
+    }
+
+    /**
+     * OCP V1: módulos en capas estables (Domain, Application) que
+     * tienen muchas dependencias ENTRAN hacia módulos en capas
+     * menos estables. Una violación OCP sería extender Domain
+     * cada vez que Adapters cambia; el síntoma es "muchos
+     * dependents de Adapters hacia capas internas". Misma forma
+     * que ISP/SRP, filtrada por capa destino no estable.
+     */
+    private fun findOcpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        val nonStable = setOf(Layer.Adapters, Layer.Infrastructure)
+        val dependentsIntoNonStable = graph.modules.associateWith { name ->
+            graph.edges.count { edge ->
+                edge.to == name && graph.layers[edge.from] in nonStable
+            }
+        }
+        return statisticalOutliers(
+            counts = dependentsIntoNonStable,
+            principle = "OCP",
+            metricName = "dependientes_desde_capas_no_estables",
+        )
+    }
+
+    private fun statisticalOutliers(
+        counts: Map<String, Int>,
+        principle: String,
+        metricName: String,
+    ): List<HeuristicSignal> {
+        if (counts.isEmpty()) return emptyList()
+        val mean = counts.values.average()
+        val variance = counts.values.sumOf { (it - mean) * (it - mean) } / counts.size
         val stdDev = kotlin.math.sqrt(variance)
-        return incoming
-            .filter { (name, count) -> count > mean + 2 * stdDev && stdDev > 0 }
+        if (stdDev <= 0.0) return emptyList()
+        val threshold = mean + 2 * stdDev
+        return counts
+            .filter { (_, count) -> count > threshold }
             .map { (name, count) ->
                 HeuristicSignal(
-                    principle = "ISP",
+                    principle = principle,
                     module = name,
-                    metric = "dependientes_entrantes=$count",
-                    threshold = "${mean + 2 * stdDev}",
+                    metric = "$metricName=$count",
+                    threshold = threshold.toString(),
                 )
             }
     }
@@ -134,8 +195,10 @@ data class SolidProjection(
     val dipViolations: List<DipViolation>,
     /** ISP signals: lista heurística de módulos con muchos dependientes. */
     val ispSignals: List<HeuristicSignal>,
-    /** SRP signals: heurística placeholder en V1. */
+    /** SRP signals: módulos con fan-out anormal. */
     val srpSignals: List<HeuristicSignal>,
+    /** OCP signals: módulos con muchos dependents desde capas no estables. */
+    val ocpSignals: List<HeuristicSignal>,
 ) {
     /**
      * Una métrica agregada: el conteo de DIP violations. El caller

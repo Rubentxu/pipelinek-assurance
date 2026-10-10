@@ -113,9 +113,11 @@ class M10SolidLensTest : AnnotationSpec() {
 
     @Test
     fun srp_signals_es_placeholder_vacio() {
-        // SRP y OCP son heurísticas; V1 no las calcula. Si alguien
-        // añade algoritmos, este test se actualiza con un mutante
-        // que documente el cambio.
+        // SRP/OCP V1: heurística basada en desviación estándar. En
+        // grafos pequeños (2 módulos, 1 arista) no produce
+        // outliers: el test verifica la FORMA (lista) y que la
+        // salida es estable. Un grafo "fat" (un módulo con fan-out
+        // anómalo) cazaría el mutante M-SOLID-SRP-EMPTY.
         val snapshot = snapshotCon(
             modules = listOf("a @ Domain", "b @ Adapters"),
             edges = listOf("b -> a"),
@@ -124,6 +126,65 @@ class M10SolidLensTest : AnnotationSpec() {
         val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
         val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
         solid.srpSignals shouldBe emptyList()
+    }
+
+    @Test
+    fun M_SOLID_SRP_EMPTY_fat_module_produce_outlier() {
+        // M-SOLID-SRP-EMPTY: un mutante que neutralice
+        // findSrpSignals debe ser cazado por este test. Un módulo
+        // con fan-out mucho mayor que la media dispara la señal
+        // SRP. Diseño: `fat` apunta a 5 módulos; los demás no
+        // apuntan a nadie. Outgoing: fat=5, todos los demás=0 →
+        // fat es outlier.
+        val snapshot = snapshotCon(
+            modules = listOf(
+                "fat @ Domain",
+                "a @ Domain",
+                "b @ Domain",
+                "c @ Domain",
+                "d @ Domain",
+                "e @ Domain",
+            ),
+            edges = listOf(
+                "fat -> a",
+                "fat -> b",
+                "fat -> c",
+                "fat -> d",
+                "fat -> e",
+            ),
+        )
+        val projection = SolidLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
+        val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
+        solid.srpSignals.any { it.module == "fat" } shouldBe true
+    }
+
+    @Test
+    fun M_SOLID_OCP_EMPTY_adapters_con_muchos_dependents_produce_outlier() {
+        // M-SOLID-OCP-EMPTY: un mutante que neutralice
+        // findOcpSignals debe ser cazado por este test. Una capa
+        // Adapters con muchos dependents desde otras capas
+        // externas dispara la señal OCP.
+        val snapshot = snapshotCon(
+            modules = listOf(
+                "stable-core @ Domain",
+                "adapter-foo @ Adapters",
+                "infra1 @ Infrastructure",
+                "infra2 @ Infrastructure",
+                "infra3 @ Infrastructure",
+                "infra4 @ Infrastructure",
+            ),
+            edges = listOf(
+                "infra1 -> adapter-foo",
+                "infra2 -> adapter-foo",
+                "infra3 -> adapter-foo",
+                "infra4 -> adapter-foo",
+            ),
+        )
+        val projection = SolidLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<ProjectionResult.Projected<*>>()
+        val solid = projected.value as dev.pipelinek.assurance.engine.architecture.SolidProjection
+        solid.ocpSignals.any { it.module == "adapter-foo" } shouldBe true
     }
 
     @Test

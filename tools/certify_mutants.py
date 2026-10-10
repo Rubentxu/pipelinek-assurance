@@ -513,6 +513,31 @@ sealed interface AssertionResult {
                     val a = dependents[0]
                     val b = dependents[1]"""),
     ])],
+    # M-SOLID-SRP-EMPTY: SolidLens `findSrpSignals` neutralizado
+    # a `return emptyList()`. La lens promete emitir SRP signals
+    # sobre fan-out; con el mutante no emite nada (que es
+    # exactamente el bug P0.3 que el audit marcó).
+    "M-SOLID-SRP-EMPTY": [(SOLID, [(
+        """    private fun findSrpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        val outgoing = graph.modules.associateWith { name ->
+            graph.edges.count { it.from == name }
+        }
+        return statisticalOutliers(""",
+        """    private fun findSrpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        return emptyList() // MUTATED
+        val outgoing = graph.modules.associateWith { name ->
+            graph.edges.count { it.from == name }
+        }
+        return statisticalOutliers("""),
+    ])],
+    # M-SOLID-OCP-EMPTY: SolidLens `findOcpSignals` neutralizado.
+    "M-SOLID-OCP-EMPTY": [(SOLID, [(
+        """    private fun findOcpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        val nonStable = setOf(Layer.Adapters, Layer.Infrastructure)""",
+        """    private fun findOcpSignals(graph: DependencyGraph): List<HeuristicSignal> {
+        return emptyList() // MUTATED
+        val nonStable = setOf(Layer.Adapters, Layer.Infrastructure)"""),
+    ])],
 }
 
 ROW = re.compile(r"<tr>(.*?)</tr>", re.S)
