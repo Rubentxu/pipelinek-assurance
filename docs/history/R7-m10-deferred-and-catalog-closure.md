@@ -3,7 +3,7 @@
 **Bloque:** R7 — cierre de la deuda M10 explícita + mutantes M-P03/M-I01 + consolidación M11.
 **Release propuesta:** `v0.8.0`.
 **Fecha:** 2026-10-10.
-**SHA integrado:** `5ff8457` (HEAD tras la DSL del M10).
+**SHA integrado:** `2007956` (HEAD tras la DSL del M10 + M-DSL01 + gitignore de pycache).
 
 ## Trabajo ejecutado
 
@@ -153,6 +153,8 @@ Tras la redundancia:
   `@DslMarker`; 4 tests de composicion + bridge a `RequiredAssurancePlan`.
 - M-P03 certificado con `killed=2` en el harness de mutantes.
 - M-I01 certificado con `killed=3` en el harness de mutantes.
+- M-DSL01 certificado con `killed=2` (ataque al bridge
+  `mandatory(id) → metadata["mandatory"]=true`).
 - M-10-01..M-10-04: redundancia >= 2 (sin AVISO en el harness).
 - AAT-22: el Plan no expone nigún risk score. Cubierto por test
   `plan_no_expone_ningun_risk_score` (compila, no en runtime).
@@ -161,7 +163,8 @@ Tras la redundancia:
 
 - `./gradlew --no-daemon clean check` → `BUILD SUCCESSFUL in 1m`.
 - 391 tests, 0 failures, 0 skipped (incremento de 29 vs R6).
-- SHA de cierre: `5ff8457`.
+- 31/31 mutantes del catálogo certificados, 0 AVISO.
+- SHA de cierre: `2007956`.
 
 ## Riesgos y deuda
 
