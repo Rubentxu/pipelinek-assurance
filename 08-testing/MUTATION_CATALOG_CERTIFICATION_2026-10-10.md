@@ -1,16 +1,14 @@
 # Certificación del catálogo de mutantes — 2026-10-10
 
-**SHA certificado:** `2007956`
+**SHA certificado:** `ef01513`
 **Tag:** `v0.8.0`
 **Comando:** `python3 tools/certify_mutants.py <mutante>` por cada uno,
 secuencialmente, sobre el mismo SHA, con `./gradlew clean` previo.
 
 ## Resultado global
 
-**31/31 mutantes certificados, 0 AVISO de redundancia insuficiente,
-0 WARNING de estado sucio (residual: un WARNING inicial por
-`tools/__pycache__/` no rastreado, mitigado añadiendo el path a
-`.gitignore`; los 30 mutantes posteriores cerraron sin warning).**
+**32/32 mutantes certificados, 0 AVISO de redundancia insuficiente,
+0 WARNING de estado sucio.**
 
 ## Detalle por mutante
 
@@ -46,6 +44,7 @@ secuencialmente, sobre el mismo SHA, con `./gradlew clean` previo.
 | M-10-03 | (idem) | OK |
 | M-10-04 | (idem) | OK |
 | M-DSL01 | (idem) | OK |
+| M-CODEC01 | 6 | OK |
 
 ## Notas de harness
 
