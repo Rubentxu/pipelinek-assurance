@@ -2140,9 +2140,13 @@ completitud; A3 normalizer de frontera; A4 endurecer
 Estado (observado 2026-10-10, SHA `125304b`): **cerrado**.
 Cinco commits pequeños (abf886d, a2565e6, ddfae99, 093d98d,
 c3df2a7) más el fix M-I01 redundancia (125304b). 496 tests
-verdes, 44/44 mutantes DEAD con recibos JSON en
-`build/mutant-receipts/`. Tag `v0.9.5-rc1` publicado en
-`origin/main`. Detalle en
+verdes al cierre; `clean check` re-corrido el 2026-10-11
+sobre HEAD `573f013` reporta 590 tests, 0 fallos, 0
+skipped. Recepción de mutantes al cierre: 16 mutantes
+catalogados entonces; el catálogo creció a 43 después sin
+re-correr la cert. Ver la nota sobre cobertura real en
+`odd/tasks/block-pending-external.md`. Tag `v0.9.5-rc1`
+publicado en `origin/main`. Detalle en
 `odd/tasks/block-A-integrity.md`.
 
 ### Bloque B — Primer plugin PipelineK realmente ejecutable

@@ -44,5 +44,5 @@ Generated blueprint files and SHA-256 digests.
 - `10-research/MARKET_AND_REFERENCE_PATTERNS.md` — `bfe23a786e2c2a6b5ebc799dfaaa3e1032e07436ee8ab56a8b2fff915fb8d1fa`
 - `AGENTS.template.md` — `54648fa7c381614ed6ceb0efc7be52ffac75cd70b849ebdf8569850cde691dcf`
 - `README.md` — `d2107259fa54130412d2e289ff088d5c5f4ac812636bd2b982fbf8e767794120`
-- `ROADMAP.md` — `a04b9106a2d171696bb0136be6b9d92a6a3c91972476e137a9d6a021a4c6f67e`
+- `ROADMAP.md` — `e5c2bad1b88e662f8e595beba2465cbc70ceb1ef4f7a38d47f9c99fd16c8de83`
 - `START_HERE.md` — `99b1aae334a3af38f887ab209a25e1eb459d1a16ea46cacad9d49d9f0ca0eb18`

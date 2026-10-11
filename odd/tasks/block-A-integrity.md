@@ -15,10 +15,14 @@ de integración remoto completamente verde.
 
 ## Estado actual (verificado 2026-10-10, SHA `125304b`)
 
-- 496 tests verdes, 0 failures, 0 skipped.
-- 44/44 mutantes certificados con `killed >= 2`. Cada mutante tiene un
-  recibo JSON en `build/mutant-receipts/<name>.json` con SHA,
-  timestamp, veredicto tipado, killed_by, total_tests, gradle_exit_code.
+- 496 tests verdes al cierre de Bloque A; el `clean check`
+  re-corrido el 2026-10-11 sobre HEAD `573f013` reporta
+  590 tests, 0 fallos, 0 skipped.
+- Recepción de mutantes al cierre de Bloque A: ver
+  `08-testing/MUTATION_CATALOG.md` y la nota sobre
+  cobertura real en
+  `odd/tasks/block-pending-external.md` (sección
+  "Decisiones pendientes del usuario").
 - v0.9.5-rc1 tag publicado en `origin/main`.
 - Plan upstream B1, C1, D1 registrado como bloqueador externo (no
   cerrable en este repo).
@@ -191,7 +195,7 @@ verificados vía fitness tests en
 | A4 | 093d98d | — | — |
 | A5 | c3df2a7 | — | — |
 | M-I01 fix | 125304b | +1 | — |
-| **Total** | **125304b** | **+35 (462 → 496 → 497 en cert)** | **44/44 DEAD** |
+| **Total** | **125304b** | **+35 (462 → 496 → 497 en cert)** | **16/16 DEAD al cierre de A (catálogo era 16)** |
 
 ## Lo que se entregó en este bloque
 

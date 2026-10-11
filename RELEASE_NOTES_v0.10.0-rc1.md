@@ -149,10 +149,23 @@ sustituyen al `List<Any>` falso.
 ## Verificación
 
 - **590 tests verdes** (recuento sobre
-  `*/build/test-results/*/TEST-*.xml` a 2026-10-10).
-- **44/44 mutantes certificados** (cert v0.9.5-rc1).
-- **29 commits** sobre v0.9.5-rc1, rama
-  `consolidation/A-F`.
+  `*/build/test-results/*/TEST-*.xml` a 2026-10-10;
+  re-confirmado el 2026-10-11 sobre HEAD `573f013`).
+- **22/43 mutantes con recibo JSON**
+  (`build/mutant-receipts/*.json` a 2026-10-11).
+  La cifra "44/44" que circuló al cierre de Bloque A
+  es stale: el catálogo creció de 16 a 43 entradas sin
+  re-correr la cert. 5 spot-checks contra el código
+  actual (M-A02, M-CAP-DRIFT-2, M-COGN02,
+  M-SOLID-SRP-EMPTY, M-DSL01) volvieron DEAD con
+  `killed >= 2`, así que el código está sano, pero la
+  cert completa queda como decisión pendiente del
+  usuario (ver
+  `odd/tasks/block-pending-external.md`).
+- **32 commits** sobre v0.9.5-rc1, rama
+  `consolidation/A-F` (verificado: `git rev-list --count
+  v0.9.5-rc1..HEAD` sobre `573f013` reporta 32; el número
+  subió a 33 después de este commit de reconciliación).
 
 ## STOP gates (heredados del plan)
 
