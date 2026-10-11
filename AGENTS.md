@@ -61,9 +61,23 @@ documentado (`evaluateEnforcement` usa
 `AssertionResult` son `==`-iguales). El fix es
 engine-side, no plugin-side; queda para bloque
 post-G3.
-Total acumulado: 654/0/0 en clean check (74s).
-Detalle en `odd/tasks/block-G-G3-status.md` § G3.1
-y § G3.2.
+G3.3 (validación más profunda, `36cbaf2`): 10 tests
+en 2 archivos — idempotencia del handler (V16,
+100 invocaciones), thread-safety del handler (V17,
+20 invocaciones concurrentes con suite.id
+distintos), surface del API público (V19, contributor
+publica 2 steps + id estable), visibilidad
+(V22, contributor public / MockSdkHost internal
+verificado por inspección textual), back-compat
+del overload `run(input, evidenceItems)` (V23),
+digest determinism (V24, mismo input ⇒ mismo hex,
+diferente suite.id ⇒ diferente digest). V18/V20/V21
+no testeables (codecs private, evidenceItems
+hardcoded, handler private); documentados como
+cobertura en B3 o pendiente para G4.
+Total acumulado: 664/0/0 en clean check (65s).
+Detalle en `odd/tasks/block-G-G3-status.md` § G3.1,
+§ G3.2 y § G3.3.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
