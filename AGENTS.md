@@ -134,6 +134,25 @@ behavior" del bug de G3.4).
 Total acumulado: 711/0/0 en clean check (39s).
 Detalle en `odd/tasks/block-G-G3-status.md` § G3.1,
 § G3.2, § G3.3, § G3.4, § G3.5 y § G3.6.
+G4 (`assurance.verify` con `BodyContinuation` real,
+este commit): 14 tests en 1 archivo. El segundo
+step del plugin pasa de placeholder M3 (Unit-typed)
+a `StepDefinition<Input, Output>` real con
+descriptor declarando `StepBody.Declared(invocation=
+ONCE, execution=BodyExecution(owner=
+HANDLER_CONTINUATION, policy=Sequential))` y
+requiredCapabilities={ASSURANCE_PROVIDER,
+ASSURANCE_ASSERTIONS, BODY_CONTINUATION_CAPABILITY}.
+V49 (body 1 vez) pineado vía `bodyInvoked` flag.
+V50 (cancelled no es failure) verificado con
+3 reasons. V51 (body failure prevalece) verificado
+con counterexample estructurado. Hallazgo del
+SDK: `BODY_CONTINUATION_CAPABILITY` key es
+`"bodyContinuation"` (camelCase), no
+`"body.continuation"`. 1 test de G3 actualizado
+para incluir 2 nuevos kinds (`body-failure`,
+`cancelled`).
+Total acumulado: 725/0/0 en clean check (46s).
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que

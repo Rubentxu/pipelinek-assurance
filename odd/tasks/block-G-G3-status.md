@@ -685,7 +685,7 @@ reply or wait for the user"). 9 tests nuevos en
 | G3.4 property + negative | ✓ verde | af6c430 + 13 tests |
 | G3.5 invariants + boundaries | ✓ verde | este commit + 19 tests |
 | G3.6 cross-cutting conformance | ✓ verde | a220a7b + 15 tests |
-| G4 assurance.verify + BodyContinuation | pendiente | depende de G3 |
+| G4 assurance.verify con BodyContinuation | ✓ verde | este commit + 14 tests |
 | G5 admisión 0.48 + 0.51 | ✓ parcial | admisión OK; cert formal pendiente de G6 |
 | G6 pipeline de ejemplo | pendiente | depende de G4 |
 | G7 cert sobre la nueva ruta | pendiente | depende de G6 |
@@ -865,3 +865,138 @@ Cubre huecos identificados tras G3.5.
   intactos).
 - 0 regresiones en 696 tests preexistentes.
 - Clean check: 39s.
+
+## G4 — `assurance.verify` con `BodyContinuation` real
+
+Sexto pase de validación autónoma extendida. El
+segundo step del plugin (`assurance.verify`) pasa
+de placeholder M3 a implementación real contra
+el SDK de PipelineK 0.48.0/0.51.0-rc1.
+
+### Cambios no test-only
+
+- **`AssuranceVerifyStepDefinition` (nuevo object)**:
+  DTOs reales (`Input`, `Output`,
+  `CounterexampleDto`, `SuiteDto`, `LensDto`,
+  `AssertionDto`, `EvidenceRefDto`, `SummaryDto`,
+  `Fingerprint`). El `Output` lleva
+  `bodyOutcome ∈ {Success, Failure, Cancelled,
+  Aborted}` separado del `outcome` del step
+  (que combina body×assurance). Sealed interface
+  `BodyOutcome` con 3 variantes (mirror del SDK
+  `BodyOutcome.Completed`/`Cancelled`).
+
+- **`AssuranceVerifyStepDefinitionImpl` (nuevo)**:
+  `StepDefinition<Input, Output>` real. El
+  `StepDescriptor` declara
+  `StepBody.Declared(invocation=ONCE,
+  execution=BodyExecution(
+  owner=HANDLER_CONTINUATION,
+  policy=Sequential))` y
+  `requiredCapabilities = {ASSURANCE_PROVIDER,
+  ASSURANCE_ASSERTIONS,
+  BODY_CONTINUATION_CAPABILITY}`.
+
+- **`AssuranceVerifyStepHandler` (nuevo)**: consume
+  `BodyContinuation` del context, invoca
+  exactamente una vez (V49 pineado con
+  `bodyInvoked` flag). Si el outcome es
+  `Cancelled`, rethrow `CancellationException`
+  (V50 — la cancelación es control estructurado,
+  no se traduce a `Failure`). Si el outcome es
+  `Completed.Failure`, devuelve
+  `outcome="Failure"` con
+  `failure.kind="body-failure"` (V51 — el fallo
+  del body prevalece sobre el veredicto de
+  assurance).
+
+- **Codecs**: `AssuranceVerifyInputCodec` y
+  `AssuranceVerifyOutputCodec` (mismo patrón que
+  los codecs de check).
+
+- **`MockSdkHost.runVerify(input, bodyOutcome, ...)`**:
+  ejecuta el step con un body outcome
+  precomputado, sin necesidad de cablear un
+  `BodyContinuation` real del SDK. Permite
+  verificar la combinación body×assurance
+  directamente.
+
+- **`AssuranceCheckStepDefinition.suiteFromDto`**
+  pasa de `private` a `internal` para que
+  `AssuranceVerifyStepDefinition` pueda delegar
+  la decodificación DTO→IR.
+
+- **`UnitHandler` y `UnitCodec` (placeholders
+  de M3)** eliminados — el verify ya no es
+  Unit-typed.
+
+### Hallazgo del propio SDK (no del plugin)
+
+- **`BODY_CONTINUATION_CAPABILITY` tiene key
+  `"bodyContinuation"` (camelCase)**, no
+  `"body.continuation"`. Descubierto leyendo
+  el bytecode del `BodyInvokerKt.class` en
+  `pipeline-domain-0.48.0.jar`. El primer test
+  falló por usar la key con punto; corregido
+  en el segundo intento.
+
+- **`FailureKind` no tiene `ASSERTION`**: el
+  enum tiene `INFRASTRUCTURE`, `NETWORK`,
+  `SCRIPT`, `USER`, `TIMEOUT`, `PLUGIN`,
+  `SCHEMA`, `REPLAY_COMPATIBILITY`, `ENGINE`,
+  `UNKNOWN`. Usamos `PLUGIN` para los tests
+  que simulan body failure.
+
+- **`CancellationReason` es enum, no data
+  class**: se traduce con `.name`, no
+  `.toString()`.
+
+### Cobertura de tests (14 nuevos en
+`G4VerifyBodyContinuationTest`)
+
+- **V49** (×4): body success propaga veredicto
+  de assurance; replayPolicy = MEMOIZED si
+  adapter version; RERUN si no; reportDigest
+  cambia según body outcome.
+- **V50** (×2): body Cancelled → outcome =
+  "Aborted" (no Failure); bodyFailureMessage
+  preserva la razón de la cancelación
+  (Deadline, ParentCancelled, ScopeShutDown).
+- **V51** (×2): body Failure → outcome =
+  "Failure", failure.kind = "body-failure";
+  message null usa el nombre de la clase del
+  error como fallback.
+- **toPluginBodyOutcome** (×3): traduce los
+  3 outcomes del SDK al plugin.
+- **Descriptor contract** (×3): declara
+  `BODY_CONTINUATION_CAPABILITY` con key =
+  "bodyContinuation"; declara
+  `BodyExecutionOwner.HANDLER_CONTINUATION`;
+  descriptor key = "assurance.verify".
+
+### Estado de tests
+
+- 725 tests, 0 failures, 0 errors, 0 skipped
+  (711 G3.6 + 14 G4).
+- 0 warnings del compilador en archivos G4.
+- 0 regresiones en 711 tests preexistentes
+  (1 test de G3 actualizado para incluir los
+  2 nuevos kinds de G4: "body-failure" y
+  "cancelled" — pino deliberado del set
+  cerrado de kinds).
+- Clean check: 46s.
+
+### Lo que G4 NO cubre (limitaciones honestas)
+
+- **V52 (replay no duplica efectos)** está
+  pineado en el handler vía `bodyInvoked`
+  flag, pero el test directo (invocar el
+  handler 2 veces con el mismo context)
+  requiere un mock de `StepHandlerContext`
+  más elaborado. Refactor candidato: extraer
+  el mock context a un helper reusable
+  post-G6.
+- **G6 (pipeline real)**: el test e2e con
+  `assurance.verify` ejecutándose dentro de
+  PipelineK real queda pendiente — depende
+  de G6 (pipeline de ejemplo).
