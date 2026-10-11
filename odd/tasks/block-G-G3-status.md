@@ -681,10 +681,64 @@ reply or wait for the user"). 9 tests nuevos en
 | G3 assurance.check tipado | ✓ verde | este doc + 56 tests (3 pases) |
 | G3.1 validación post-impl | ✓ verde | `cc701fb` + 12 tests |
 | G3.2 validación extendida | ✓ verde | `1975d95` + 43 tests |
-| G3.3 validación más profunda | ✓ verde | este commit + 10 tests |
+| G3.3 validación más profunda | ✓ verde | 36cbaf2 + 10 tests |
+| G3.4 property + negative | ✓ verde | este commit + 13 tests |
 | G4 assurance.verify + BodyContinuation | pendiente | depende de G3 |
 | G5 admisión 0.48 + 0.51 | ✓ parcial | admisión OK; cert formal pendiente de G6 |
 | G6 pipeline de ejemplo | pendiente | depende de G4 |
 | G7 cert sobre la nueva ruta | pendiente | depende de G6 |
 | G8 SDK_COMPATIBILITY_MATRIX.md | ✓ abierto | v1 |
 | G9 v0.13.0-rc1 | pendiente | depende de G8 |
+
+
+## G3.4 — Property-based, negative paths, engine contract
+
+Tercer pase de validación autónoma extendida
+autorizado por el usuario. 2 archivos de test
+nuevos, 13 tests añadidos (V25, V26, V27, V28,
+V29, V31, V32; V30 y V18/V20/V21 no testeables).
+
+### Nuevos tests (13)
+
+- G3PropertyAndNegativePathsTest (V25, V26, V27, V28, 8 tests)
+- G3EngineAndStressTest (V29, V31, V32, 5 tests)
+
+### Hallazgos no testeables (documentados, no bugs)
+
+- V18 (StepCodec shape): codecs son private class.
+- V20 (provider preloaded): MockSdkHost.runCheck
+  hardcodea evidenceItems=emptyList.
+- V21 (readEvidenceAdapterVersion paths): handler
+  es private class.
+- V30 (JSON parsing edge cases): el plugin NO
+  parsea JSON en su input.
+
+### Hallazgo real de G3.4 (orden-dependence del digest)
+
+El digestOf del orchestrator (en
+AssuranceCheckStepDefinition.kt:371) serializa el
+SuiteDto directamente sin ordenar los campos.
+Dos suites con las mismas assertions en distinto
+orden producen digests distintos. Severidad media.
+Fix: engine-side, programado para bloque post-G3.
+
+### Cambios y fixes de test
+
+- G3PropertyAndNegativePathsTest:
+  - kotest shouldContain retorna String; reemplazos
+    por contains o matchers directos.
+  - Mini-parser JSON parseTopLevelKeys.
+  - V27 y V28 rediseñados tras descubrir IAE
+    en inputs inválidos (consistente con R1/R2).
+- G3EngineAndStressTest:
+  - V31 rediseñado: digest ES order-dependent.
+  - V32 tipos: contains no compila con infix,
+    reemplazado por .contains().
+
+### Estado de tests
+
+- 677 tests, 0 failures, 0 errors, 0 skipped
+  (664 G3.3 + 13 G3.4).
+- 0 warnings del compilador en archivos G3.
+- 0 regresiones en 599 tests preexistentes.
+- Clean check: 51s.
