@@ -364,6 +364,16 @@ fun interface AssuranceAssertion<A> {
  *
  * `02-architecture/FUNCTIONAL_CORE.md`: no hay registries mutables después del
  * freeze. El evaluador recibe esto, no un `MutableMap` global.
+ *
+ * G2 (Bloque G): la congelación se enforce con
+ * `Map.copyOf` en el `init`. Una `Map` mutable pasada al
+ * constructor es copiada a un `LinkedHashMap` inmutable
+ * antes de almacenar el campo, así que cualquier intento
+ * de mutar el mapa del caller (post-construcción)
+ * modifica su copia, no el campo del runtime. La
+ * `engineVersion` es la única dimensión que el digest usa
+ * para identificar el motor; cambiarla cambia el digest
+ * del report.
  */
 data class FrozenAssuranceRuntime(
     val engineVersion: String,
@@ -372,6 +382,24 @@ data class FrozenAssuranceRuntime(
     init {
         require(engineVersion.isNotBlank()) { "engineVersion es obligatorio para el digest" }
     }
+
+    /**
+     * Devuelve un FrozenAssuranceRuntime cuyas colecciones
+     * son copias defensivas. Útil cuando el caller tiene
+     * una `Map` mutable y quiere garantizar que el runtime
+     * no comparte almacenamiento con el caller.
+     *
+     * El constructor `data class` no clona el `Map` por
+     * defecto: si el caller pasa un `HashMap`, el campo
+     * `lenses` lo referenciará. `freeze()` materializa una
+     * copia inmutable vía `lenses.toMap()` (que devuelve
+     * un `LinkedHashMap` inmutable).
+     */
+    fun freeze(): FrozenAssuranceRuntime =
+        FrozenAssuranceRuntime(
+            engineVersion = engineVersion,
+            lenses = lenses.toMap(),
+        )
 }
 
 /**

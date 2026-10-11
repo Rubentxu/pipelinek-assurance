@@ -26,10 +26,14 @@ HEAD actual: `consolidation/G-integration-v2` (rama de
 Bloque G, basada en `consolidation/A-F@b1f3f7e`).
 G0 (pre-flight, `0e1dad9`): 0.51.0-rc1 instalado vía
 asdf, admisión de classpath OK, regression 0.48.0 OK.
-G1 (matriz de versiones, commit actual): `pipelinekVersion`
+G1 (matriz de versiones, `fa69f26`): `pipelinekVersion`
 como propiedad Gradle, `SDK_COMPATIBILITY_MATRIX.md`
-abierto, 3 codec warnings silenced. Detalle en
-`odd/tasks/block-G-G0-status.md`.
+abierto, 3 codec warnings silenced.
+G2 (FrozenAssuranceRuntime, commit actual): `freeze()`
+materializa la inmutabilidad; 3 contract tests + 2
+fitness tests cierran la regla 0 + regla 4 + regla 7.
+Total acumulado: 595/0/0 en clean check (49s). Detalle
+en `odd/tasks/block-G-G2-status.md`.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
