@@ -2157,14 +2157,14 @@ Sub-tareas: B1 integración con SDK público (real); B2
 application service (orquestación interna); B3 `assurance.check`
 real end-to-end; B4 artifact y replay.
 
-Estado (observado 2026-10-10, SHA `125304b`): **bloqueado por
-externo**. B1 requiere una versión publicable y reproducible
-del SDK de PipelineK v0.48.0-rc2; sin ella no se certifica la
-integración con ServiceLoader real, run real, ni la matriz de
-compatibilidad. El plan upstream queda registrado; mientras,
-B2–B4 se pueden ejecutar como trabajo defensivo (codecs,
-contratos, mock host). Sin promoción a `v0.10.0-rc1` hasta
-resolver B1.
+Estado (observado 2026-10-10, tag `v0.10.0-rc1` sobre `dd9b486`): **cerrado en-repo**. El bloqueo que esta sección declaraba (SDK v0.48.0-rc2 no publicable) se resolvió: el SDK `dev.rubentxu.pipeline.v2:*:0.48.0` stable está instalado vía asdf y publicado en `~/.m2/repository/`, así que B1 se certificó contra dependencias reales, no contra un mock.
+
+- **B1** cerrado: `AssurancePluginContributor` implementa `StepDefinitionContributor` del SDK; `ServiceLoader.load(...)` lo descubre en test; codecs `StepCodec<I,O>` con `EncodedStepValue` sustituyen al `List<Any>` falso.
+- **B2** cerrado: `AssuranceOrchestrator` con los 10 pasos del contrato, 9 tests.
+- **B3** cerrado: `assurance.check` end-to-end con `BuiltinLens`/`BuiltinAssertion` reales y fachada `AssuranceCheckStepDsl`, 20 tests.
+- **B4** cerrado: contrato del report artifact (roundtrip con digest estable, rechazo de incompleto), 7 tests.
+
+590 tests verdes. El tag `v0.10.0-rc1` existe localmente; el push a `origin` y el merge a `main` quedan como decisión del usuario. Detalle en `odd/tasks/block-B-pipelinek-plugin.md`.
 
 ### Bloque C — Assurance estático real, baselines y ratchets
 
@@ -2179,10 +2179,7 @@ Sub-tareas: C1 consumir productor real de CogniCode; C2
 endurecer adapters JaCoCo/PIT; C3 baselines y diff
 completo; C4 ratchets; C5 pipeline de calidad real.
 
-Estado: **bloqueado por externo**. C1 requiere la release
-firmada de CogniCode `v0.101.10` con el export
-`assurance-evidence/v1` consumible por nuestro codec.
-Diferido a cuando esa release exista.
+Estado (observado 2026-10-10): **parcial, C1 bloqueado por externo**. C2, C3 y C4 se cerraron en-repo: C2 desambigua mutaciones en la misma línea por `mutator` (colisión de IDs), C3 implementa los 5 estados de diff con transiciones formales (11 tests en `M4DiffLawsTest`), C4 implementa `RatchetEngine` con las 6 políticas y excepciones firmadas (12 tests). C1 sigue necesitando la release firmada de CogniCode `v0.101.10` con el export `assurance-evidence/v1`; C5 es trabajo cruzado que sólo se certifica con el productor real. Detalle en `odd/tasks/block-C-static-real.md`.
 
 ### Bloque D — Assurance runtime mediante Chronos, OTel y BodyContinuation
 
@@ -2196,11 +2193,7 @@ Sub-tareas: D1 productor Chronos; D2 `assurance.verify`
 body-owning real; D3 OTel collector real; D4 lenses runtime;
 D5 crash, cancelación, replay.
 
-Estado: **bloqueado por externo**. D1 requiere la release
-firmada de Chronos con el contrato
-`assurance-runtime-evidence/v1`. D2 y D3 son trabajo cruzado
-que sólo se certifica con el SDK real y el collector OTel
-real. Diferido.
+Estado (observado 2026-10-10): **parcial, D1/D2/D3 bloqueados por externo**. D5 se cerró en-repo: 7 tests en `D5FailureModesTest` cubren provider que lanza (gap `Lost`, no aborta), gap `Lost` declarado (assertion cae a `Inconclusive`), `BodyContinuation` que lanza (`BodyOutcome.Failure`), `combine(body_failure, report_pass)` preserva el failure, y `Cancelled` no se confunde con `Failure`. D1 requiere la release firmada de Chronos con el contrato `assurance-runtime-evidence/v1`; D2 y D3 sólo se certifican con el SDK real y el collector OTel real. Detalle en `odd/tasks/block-D-runtime.md`.
 
 ### Bloque E — Experiencia agent-first, packs y self-hosting
 
@@ -2214,8 +2207,7 @@ Sub-tareas: E1 CLI real (capacidades declaradas, ejecutables);
 E2 Kotlin DSL y packs; E3 runners JUnit/Kotest con paridad de
 digest; E4 self-hosting con CogniCode real.
 
-Estado: **pendiente de A–D**. Sin A, B, C, D cerrados, los
-artifacts que E debe navegar son ficticios.
+Estado (observado 2026-10-10): **parcial, E4 bloqueado por externo**. La premisa de esta sección ("sin A, B, C, D cerrados los artifacts son ficticios") ya se resolvió para A, B y D5, así que E1–E3 se ejecutaron en-repo: 3 comandos CLI nuevos con 7 tests, el DSL `assurancePack { suite { ... } }`, y paridad de digest de report entre JUnit Platform, Kotest y Step PipelineK (6 tests). Los comandos restantes de E1 (`snapshot inspect`, `suite inspect`, `findings`, `reproduce`, `diff`, `baseline inspect`) dependen de producers externos, y E4 (self-hosting) exige CogniCode real. Detalle en `odd/tasks/block-E-agent-first.md`.
 
 ### Bloque F — Certificación de producción y primera candidata 1.0
 
@@ -2231,7 +2223,9 @@ performance con cargas representativas; F4 auditoría final
 de seguridad; F5 revisión arquitectónica; F6 release
 candidate.
 
-Estado: **pendiente de A–E**.
+Estado (observado 2026-10-10): **parcial, F6 no promovible**. F2–F5 se cerraron en-repo: recibo de tests firmado por SHA con digest estable, benchmarks del engine, auditoría de seguridad de 9 tests, y revisión arquitectónica de 9 tests. F1 se certificó sólo para SDK 0.48.0 (`06-uat/SDK_COMPATIBILITY_MATRIX.md` marca `❌` para 0.48.0-rc1/rc2 y 0.49+), y F6 exige certification con cargas representativas que dependen de los exports reales de Chronos (10k invocaciones) y OTel (100k trazas).
+
+**Consecuencia honesta:** con A, B, D5, E1–E3 y F2–F5 cerrados, `v1.0.0-rc1` no tiene más trabajo en-repo cerrable. Todo lo que queda depende de los cuatro productores externos registrados en `odd/tasks/block-pending-external.md`: C1 (CogniCode v0.101.10), D1 (export Chronos), D3 (collector OTel) y la ampliación de F1 a más versiones del SDK.
 
 ### Regla de orden
 
