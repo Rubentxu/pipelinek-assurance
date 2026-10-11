@@ -93,12 +93,17 @@ class G3CounterexampleContractTest : AnnotationSpec() {
             .filter { it.contains("kind = \"") }
             .map { it.substringAfter("kind = \"").substringBefore("\"") }
             .toSet()
-        // Kinds reales del código (los 4 del counterexample).
+        // Kinds reales del código. G3 introdujo 4;
+        // G4 (assurance.verify) añadió 2: "body-failure"
+        // y "cancelled" (cuando el body ejecutó por el
+        // SDK BodyContinuation falla o se cancela).
         kinds shouldBe setOf(
             "mandatory-failure",
             "incomplete",
             "engine-error",
             "missing-capability",
+            "body-failure",
+            "cancelled",
         )
     }
 

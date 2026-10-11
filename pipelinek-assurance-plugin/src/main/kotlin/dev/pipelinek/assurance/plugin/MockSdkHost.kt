@@ -137,6 +137,76 @@ internal object MockSdkHost {
     }
 
     /**
+     * G4 — `runVerify` que ejecuta `AssuranceVerifyStepDefinition.run`
+     * con un `bodyOutcome` precomputado. Esta variante permite
+     * a los tests verificar la combinación body×assurance
+     * (V50, V51) sin necesidad de cablear un `BodyContinuation`
+     * real del SDK.
+     */
+    fun runVerify(
+        input: AssuranceVerifyStepDefinition.Input,
+        bodyOutcome: AssuranceVerifyStepDefinition.BodyOutcome,
+        evidenceAdapterVersion: String? = null,
+    ): AssuranceVerifyStepDefinition.Output {
+        return AssuranceVerifyStepDefinition.run(
+            input = input,
+            bodyOutcome = bodyOutcome,
+            evidenceItems = emptyList(),
+            providers = ProviderRegistry(),
+            runtime = FrozenAssuranceRuntime(engineVersion = "0.1.0", lenses = emptyMap()),
+            assertionsById = emptyMap(),
+            evidenceAdapterVersion = evidenceAdapterVersion,
+        )
+    }
+
+    /**
+     * G4 — Helper para construir un `AssuranceVerifyStepDefinition.Input`
+     * mínimo para tests. Devuelve el input, NO lo ejecuta.
+     */
+    fun verifyInput(
+        name: String = "self",
+        suite: AssuranceVerifyStepDefinition.SuiteDto = minimalVerifySuite(),
+        evidence: List<AssuranceVerifyStepDefinition.EvidenceRefDto> = emptyList(),
+        mode: String = "FailClosed",
+        completenessPolicy: String = "RequireComplete",
+    ): AssuranceVerifyStepDefinition.Input = AssuranceVerifyStepDefinition.Input(
+        name = name,
+        suite = suite,
+        evidence = evidence,
+        mode = mode,
+        completenessPolicy = completenessPolicy,
+    )
+
+    private fun minimalVerifySuite(): AssuranceVerifyStepDefinition.SuiteDto =
+        AssuranceVerifyStepDefinition.SuiteDto(
+            id = "s/verify-mock",
+            version = "0.0.1",
+            requiredEvidence = emptyList(),
+            lenses = listOf(
+                AssuranceVerifyStepDefinition.LensDto(
+                    id = "l/noop",
+                    kind = "NoOp",
+                    inputCapabilities = emptyList(),
+                    arguments = emptyMap(),
+                    outputSchema = "noop/v0",
+                ),
+            ),
+            assertions = listOf(
+                AssuranceVerifyStepDefinition.AssertionDto(
+                    id = "a/noop",
+                    lensRef = "l/noop",
+                    operator = "noop",
+                    operands = emptyMap(),
+                    severity = "Info",
+                    enforcement = "Advisory",
+                    completenessRequirements = emptyList(),
+                    rationale = "noop assertion for verify mock",
+                    admittedAuthorities = setOf("DeterministicAdapter"),
+                ),
+            ),
+        )
+
+    /**
      * Helper para construir un `AssuranceCheckStepDefinition.Input`
      * mínimo para tests. Devuelve el input, NO lo ejecuta.
      */

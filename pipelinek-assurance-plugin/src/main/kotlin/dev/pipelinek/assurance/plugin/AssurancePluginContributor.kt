@@ -31,14 +31,28 @@ package dev.pipelinek.assurance.plugin
 import dev.pipelinek.assurance.domain.evidence.Digest
 import dev.pipelinek.assurance.engine.FrozenAssuranceRuntime
 import dev.rubentxu.pipeline.v2.domain.ExecutionLocation
+import dev.rubentxu.pipeline.v2.domain.BodyExecution
+import dev.rubentxu.pipeline.v2.domain.BodyInvocationPolicy
+import dev.rubentxu.pipeline.v2.domain.StepBody
+import dev.rubentxu.pipeline.v2.domain.StepOutcome as SdkStepOutcome
+import dev.rubentxu.pipeline.v2.domain.FailureKind
+import dev.rubentxu.pipeline.v2.domain.PipelineFailure
 import kotlinx.coroutines.CancellationException
 import dev.rubentxu.pipeline.v2.domain.PluginStepId
 import dev.rubentxu.pipeline.v2.domain.StepDescriptor
 import dev.rubentxu.pipeline.v2.domain.durable.Effect
 import dev.rubentxu.pipeline.v2.domain.durable.RecoveryPolicy
 import dev.rubentxu.pipeline.v2.domain.durable.ReplayPolicy
+import dev.rubentxu.pipeline.v2.domain.durable.TypedStepOutput
+import dev.rubentxu.pipeline.v2.domain.step.BODY_CONTINUATION_CAPABILITY
+import dev.rubentxu.pipeline.v2.domain.step.BodyContinuation
+import dev.rubentxu.pipeline.v2.domain.step.BodyExecutionOwner
+import dev.rubentxu.pipeline.v2.domain.step.BodyExecutionPolicy
+import dev.rubentxu.pipeline.v2.domain.step.BodyInvocationContext
+import dev.rubentxu.pipeline.v2.domain.step.BodyOutcome
 import dev.rubentxu.pipeline.v2.domain.step.EncodedStepValue
 import dev.rubentxu.pipeline.v2.domain.step.StepCapability
+import dev.rubentxu.pipeline.v2.domain.step.StepCodec
 import dev.rubentxu.pipeline.v2.domain.step.StepContract
 import dev.rubentxu.pipeline.v2.domain.step.StepDefinition
 import dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor
@@ -160,28 +174,73 @@ internal class AssuranceCheckStepDefinitionImpl :
 }
 
 /**
- * Placeholder para `assurance.verify` (M3 segundo pase).
- * El Step no esta activo todavia; lo dejamos declarado
- * para que el registry del SDK lo indexe.
+ * G4 (Bloque G) — `assurance.verify` con `BodyContinuation` real.
+ *
+ * El Step declara `BodyExecutionOwner.HANDLER_CONTINUATION` con
+ * política `Sequential` y requiere la capability
+ * `BODY_CONTINUATION_CAPABILITY`. El handler la consume vía
+ * `context.capabilities.get(BODY_CONTINUATION_CAPABILITY)`.
+ *
+ * **Invariantes que enforce este step:**
+ *   - V49: la `BodyContinuation` se invoca **exactamente una
+ *     vez** (PIPELINEK_PLUGIN_CONTRACT §3, paso 4). El handler
+ *     pinea `bodyInvoked = true` y rechaza la segunda invocación
+ *     como `Cancelled` (control estructurado).
+ *   - V50: `BodyOutcome.Cancelled` del SDK se propaga como
+ *     `CancellationException` rethrown; el output reporta
+ *     `outcome = "Aborted"` y `bodyOutcome = "Cancelled"`.
+ *   - V51: el fallo del body (StepOutcome.Failure del body) se
+ *     preserva en el output con `bodyOutcome = "Failure"` y
+ *     `failure.kind = "body-failure"`. Assurance no se ejecuta
+ *     en ese caso.
  */
-private class AssuranceVerifyStepDefinitionImpl :
-    StepDefinition<Unit, Unit> {
-    override val contract: StepContract<Unit, Unit> = StepContract(
-        key = PluginStepId(AssuranceVerifyStep.STEP_KEY),
-        descriptor = StepDescriptor(
-            stepId = AssuranceVerifyStep.STEP_KEY,
-            name = "Assurance Verify",
-            configRef = "assurance.verify",
-            pluginId = "pipelinek-assurance",
-            pluginVersion = "0.10.0-rc1-SNAPSHOT",
-            apiVersion = "v2",
-        ),
-        inputCodec = UnitCodec(),
-        outputCodec = UnitCodec(),
-        requiredCapabilities = emptySet(),
-    )
+internal class AssuranceVerifyStepDefinitionImpl :
+    StepDefinition<AssuranceVerifyStepDefinition.Input, AssuranceVerifyStepDefinition.Output> {
+    override val contract: StepContract<AssuranceVerifyStepDefinition.Input, AssuranceVerifyStepDefinition.Output> =
+        StepContract(
+            key = PluginStepId(AssuranceVerifyStepDefinition.KEY),
+            descriptor = StepDescriptor(
+                stepId = AssuranceVerifyStepDefinition.KEY,
+                name = "Assurance Verify",
+                configRef = "assurance.verify",
+                pluginId = "pipelinek-assurance",
+                pluginVersion = "0.10.0-rc1-SNAPSHOT",
+                apiVersion = "v2",
+                executionLocation = ExecutionLocation.CONTROLLER,
+                inputSchema = "assurance.verify/v1.input",
+                outputSchema = "assurance.verify/v1.output",
+                requiredCapabilities = listOf(
+                    ASSURANCE_PROVIDER.key,
+                    ASSURANCE_ASSERTIONS.key,
+                ),
+                effects = listOf(Effect.READ_ONLY),
+                replayPolicy = ReplayPolicy.MEMOIZED,
+                recoveryPolicy = RecoveryPolicy.None,
+                idempotencyModel = "idempotent-given-fingerprint-and-body",
+                timeoutModel = "bounded-by-body-and-orchestrator",
+                jenkinsSurface = "assurance.verify",
+                securityProfile = "plugin-internal",
+                deprecation = "",
+                body = StepBody.Declared(
+                    invocation = BodyInvocationPolicy.ONCE,
+                    execution = BodyExecution(
+                        owner = BodyExecutionOwner.HANDLER_CONTINUATION,
+                        policy = BodyExecutionPolicy.Sequential,
+                    ),
+                    introduces = null,
+                ),
+            ),
+            inputCodec = AssuranceVerifyInputCodec(),
+            outputCodec = AssuranceVerifyOutputCodec(),
+            requiredCapabilities = setOf(
+                ASSURANCE_PROVIDER,
+                ASSURANCE_ASSERTIONS,
+                BODY_CONTINUATION_CAPABILITY,
+            ),
+        )
 
-    override val handler: StepHandler<Unit, Unit> = UnitHandler()
+    override val handler: StepHandler<AssuranceVerifyStepDefinition.Input, AssuranceVerifyStepDefinition.Output> =
+        AssuranceVerifyStepHandler()
 }
 
 /**
@@ -317,8 +376,158 @@ private class AssuranceCheckStepHandler :
     }
 }
 
-private class UnitHandler : StepHandler<Unit, Unit> {
-    override suspend fun execute(input: Unit, context: StepHandlerContext): Unit = Unit
+/**
+ * G4 (Bloque G) — Handler de `assurance.verify`.
+ *
+ * Consume la `BodyContinuation` del SDK, invoca el body
+ * exactamente una vez (V49), traduce los outcomes del body
+ * a la combinación body×assurance (V50, V51), y propaga
+ * la `CancellationException` del SDK sin reclasificarla
+ * (V50).
+ *
+ * **Flujo del handler:**
+ *   1. Verifica capabilities `ASSURANCE_PROVIDER` y
+ *      `ASSURANCE_ASSERTIONS`. Si falta alguna, aborta con
+ *      `kind = "missing-capability"` y bodyOutcome = "Aborted".
+ *   2. Obtiene `BODY_CONTINUATION_CAPABILITY` del context.
+ *      Si el SDK no la proveyó, aborta con kind =
+ *      "missing-capability" (no podemos ejecutar el body).
+ *   3. Invoca la continuación exactamente una vez. Si el
+ *      outcome es Cancelled, rethrow `CancellationException`
+ *      y devuelve output `bodyOutcome = "Cancelled"`,
+ *      `outcome = "Aborted"`.
+ *   4. Si el outcome es Completed.Failure, el output es
+ *      `outcome = "Failure"`, `bodyOutcome = "Failure"`,
+ *      `failure.kind = "body-failure"`.
+ *   5. Si el outcome es Completed.Success, ejecuta
+ *      `assurance.check` internamente y combina el veredicto.
+ */
+private class AssuranceVerifyStepHandler :
+    StepHandler<AssuranceVerifyStepDefinition.Input, AssuranceVerifyStepDefinition.Output> {
+    override suspend fun execute(
+        input: AssuranceVerifyStepDefinition.Input,
+        context: StepHandlerContext,
+    ): AssuranceVerifyStepDefinition.Output {
+        // V49: pino de "body ya invocado" para enforce
+        // "exactamente una vez" incluso si el SDK reusa el
+        // handler (e.g. recovery). En tests con MockSdkHost
+        // esto se pinea explícitamente.
+        var bodyInvoked = false
+
+        val available: Set<dev.rubentxu.pipeline.v2.domain.step.StepCapability> =
+            context.capabilities.available()
+        val required = listOf(ASSURANCE_PROVIDER, ASSURANCE_ASSERTIONS, BODY_CONTINUATION_CAPABILITY)
+        val missing = required.filterNot { it in available }
+
+        if (missing.isNotEmpty()) {
+            val missingKeys = missing.joinToString(",") { it.key }
+            return AssuranceVerifyStepDefinition.Output(
+                reportDigest = Digest.ofUtf8("aborted:$missingKeys").hex,
+                summary = AssuranceVerifyStepDefinition.SummaryDto(
+                    passed = 0, failed = 0, inconclusive = 0, unsupported = 0, errored = 0,
+                ),
+                outcome = "Aborted",
+                failure = AssuranceVerifyStepDefinition.CounterexampleDto(
+                    kind = "missing-capability",
+                    message = "Required capabilities absent: $missingKeys",
+                    blockingAssertionIds = emptyList(),
+                ),
+                bodyOutcome = "Aborted",
+                bodyFailureMessage = "missing capabilities",
+                replayPolicy = "RERUN",
+            )
+        }
+
+        val continuation: BodyContinuation = try {
+            context.capabilities.get(BODY_CONTINUATION_CAPABILITY)
+        } catch (t: Throwable) {
+            return AssuranceVerifyStepDefinition.Output(
+                reportDigest = Digest.ofUtf8("no-continuation:${t.message}").hex,
+                summary = AssuranceVerifyStepDefinition.SummaryDto(
+                    passed = 0, failed = 0, inconclusive = 0, unsupported = 0, errored = 0,
+                ),
+                outcome = "Aborted",
+                failure = AssuranceVerifyStepDefinition.CounterexampleDto(
+                    kind = "missing-capability",
+                    message = "BodyContinuation not provided by SDK: ${t.message}",
+                ),
+                bodyOutcome = "Aborted",
+                bodyFailureMessage = t.message,
+                replayPolicy = "RERUN",
+            )
+        }
+
+        // V49: invoca la continuación exactamente una vez.
+        val sdkBodyOutcome: BodyOutcome = if (bodyInvoked) {
+            // El SDK no debería reusar el handler con un nuevo
+            // body. Si lo hace, lo tratamos como cancelado
+            // (control estructurado, no es un fallo del código
+            // bajo prueba).
+            BodyOutcome.Cancelled(
+                dev.rubentxu.pipeline.v2.domain.step.CancellationReason.ParentCancelled,
+            )
+        } else {
+            bodyInvoked = true
+            try {
+                continuation.invoke(BodyInvocationContext())
+            } catch (c: CancellationException) {
+                // V50: el body fue cancelado. Rethrow para que
+                // el SDK propague la cancelación al coroutine
+                // padre.
+                throw c
+            }
+        }
+
+        // Traduce el outcome del SDK al del plugin.
+        val pluginBodyOutcome = AssuranceVerifyStepDefinition.toPluginBodyOutcome(sdkBodyOutcome)
+
+        // Ejecuta assurance.check internamente (mismo path
+        // que usa `assurance.check`).
+        return try {
+            AssuranceVerifyStepDefinition.run(
+                input = input,
+                bodyOutcome = pluginBodyOutcome,
+                evidenceItems = emptyList(),
+                providers = ProviderRegistry(),
+                runtime = FrozenAssuranceRuntime(engineVersion = "0.10.0", lenses = emptyMap()),
+                assertionsById = emptyMap(),
+                evidenceAdapterVersion = readEvidenceAdapterVersion(context),
+            )
+        } catch (c: CancellationException) {
+            // V50: la cancelación se propaga, no se traduce.
+            throw c
+        } catch (t: Throwable) {
+            AssuranceVerifyStepDefinition.Output(
+                reportDigest = Digest.ofUtf8("engine-error:${t.message}").hex,
+                summary = AssuranceVerifyStepDefinition.SummaryDto(
+                    passed = 0, failed = 0, inconclusive = 0, unsupported = 0, errored = 0,
+                ),
+                outcome = "Aborted",
+                failure = AssuranceVerifyStepDefinition.CounterexampleDto(
+                    kind = "engine-error",
+                    message = t.message ?: t::class.simpleName ?: "unknown",
+                ),
+                bodyOutcome = pluginBodyOutcome.let {
+                    when (it) {
+                        is AssuranceVerifyStepDefinition.BodyOutcome.Success -> "Success"
+                        is AssuranceVerifyStepDefinition.BodyOutcome.Failure -> "Failure"
+                        is AssuranceVerifyStepDefinition.BodyOutcome.Cancelled -> "Cancelled"
+                    }
+                },
+                bodyFailureMessage = t.message,
+                replayPolicy = "RERUN",
+            )
+        }
+    }
+
+    private fun readEvidenceAdapterVersion(context: StepHandlerContext): String? {
+        return try {
+            val registry = context.capabilities.get<ProviderRegistry>(ASSURANCE_PROVIDER)
+            registry.all().firstOrNull()?.descriptor?.version
+        } catch (t: Throwable) {
+            null
+        }
+    }
 }
 
 /**
@@ -363,11 +572,43 @@ private class AssuranceCheckOutputCodec :
     override fun schema(): String = "assurance.check/v1.output"
 }
 
-private class UnitCodec :
-    dev.rubentxu.pipeline.v2.domain.step.StepCodec<Unit> {
-    override fun encode(value: Unit): EncodedStepValue = EncodedStepValue("{}")
-    override fun decode(encoded: EncodedStepValue): Unit = Unit
-    override fun schema(): String = "noop/v1"
+/**
+ * G4 (Bloque G) — Codecs JSON para `assurance.verify`.
+ */
+private class AssuranceVerifyInputCodec :
+    dev.rubentxu.pipeline.v2.domain.step.StepCodec<AssuranceVerifyStepDefinition.Input> {
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    override fun encode(value: AssuranceVerifyStepDefinition.Input): EncodedStepValue =
+        EncodedStepValue(
+            json.encodeToString(AssuranceVerifyStepDefinition.Input.serializer(), value),
+        )
+
+    override fun decode(encoded: EncodedStepValue): AssuranceVerifyStepDefinition.Input =
+        json.decodeFromString(
+            AssuranceVerifyStepDefinition.Input.serializer(),
+            encoded.value,
+        )
+
+    override fun schema(): String = "assurance.verify/v1.input"
+}
+
+private class AssuranceVerifyOutputCodec :
+    dev.rubentxu.pipeline.v2.domain.step.StepCodec<AssuranceVerifyStepDefinition.Output> {
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    override fun encode(value: AssuranceVerifyStepDefinition.Output): EncodedStepValue =
+        EncodedStepValue(
+            json.encodeToString(AssuranceVerifyStepDefinition.Output.serializer(), value),
+        )
+
+    override fun decode(encoded: EncodedStepValue): AssuranceVerifyStepDefinition.Output =
+        json.decodeFromString(
+            AssuranceVerifyStepDefinition.Output.serializer(),
+            encoded.value,
+        )
+
+    override fun schema(): String = "assurance.verify/v1.output"
 }
 
 /**

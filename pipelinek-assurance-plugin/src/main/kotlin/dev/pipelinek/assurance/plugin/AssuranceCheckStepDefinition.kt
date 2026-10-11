@@ -477,7 +477,7 @@ object AssuranceCheckStepDefinition {
             )
         }
 
-    private fun suiteFromDto(dto: SuiteDto): AssuranceSuiteIR {
+    internal fun suiteFromDto(dto: SuiteDto): AssuranceSuiteIR {
         return AssuranceSuiteIR(
             apiVersion = "assurance-ir/v1",
             suiteId = SuiteId(dto.id),
