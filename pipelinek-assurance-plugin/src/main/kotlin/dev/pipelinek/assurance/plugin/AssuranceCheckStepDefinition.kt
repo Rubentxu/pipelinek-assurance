@@ -57,11 +57,46 @@ object AssuranceCheckStepDefinition {
         val completenessPolicy: String = "RequireComplete",
     )
 
+    /**
+     * Output que el Step `assurance.check` entrega al SDK.
+     *
+     * B3 (Bloque B) — `reportDigest` + `summary` + `outcome` ("Success"
+     * | "Failure" | "Aborted"). G3 (Bloque G) — `failure` lleva el
+     * counterexample estructurado cuando el outcome es Failure o
+     * Aborted (en Aborted, `failure` es opcional y puede ser null
+     * si la causa es una excepción interna del motor de orchestrator
+     * que no queremos enmascarar; en Failure por Mandatory, `failure`
+     * SIEMPRE trae el counterexample de la assertion bloqueante).
+     *
+     * `replayPolicy` es la policy que el handler eligió en este run
+     * concreto: "MEMOIZED" si el fingerprint cubría engine + suite +
+     * evidence digests + adapter version, "RERUN" en cualquier otro
+     * caso. La cadena está en el output (no en el `StepContract`)
+     * porque la policy es decisión del handler, no del descriptor.
+     */
     @Serializable
     data class Output(
         val reportDigest: String,
         val summary: SummaryDto,
         val outcome: String,
+        val failure: CounterexampleDto? = null,
+        val replayPolicy: String = "RERUN",
+    )
+
+    /**
+     * Counterexample estructurado: una assertion Mandatory que falló
+     * (o, en `Aborted`, la causa que abortó el Step). El shape es
+     * deliberadamente plano: la spec del SDK
+     * (`PIPELINEK_PLUGIN_CONTRACT.md §assurance.check`) sólo necesita
+     * que el caller pueda renderizarlo en su log de falla y
+     * persistirlo en el report artifact.
+     */
+    @Serializable
+    data class CounterexampleDto(
+        val kind: String,
+        val message: String,
+        val blockingAssertionIds: List<String> = emptyList(),
+        val sourceLocation: String? = null,
     )
 
     @Serializable
@@ -171,6 +206,13 @@ object AssuranceCheckStepDefinition {
      * vía providers, normalizar, congelar, evaluar, codificar el
      * report y computar el `StepOutcome` por assertion (A1).
      *
+     * G3 (Bloque G) — `run` ahora también computa la policy de
+     * replay: si `evidenceAdapterVersion` está presente, devuelve
+     * `replayPolicy = "MEMOIZED"`. Si no, cae a `"RERUN"`. El
+     * `Output.failure` se popula con el counterexample estructurado
+     * cuando el outcome es Failure (Mandatory) o Aborted (engine
+     * sin coverage).
+     *
      * @param input el DTO del Step
      * @param evidenceItems items precargados (modo offline / tests)
      * @param providers registry de EvidenceProvider; el plugin NO
@@ -178,6 +220,11 @@ object AssuranceCheckStepDefinition {
      * @param runtime runtime congelado con las lenses del SDK
      * @param assertionsById mapa `AssertionId → AssuranceAssertion`
      *        que ejecuta la lógica de la assertion
+     * @param evidenceAdapterVersion versión del adapter de evidence
+     *        que el SDK está proveyendo vía `ASSURANCE_PROVIDER`
+     *        capability. Si es null/blank, el fingerprint queda
+     *        incompleto y la policy cae a RERUN (no se puede
+     *        memoizar sobre un adapter que puede cambiar).
      */
     fun run(
         input: Input,
@@ -185,6 +232,7 @@ object AssuranceCheckStepDefinition {
         providers: ProviderRegistry,
         runtime: FrozenAssuranceRuntime,
         assertionsById: Map<AssertionId, dev.pipelinek.assurance.engine.AssuranceAssertion<*>>,
+        evidenceAdapterVersion: String? = null,
     ): Output {
         // 1. Decodifica la suite (de DTO a IR).
         val suite: AssuranceSuiteIR = suiteFromDto(input.suite)
@@ -293,6 +341,36 @@ object AssuranceCheckStepDefinition {
             AssuranceCheckStep.outcomeOf(report = report, mode = mode, completenessPolicy = completeness)
         }
 
+        // 5. Counterexample estructurado (G3). El plugin NO lanza
+        //    excepción cuando una Mandatory falla: serializa la
+        //    causa en `failure` y deja que el SDK mapee a
+        //    `StepOutcome.Failure` desde el output. En Aborted, el
+        //    counterexample es opcional (puede ser null si la
+        //    causa fue una excepción del orchestrator que no
+        //    queremos enmascarar).
+        //
+        //    Para Failure: re-llamamos `evaluateEnforcement` con el
+        //    mismo `report + suite + mode` que el outcome, y
+        //    cosechamos los `blockingFailures` (los
+        //    `EnforcementEntry` con `enforcement = Mandatory` y
+        //    `result != Passed`). Eso preserva la asociación
+        //    assertion ↔ política que A1 introdujo y que el
+        //    plugin tiene que exportar al SDK.
+        val failureDto = counterexampleOf(
+            report = report,
+            suite = suite,
+            mode = mode,
+            outcome = outcome,
+        )
+
+        // 6. Policy de replay (G3). El fingerprint es completo
+        //    sólo si tenemos `evidenceAdapterVersion` (no
+        //    null/blank). Sin él, no podemos memoizar: el adapter
+        //    podría cambiar entre runs. La engine version ya
+        //    está en `runtime.engineVersion`, la suite id+version
+        //    en el input, y los evidence digests en la orquestación.
+        val replay = if (!evidenceAdapterVersion.isNullOrBlank()) "MEMOIZED" else "RERUN"
+
         return Output(
             reportDigest = orchestration.reportDigest.hex,
             summary = SummaryDto(
@@ -307,7 +385,70 @@ object AssuranceCheckStepDefinition {
                 is AssuranceCheckStep.StepOutcome.Failure -> "Failure"
                 is AssuranceCheckStep.StepOutcome.Aborted -> "Aborted"
             },
+            failure = failureDto,
+            replayPolicy = replay,
         )
+    }
+
+    /**
+     * Construye un `CounterexampleDto` a partir del report, el
+     * suite, el mode y el `StepOutcome` (Failure | Aborted).
+     *
+     * Si el outcome es `Failure` y tenemos un `EnforcementDecision.Failure`
+     * vía `evaluateEnforcement`, cosechamos los `blockingFailures` con
+     * `enforcement = Mandatory` y `result != Passed` y los ponemos
+     * en `blockingAssertionIds`. Si el outcome es `Failure` por
+     * `assurance-incomplete` (RequireComplete), devolvemos un
+     * counterexample de kind "incomplete". Cualquier otro Failure
+     * (o un Aborted) cae a "engine-error".
+     */
+    private fun counterexampleOf(
+        report: dev.pipelinek.assurance.engine.AssuranceReport,
+        suite: dev.pipelinek.assurance.engine.AssuranceSuiteIR,
+        mode: AssuranceCheckStep.EnforcementMode,
+        outcome: AssuranceCheckStep.StepOutcome,
+    ): CounterexampleDto? {
+        if (outcome is AssuranceCheckStep.StepOutcome.Success) return null
+        val reason = when (outcome) {
+            is AssuranceCheckStep.StepOutcome.Failure -> outcome.reason
+            is AssuranceCheckStep.StepOutcome.Aborted -> outcome.reason
+        }
+        // Caso "assurance-incomplete" tiene su propio kind.
+        if (reason.startsWith("assurance-incomplete")) {
+            return CounterexampleDto(kind = "incomplete", message = reason)
+        }
+        // Caso Mandatory fail: re-corre evaluateEnforcement y cosecha
+        // los bloqueantes. No lo hacemos cuando el reason es
+        // "assurance gate failure (mode=...)" sin IDs: ese es el
+        // caso "Mandatory fail no resolvió a IDs concretos", que
+        // devolvemos como engine-error para no fingir
+        // counterexample que no tenemos.
+        if (suite.assertions.isNotEmpty() && outcome is AssuranceCheckStep.StepOutcome.Failure) {
+            val engineMode = when (mode) {
+                AssuranceCheckStep.EnforcementMode.FailClosed ->
+                    dev.pipelinek.assurance.engine.EnforcementMode.FailClosed
+                AssuranceCheckStep.EnforcementMode.ReportOnly ->
+                    dev.pipelinek.assurance.engine.EnforcementMode.ReportOnly
+            }
+            val decision = dev.pipelinek.assurance.engine.AssuranceEngine.evaluateEnforcement(
+                report = report,
+                suite = suite,
+                mode = engineMode,
+            )
+            if (decision is dev.pipelinek.assurance.engine.EnforcementDecision.Failure) {
+                val blocking = decision.blockingFailures
+                    .filter { it.enforcement == dev.pipelinek.assurance.engine.Enforcement.Mandatory }
+                    .mapNotNull { it.assertionId?.value }
+                if (blocking.isNotEmpty()) {
+                    return CounterexampleDto(
+                        kind = "mandatory-failure",
+                        message = reason,
+                        blockingAssertionIds = blocking,
+                    )
+                }
+            }
+        }
+        return CounterexampleDto(kind = "engine-error", message = reason)
     }
 
     private fun dev.pipelinek.assurance.domain.evidence.EvidenceItem.toPayloadMap(): Map<String, String> =
