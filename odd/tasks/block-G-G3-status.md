@@ -566,3 +566,125 @@ runbook siguen verdes.
 | G7 cert sobre la nueva ruta | pendiente | depende de G6 |
 | G8 SDK_COMPATIBILITY_MATRIX.md | ✓ abierto | v1 |
 | G9 v0.13.0-rc1 | pendiente | depende de G8 |
+
+## G3.3 — Validación más profunda (segundo pase)
+
+Continuación de G3.2 autorizada por el usuario
+("Do more validation on the work below... do not
+reply or wait for the user"). 9 tests nuevos en
+2 archivos, 0 tests modificados.
+
+### Nuevos tests (10)
+
+- `G3HandlerDeterminismAndConcurrencyTest`
+  (V16, V17):
+  - `V16_idempotency_hundred_invocations_produce_identical_output`
+    — 100 invocaciones con mismo Input producen el
+    mismo JSON (mismo reportDigest, mismo summary,
+    misma replayPolicy). Idempotencia del handler.
+  - `V17_concurrent_invocations_isolated` — 20
+    invocaciones concurrentes con inputs distintos
+    (variando `suite.id`) producen 20 `reportDigest`
+    únicos; y 2 invocaciones concurrentes con el
+    mismo `suite.id` producen el mismo digest.
+    Thread-safety del handler.
+
+- `G3PluginSurfaceContractTest` (V19, V22, V23, V24,
+  8 tests):
+  - `V19_definitions_returns_two_steps_with_expected_keys` —
+    el contributor publica 2 steps con keys
+    `assurance.check` y `assurance.verify` (verificado
+    por reflection sobre `getContract().getKey()`).
+  - `V19_contributor_id_is_stable` — el id
+    `"pipelinek-assurance"` es parte del wire
+    contract; pineado.
+  - `V22_assurancePluginContributor_is_public` — la
+    clase y su constructor sin args son públicos.
+  - `V22_mockSdkHost_is_internal` — el archivo fuente
+    declara `internal object MockSdkHost` (verificado
+    por inspección textual — Kotlin `internal` se
+    compila a `public` en bytecode con name mangling,
+    así que java.lang.reflect no sirve).
+  - `V23_backcompat_run_with_just_evidenceItems_works` —
+    el overload de `AssuranceCheckStepDefinition.run`
+    con sólo `(input, evidenceItems)` sigue accesible.
+  - `V24_same_input_produces_byte_equal_digest` —
+    3 invocaciones con mismo Input producen mismo
+    digest (mismo hex, 64 chars, lowercase).
+  - `V24_digest_changes_when_suite_content_changes` —
+    añadir una assertion al suite cambia el digest.
+  - `V24_suiteId_value_matches_input_suite_id` —
+    inputs con `suite.id` distintos producen
+    `reportDigest` distintos; el `SuiteId` del
+    engine es coherente con el `String` del DTO.
+
+### Hallazgos no testeables (documentados, no bugs)
+
+- **V18 (StepCodec shape)**: los codecs
+  `AssuranceCheckInputCodec` y `AssuranceCheckOutputCodec`
+  son `private class` dentro de `AssurancePluginContributor.kt`.
+  No son accesibles desde tests, pero su shape JSON ya
+  está cubierto por G3.1 (fitness tests del wire format
+  con `encodeDefaults=true`, `failure` sub-objeto,
+  `replayPolicy`, etc.) y por G3.2 V10
+  (`G3OutputSchemaContractTest`).
+
+- **V20 (provider preloaded behavior)**:
+  `MockSdkHost.runCheck` hardcodea
+  `evidenceItems = emptyList()`. La lógica del plugin
+  que detecta `evidenceItems.isNotEmpty() && providers.all().isEmpty()`
+  y crea un provider sintético está en
+  `AssuranceCheckStepDefinition.run` (línea 257-301
+  aprox.) pero no es alcanzable desde el mock. Cubierto
+  por tests de B3 (AssuranceCheckEndToEndTest) que
+  invocan la sobrecarga completa con items pre-coleccionados.
+
+- **V21 (readEvidenceAdapterVersion paths)**: el handler
+  es `private class AssuranceCheckHandler`. El path
+  `try { context.capabilities.get<ProviderRegistry>(ASSURANCE_PROVIDER) }
+  catch (t: Throwable) { null }` se ejerce a través del
+  `G3OutputJsonFitnessTest` (counterexample) y del
+  `G3CounterexampleContractTest` (kind="engine-error"),
+  pero no podemos probar el path de éxito sin un
+  `ProviderRegistry` con adapter version real. Eso se
+  cubrirá en G4 (assurance.verify con BodyContinuation),
+  donde el SDK real provee el `ProviderRegistry`.
+
+### Cambios y fixes de test
+
+- `G3HandlerDeterminismAndConcurrencyTest`:
+  inicial V17 fallaba porque variaba `name` (que NO
+  entra en `reportDigest`). Rediseño: varía `suite.id`,
+  que sí entra. Descubrimiento: el `name` del Input
+  es un label, no parte del fingerprint.
+- `G3PluginSurfaceContractTest`: kotest en vez de
+  junit5 (más coherente con el resto de tests del
+  plugin); java reflection para acceder a
+  `private class AssuranceCheckStepDefinitionImpl`
+  (kotlin reflection respeta `private` y rompe).
+
+### Estado de tests
+
+- **664 tests, 0 failures, 0 errors, 0 skipped**
+  (654 G3.2 + 10 G3.3).
+- 0 warnings del compilador en archivos G3.
+- 0 regresiones en 599 tests preexistentes.
+- Clean check: 1m 05s.
+
+### Estado de Bloque G (post-G3.3)
+
+| Unidad | Estado | Evidencia |
+| ------ | ------ | --------- |
+| G0 pre-flight | ✓ verde | `block-G-G0-status.md` |
+| G1 matriz/BOM/compileOnly | ✓ verde | `fa69f26` + `SDK_COMPATIBILITY_MATRIX.md` |
+| G2 FrozenAssuranceRuntime | ✓ verde | `block-G-G2-status.md` |
+| G3 assurance.check tipado | ✓ verde | este doc + 56 tests (3 pases) |
+| G3.1 validación post-impl | ✓ verde | `cc701fb` + 12 tests |
+| G3.2 validación extendida | ✓ verde | `1975d95` + 43 tests |
+| G3.3 validación más profunda | ✓ verde | este commit + 10 tests |
+| G4 assurance.verify + BodyContinuation | pendiente | depende de G3 |
+| G5 admisión 0.48 + 0.51 | ✓ parcial | admisión OK; cert formal pendiente de G6 |
+| G6 pipeline de ejemplo | pendiente | depende de G4 |
+| G7 cert sobre la nueva ruta | pendiente | depende de G6 |
+| G8 SDK_COMPATIBILITY_MATRIX.md | ✓ abierto | v1 |
+| G9 v0.13.0-rc1 | pendiente | depende de G8 |
