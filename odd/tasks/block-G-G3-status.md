@@ -684,6 +684,7 @@ reply or wait for the user"). 9 tests nuevos en
 | G3.3 validación más profunda | ✓ verde | 36cbaf2 + 10 tests |
 | G3.4 property + negative | ✓ verde | af6c430 + 13 tests |
 | G3.5 invariants + boundaries | ✓ verde | este commit + 19 tests |
+| G3.6 cross-cutting conformance | ✓ verde | a220a7b + 15 tests |
 | G4 assurance.verify + BodyContinuation | pendiente | depende de G3 |
 | G5 admisión 0.48 + 0.51 | ✓ parcial | admisión OK; cert formal pendiente de G6 |
 | G6 pipeline de ejemplo | pendiente | depende de G4 |
@@ -803,3 +804,64 @@ cuerpo. Ahora 18/18 G3.5 tests verde en
   intactos).
 - 0 regresiones en 677 tests preexistentes.
 - Clean check: 38s.
+
+## G3.6 — Cross-cutting conformance: SHA-256, JSON shape, enums, AAT-3 strict, order regression
+
+Quinto pase de validación autónoma extendida.
+Cubre huecos identificados tras G3.5.
+
+### Cobertura
+
+- **V41**: SHA-256 conformance. Pineamos el
+  vector NIST `Digest.ofUtf8("abc")` debe
+  producir
+  `ba7816bf8f01cfea414140de5dae2223b00361a3
+  96177a9cb410ff61f20015ad`. Si FIPS 180-4
+  se rompe, el test falla.
+- **V42**: Edge cases del digest. `""`,
+  `"áéíóú ñ ç €"`, `"🚀✅❌"` producen 64
+  hex chars lowercase.
+- **V43**: `name` NO entra en el digest.
+  Mismo `suite.id+version` con names
+  distintos ⇒ mismo digest (verifica G3.3
+  V24).
+- **V44**: Enum exhaustive. `Severity` ∈
+  {Info, Warning, Error} y `Enforcement` ∈
+  {Advisory, Mandatory, Ratchet} pasan por
+  DTO → IR. Valid values producen
+  Success/Failure según enforcement. Invalid
+  values lanzan IAE.
+- **V45**: JSON key order. Pinea el orden
+  de las 5 top-level keys
+  (reportDigest, summary, outcome, failure,
+  replayPolicy) y de las 5 sub-keys de
+  summary.
+- **V46**: Failure DTO kind set cerrado.
+  4 kinds: mandatory-failure, incomplete,
+  engine-error, missing-capability.
+- **V47**: Plugin module strict AAT-3. Cero
+  imports de `dev.rubentxu.pipeline.*`
+  fuera de `AssurancePluginContributor.kt`.
+  El SDK sólo entra por el contributor.
+- **V48**: Order regression guard. Misma
+  suite con assertions/lenses en orden
+  distinto ⇒ digest distinto. Pineado como
+  "current behavior" del bug de G3.4.
+
+### Cambios no test-only
+
+- `MockSdkHost.encodeJson` se usa para
+  verificar el shape JSON (V45).
+- No fue necesario tocar código de
+  producción más allá de lo que G3.5 ya
+  tenía (codec round-trip ya estaba).
+
+### Estado de tests
+
+- 711 tests, 0 failures, 0 errors, 0 skipped
+  (696 G3.5 + 15 G3.6).
+- 0 warnings del compilador en archivos G3
+  (warnings preexistentes en otros tests
+  intactos).
+- 0 regresiones en 696 tests preexistentes.
+- Clean check: 39s.

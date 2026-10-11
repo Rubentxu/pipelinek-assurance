@@ -115,9 +115,25 @@ statement que no incrementaba, causando loop
 infinito cuando el primer char post-`:` era
 dígito. Fix: `end++` en el cuerpo. Tests ahora
 pasan en 7.5s.
-Total acumulado: 696/0/0 en clean check (38s).
+G3.6 (cross-cutting conformance, `a220a7b`): 15
+tests en 1 archivo — SHA-256 FIPS 180-4
+conformance (V41, vector NIST "abc" pineado),
+digest edge cases (V42, empty/Unicode/emoji
+producen 64-hex), name no-entra-en-digest
+(V43, cross-check de V24), enum exhaustive
+(V44, Severity ∈ {Info, Warning, Error} +
+Enforcement ∈ {Advisory, Mandatory, Ratchet} +
+invalid values lanzan IAE), JSON key order
+pineado (V45, 5 top-level + 5 summary subkeys),
+failure DTO kind set cerrado (V46, 4 kinds),
+plugin module AAT-3 strict (V47, sólo
+contributor importa el SDK), order regression
+guard (V48, mismo suite con assertions/lenses
+en orden distinto ⇒ digest distinto, "current
+behavior" del bug de G3.4).
+Total acumulado: 711/0/0 en clean check (39s).
 Detalle en `odd/tasks/block-G-G3-status.md` § G3.1,
-§ G3.2, § G3.3, § G3.4 y § G3.5.
+§ G3.2, § G3.3, § G3.4, § G3.5 y § G3.6.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
