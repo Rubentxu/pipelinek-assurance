@@ -92,9 +92,32 @@ distintos. Fix engine-side, programado para
 bloque post-G3. V18/V20/V21/V30 no testeables
 (codecs private, evidenceItems hardcoded, handler
 private, plugin no parsea JSON).
-Total acumulado: 677/0/0 en clean check (51s).
+G3.5 (invariants + boundaries, `8d3ed71`): 19 tests
+en 1 archivo — codec round-trip (V33, Input +
+Output sobreviven encode→decode), step descriptor
+contract surface (V34, todos los campos no-vacíos
++ capabilities ASSURANCE_PROVIDER/ASSERTIONS
+presentes), replay policy boundary (V35, 4 casos
+de evidenceAdapterVersion), summary invariants
+(V36, conteos >= 0 + pineo del happy path),
+failure invariants (V37, failure-null en Success,
+counterexample estructurado en Failure/Aborted),
+reportDigest format (V38, 64-hex + determinism
+100-invocations + Digest.ofUtf8 format), AAT-3
+frontier (V39, el core no importa
+`dev.rubentxu.pipeline.*` por inspección de
+archivos), regression guard (V40, 1 test de cada
+pase anterior).
+**1 bug del propio test descubierto y arreglado
+vía jstack**: `parseSummary$intAt` tenía
+`while (cond) end` — el `end` era un expression
+statement que no incrementaba, causando loop
+infinito cuando el primer char post-`:` era
+dígito. Fix: `end++` en el cuerpo. Tests ahora
+pasan en 7.5s.
+Total acumulado: 696/0/0 en clean check (38s).
 Detalle en `odd/tasks/block-G-G3-status.md` § G3.1,
-§ G3.2, § G3.3 y § G3.4.
+§ G3.2, § G3.3, § G3.4 y § G3.5.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
