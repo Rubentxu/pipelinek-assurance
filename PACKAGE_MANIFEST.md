@@ -46,3 +46,4 @@ Generated blueprint files and SHA-256 digests.
 - `README.md` — `d2107259fa54130412d2e289ff088d5c5f4ac812636bd2b982fbf8e767794120`
 - `ROADMAP.md` — `e5c2bad1b88e662f8e595beba2465cbc70ceb1ef4f7a38d47f9c99fd16c8de83`
 - `START_HERE.md` — `99b1aae334a3af38f887ab209a25e1eb459d1a16ea46cacad9d49d9f0ca0eb18`
+- `09-operations/RELEASE_RUNBOOK.md` — `990449bb920e608746924a4b2ebe95e5f2bd9e3cac2c006c495053470b1d917c`
