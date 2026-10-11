@@ -96,12 +96,31 @@ internal object MockSdkHost {
         // input → dispatch por key → llamar al handler → serializar
         // output. Acortamos el dispatch porque la lógica del
         // handler es lo que queremos testear.
+        return runCheck(input, evidenceAdapterVersion = null)
+    }
+
+    /**
+     * Sobrecarga con `evidenceAdapterVersion` explícito. G3
+     * introdujo este parámetro en `run`; el mock por default
+     * lo pasaba como `null`. Esta variante permite a los
+     * tests verificar la frontera de `replayPolicy`.
+     */
+    fun runCheck(
+        input: AssuranceCheckStepDefinition.Input,
+        evidenceAdapterVersion: String?,
+    ): AssuranceCheckStepDefinition.Output {
         val context = MockStepContext(evidenceItems = emptyList())
-        val output = AssuranceCheckStepDefinition.run(
+        // Cableamos registries vacíos + runtime congelado como
+        // en el overload legacy; la única diferencia es que
+        // pasamos `evidenceAdapterVersion` explícito.
+        return AssuranceCheckStepDefinition.run(
             input = input,
             evidenceItems = context.evidenceItems,
+            providers = ProviderRegistry(),
+            runtime = FrozenAssuranceRuntime(engineVersion = "0.1.0", lenses = emptyMap()),
+            assertionsById = emptyMap(),
+            evidenceAdapterVersion = evidenceAdapterVersion,
         )
-        return output
     }
 
     /**
@@ -180,4 +199,21 @@ internal object MockSdkHost {
      */
     inline fun <reified T> encodeJson(value: T): String =
         json.encodeToString(serializer(), value)
+
+    /**
+     * Helper para deserializar input desde JSON. G3.5: la
+     * frontera de codec round-trip. Si el plugin sobrevive
+     * `encode → decode` sin pérdida, el wire format está
+     * bien especificado.
+     */
+    inline fun <reified T> decodeJson(value: String): T =
+        json.decodeFromString(serializer(), value)
+
+    /** Shorthand para `decodeJson<Input>`. */
+    fun decodeInput(json: String): AssuranceCheckStepDefinition.Input =
+        decodeJson(json)
+
+    /** Shorthand para `decodeJson<Output>`. */
+    fun decodeOutput(json: String): AssuranceCheckStepDefinition.Output =
+        decodeJson(json)
 }

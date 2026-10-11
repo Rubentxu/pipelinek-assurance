@@ -118,7 +118,7 @@ class AssurancePluginContributor : StepDefinitionContributor {
  *     dos runs con el mismo fingerprint producen el mismo report
  *     digest (memoizable).
  */
-private class AssuranceCheckStepDefinitionImpl :
+internal class AssuranceCheckStepDefinitionImpl :
     StepDefinition<AssuranceCheckStepDefinition.Input, AssuranceCheckStepDefinition.Output> {
     override val contract: StepContract<AssuranceCheckStepDefinition.Input, AssuranceCheckStepDefinition.Output> =
         StepContract(
@@ -368,4 +368,25 @@ private class UnitCodec :
     override fun encode(value: Unit): EncodedStepValue = EncodedStepValue("{}")
     override fun decode(encoded: EncodedStepValue): Unit = Unit
     override fun schema(): String = "noop/v1"
+}
+
+/**
+ * G3.5 — Helper de tests para inspeccionar el descriptor
+ * y las capabilities declarados por
+ * `AssuranceCheckStepDefinitionImpl` sin necesidad de
+ * reflect.
+ *
+ * La `Impl` es `internal class` (B1), pero como vive en
+ * este módulo, los tests del módulo pueden verla. Esto
+ * evita un test que dependa de la reflect de Kotlin
+ * (que falla para `internal class` private-style
+ * declarada en módulo de test) y mantiene un contrato
+ * de superficie estable.
+ */
+internal object AssuranceCheckStepDefinitionImplContract {
+    fun descriptor(): dev.rubentxu.pipeline.v2.domain.StepDescriptor =
+        AssuranceCheckStepDefinitionImpl().contract.descriptor
+
+    fun requiredCapabilities(): Set<dev.rubentxu.pipeline.v2.domain.step.StepCapability> =
+        AssuranceCheckStepDefinitionImpl().contract.requiredCapabilities
 }

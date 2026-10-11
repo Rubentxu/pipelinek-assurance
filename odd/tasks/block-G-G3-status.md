@@ -682,7 +682,8 @@ reply or wait for the user"). 9 tests nuevos en
 | G3.1 validación post-impl | ✓ verde | `cc701fb` + 12 tests |
 | G3.2 validación extendida | ✓ verde | `1975d95` + 43 tests |
 | G3.3 validación más profunda | ✓ verde | 36cbaf2 + 10 tests |
-| G3.4 property + negative | ✓ verde | este commit + 13 tests |
+| G3.4 property + negative | ✓ verde | af6c430 + 13 tests |
+| G3.5 invariants + boundaries | ✓ verde | este commit + 19 tests |
 | G4 assurance.verify + BodyContinuation | pendiente | depende de G3 |
 | G5 admisión 0.48 + 0.51 | ✓ parcial | admisión OK; cert formal pendiente de G6 |
 | G6 pipeline de ejemplo | pendiente | depende de G4 |
@@ -742,3 +743,63 @@ Fix: engine-side, programado para bloque post-G3.
 - 0 warnings del compilador en archivos G3.
 - 0 regresiones en 599 tests preexistentes.
 - Clean check: 51s.
+
+
+## G3.5 — Invariants, boundaries, codec round-trip, AAT-3
+
+Cuarto pase de validación autónoma extendida
+autorizado por el usuario. 1 archivo de test
+nuevo, 19 tests añadidos. Cubre huecos
+identificados tras G3.4.
+
+### Nuevos tests (19)
+
+- G3InvariantsAndBoundariesTest
+  - V33 codec round-trip ×2 (Input, Output)
+  - V34 step descriptor contract ×2
+  - V35 replay policy boundary ×4
+  - V36 summary invariants ×3 (conteos >= 0,
+    Success ⇒ failed=0, pineo del happy path)
+  - V37 failure invariants ×3
+  - V38 reportDigest format ×3 (64-hex,
+    determinism 100-invocations, Digest.ofUtf8)
+  - V39 AAT-3 frontier ×1
+  - V40 regression guard ×1
+
+### Hallazgo real de G3.5 (no bug del bloque G)
+
+Bug del propio test: `parseSummary$intAt`
+tenía `while (cond) end` (cuerpo de bucle
+era el identifier `end` como expression
+statement, no incrementaba). Bug
+descubierto via jstack cuando V36 colgaba
+gradle 5+ min en CPU. Fix: `end++` en el
+cuerpo. Ahora 18/18 G3.5 tests verde en
+7.5s.
+
+### Cambios de main
+
+- MockSdkHost:
+  - runCheck(input, evidenceAdapterVersion)
+    sobrecarga añadida para que los tests
+    puedan verificar la frontera de
+    replayPolicy.
+  - decodeJson / decodeInput / decodeOutput
+    helpers para el codec round-trip.
+- AssurancePluginContributor:
+  - AssuranceCheckStepDefinitionImpl de
+    `private class` a `internal class`
+    (visible para tests del módulo).
+  - AssuranceCheckStepDefinitionImplContract
+    añadido como helper para tests
+    (descriptor + requiredCapabilities).
+
+### Estado de tests
+
+- 696 tests, 0 failures, 0 errors, 0 skipped
+  (677 G3.4 + 19 G3.5).
+- 0 warnings del compilador en archivos G3
+  (warnings preexistentes en otros tests
+  intactos).
+- 0 regresiones en 677 tests preexistentes.
+- Clean check: 38s.
