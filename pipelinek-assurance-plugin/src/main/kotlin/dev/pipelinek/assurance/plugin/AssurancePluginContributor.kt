@@ -58,7 +58,9 @@ import dev.rubentxu.pipeline.v2.domain.step.StepDefinition
 import dev.rubentxu.pipeline.v2.domain.step.StepDefinitionContributor
 import dev.rubentxu.pipeline.v2.domain.step.StepHandler
 import dev.rubentxu.pipeline.v2.domain.step.StepHandlerContext
+import dev.rubentxu.pipeline.v2.domain.step.StepProviderMetadata
 import dev.rubentxu.pipeline.v2.domain.step.StepRegistration
+import dev.rubentxu.pipeline.v2.domain.step.PluginReleaseRef
 import kotlinx.serialization.json.Json
 
 /**
@@ -105,7 +107,40 @@ class AssurancePluginContributor : StepDefinitionContributor {
         AssuranceVerifyStepDefinitionImpl(),
     )
 
-    override fun registrations(): Iterable<StepRegistration<*, *>> = emptyList()
+    override fun registrations(): Iterable<StepRegistration<*, *>> {
+        // G6 (Bloque G) — wire `registrations()` so the runtime
+        // `PluginContributionVerifier.verify` finds the actual
+        // `StepDefinition` instances when cross-checking the
+        // manifest's declared steps. The previous empty
+        // implementation was the gap that surfaced when we ran
+        // `pipelinek run` end-to-end with the plugin on the
+        // classpath: the SDK rejected the plugin with
+        // `InvalidManifest(..., declared Steps with no implementation: ...)`.
+        //
+        // The `StepProviderMetadata` mirrors the values declared
+        // in `META-INF/pipelinek/plugin-manifest.json` (built by
+        // `PluginManifestBuilder`). The plugin ref, release, and
+        // digest come from the runtime admission result
+        // (`AdmittedPlugin`) — but at this layer we declare the
+        // intended metadata; the verifier matches it against the
+        // admitted plugin's metadata to confirm consistency.
+        val provider: StepProviderMetadata = StepProviderMetadata.create(
+            PluginManifestBuilder.PLUGIN_REF,
+            PluginReleaseRef(
+                plugin = PluginManifestBuilder.RELEASE_REF_PLUGIN,
+                version = PluginManifestBuilder.RELEASE_VERSION,
+                digest = PluginManifestBuilder.RELEASE_DIGEST,
+            ),
+            PluginManifestBuilder.PUBLISHER,
+            PluginManifestBuilder.FAMILIES,
+            PluginManifestBuilder.DELIVERY,
+            PluginManifestBuilder.TRUST,
+        )
+        return listOf(
+            StepRegistration(AssuranceCheckStepDefinitionImpl(), provider),
+            StepRegistration(AssuranceVerifyStepDefinitionImpl(), provider),
+        )
+    }
 
     override fun legacyPublisher(): String = ""
 }

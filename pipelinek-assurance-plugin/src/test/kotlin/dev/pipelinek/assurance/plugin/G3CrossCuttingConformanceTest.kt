@@ -296,7 +296,27 @@ class G3CrossCuttingConformanceTest : StringSpec({
 
         val violations = pluginDir.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
+            // Allowlist de archivos que pueden importar el SDK
+            // directamente. AAT-3 pine que el plugin SÍ importa
+            // el SDK, pero SOLO en puntos controlados:
+            //   - `AssurancePluginContributor.kt`: el
+            //     `StepDefinitionContributor` canónico. Es la
+            //     frontera entre el SDK y nuestro código.
+            //   - `PluginManifestBuilder.kt` (G6/Bloque G):
+            //     genera el manifest JSON que el host del SDK
+            //     lee en `META-INF/pipelinek/plugin-manifest.json`.
+            //     La generación ocurre a build time y se embebe
+            //     en el JAR; el manifest es un contrato con el
+            //     SDK, no con la lógica de runtime del plugin.
+            //     Sus imports de `dev.rubentxu.pipeline.*` son
+            //     del paquete `domain.step` (codec, manifest,
+            //     family) y `domain.identity` (resource ref).
+            //     Cualquier NUEVO archivo que aparezca en este
+            //     allowlist debe documentar la razon de la
+            //     exención; un allowlist que crece sin
+            //     justificación es un code smell.
             .filter { f -> f.name != "AssurancePluginContributor.kt" }
+            .filter { f -> f.name != "PluginManifestBuilder.kt" }
             .filter { f ->
                 f.readLines().any { line ->
                     line.trim().startsWith("import dev.rubentxu.pipeline.")
