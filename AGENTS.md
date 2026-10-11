@@ -154,6 +154,53 @@ para incluir 2 nuevos kinds (`body-failure`,
 `cancelled`).
 Total acumulado: 725/0/0 en clean check (46s).
 
+**G5 (admisión y verificación del plugin contra SDK
+real, `c4b5659`):** 4 tests en
+`G5PluginAdmissionTest.kt`. El test ejercita las
+APIs que el host del SDK llama en `pipeline validate` /
+`pipeline run` para admitir el plugin y cruzar las
+contribuciones declaradas en el manifest contra los
+`StepDefinition` reales:
+
+  - V52: `PluginAdmission.admit(...)` retorna
+    `PluginAdmissionResult.Admitted` para el manifest
+    pineado por el plugin.
+  - V53: `AdmittedPlugin.admitContributions(actual
+    stepDefinitions, ...)` retorna
+    `PluginContributionCrossCheck` con `isConsistent ==
+    true` cuando el manifest declara las capabilities
+    correctas, y `false` cuando un manifest mintiendo
+    sobre las capabilities de un Step se cruza contra
+    los `StepDefinition` reales.
+  - V54: `PluginManifestCodec.encode/decode` round-trip
+    preserva schema, plugin, release, apiRange,
+    publisher, families, delivery y contributions.
+
+  - **Matriz SDK:** el mismo test corre **dos veces**
+    con `-PpipelinekVersion=0.48.0` y
+    `-PpipelinekVersion=0.51.0-rc1`. Resultado:
+    198/0/0 en ambas versiones. Para apuntar el SDK
+    0.51.0-rc1 se necesita además
+    `PIPELINEK_SDK_LIB=/home/rubentxu/.asdf/installs/pipelinek/0.51.0-rc1/lib`
+    (las RC usan naming `pipeline-*.jar` sin sufijo
+    `-rc1` en el JAR pero el coordinate Maven sí lo
+    lleva; flatDir resuelve con sufijo añadido).
+
+  - **Limitación documentada (deliberada):** el
+    subcomando `pipelinek plugin admit <jar>` y
+    `pipelinek plugin verify-contributions <jar>` no
+    existen en el binario CLI de PipelineK 0.48.0 ni
+    0.51.0-rc1 (el CLI sólo expone `validate|run`).
+    La admisión real la ejecuta el host en-proceso
+    llamando a `PreLoadPluginAdmission.admitAll` y
+    `PluginContributionVerifier.verify` (en
+    `pipeline-application`), que envuelven exactamente
+    las APIs que este test ejercita directamente. Un
+    subproceso que llame al host real es certificación
+    de G6 (pipeline end-to-end), no de G5.
+
+Total acumulado: 729/0/0 en clean check.
+
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
 vayan apareciendo). El orden A→B→C→D→E→F es estricto.
