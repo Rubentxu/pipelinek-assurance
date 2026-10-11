@@ -22,6 +22,15 @@ M-V02), 0 SURVIVED. Los 5 hallazgos están analizados
 en `odd/tasks/block-A-integrity.md` § "Annexo: cert
 post-cierre A".
 
+HEAD actual: `consolidation/G-integration-v2` (rama de
+Bloque G, basada en `consolidation/A-F@b1f3f7e`).
+G0 (pre-flight, `0e1dad9`): 0.51.0-rc1 instalado vía
+asdf, admisión de classpath OK, regression 0.48.0 OK.
+G1 (matriz de versiones, commit actual): `pipelinekVersion`
+como propiedad Gradle, `SDK_COMPATIBILITY_MATRIX.md`
+abierto, 3 codec warnings silenced. Detalle en
+`odd/tasks/block-G-G0-status.md`.
+
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
 vayan apareciendo). El orden A→B→C→D→E→F es estricto.

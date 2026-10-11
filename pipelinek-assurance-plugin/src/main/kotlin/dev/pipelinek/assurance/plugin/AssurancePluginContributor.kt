@@ -157,10 +157,10 @@ private class AssuranceCheckInputCodec :
             json.encodeToString(AssuranceCheckStepDefinition.Input.serializer(), value),
         )
 
-    override fun decode(payload: EncodedStepValue): AssuranceCheckStepDefinition.Input =
+    override fun decode(encoded: EncodedStepValue): AssuranceCheckStepDefinition.Input =
         json.decodeFromString(
             AssuranceCheckStepDefinition.Input.serializer(),
-            payload.value,
+            encoded.value,
         )
 
     override fun schema(): String = "assurance.check/v1.input"
@@ -175,10 +175,10 @@ private class AssuranceCheckOutputCodec :
             json.encodeToString(AssuranceCheckStepDefinition.Output.serializer(), value),
         )
 
-    override fun decode(payload: EncodedStepValue): AssuranceCheckStepDefinition.Output =
+    override fun decode(encoded: EncodedStepValue): AssuranceCheckStepDefinition.Output =
         json.decodeFromString(
             AssuranceCheckStepDefinition.Output.serializer(),
-            payload.value,
+            encoded.value,
         )
 
     override fun schema(): String = "assurance.check/v1.output"
@@ -187,6 +187,6 @@ private class AssuranceCheckOutputCodec :
 private class UnitCodec :
     dev.rubentxu.pipeline.v2.domain.step.StepCodec<Unit> {
     override fun encode(value: Unit): EncodedStepValue = EncodedStepValue("{}")
-    override fun decode(payload: EncodedStepValue): Unit = Unit
+    override fun decode(encoded: EncodedStepValue): Unit = Unit
     override fun schema(): String = "noop/v1"
 }

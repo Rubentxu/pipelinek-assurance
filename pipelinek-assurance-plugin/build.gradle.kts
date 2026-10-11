@@ -107,10 +107,24 @@ dependencies {
     // SDK público (`api`, `pipeline-domain`), que es la
     // dirección permitida: el plugin depende del SDK, no
     // al revés.
-    implementation("dev.rubentxu.pipeline.v2:pipeline-domain:0.48.0")
-    implementation("dev.rubentxu.pipeline.v2:pipeline-events:0.48.0")
-    implementation("dev.rubentxu.pipeline.v2:pipeline-output:0.48.0")
-    implementation("dev.rubentxu.pipeline.v2:pipeline-scripting-api:0.48.0")
+    //
+    // G1 (Bloque G): `pipelinekVersion` controla QUÉ SDK
+    // se enlaza. Default 0.48.0 (baseline reproducible).
+    // Override con `-PpipelinekVersion=0.51.0-rc1` para
+    // cert contra la matriz adelantada. La resolución real
+    // del JAR se hace por `flatDir` contra
+    // `${PIPELINEK_SDK_LIB}` (default:
+    // `~/.asdf/installs/pipelinek/${pipelinekVersion}/lib`);
+    // las coordenadas Maven `dev.rubentxu.pipeline.v2:...`
+    // aquí son el coordinate de Maven Central que el plugin
+    // publicaría si se subiera a un repo remoto. La matriz
+    // documentada está en `SDK_COMPATIBILITY_MATRIX.md`.
+    val pipelinekVersion: String =
+        (project.findProperty("pipelinekVersion") as? String) ?: "0.48.0"
+    implementation("dev.rubentxu.pipeline.v2:pipeline-domain:$pipelinekVersion")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-events:$pipelinekVersion")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-output:$pipelinekVersion")
+    implementation("dev.rubentxu.pipeline.v2:pipeline-scripting-api:$pipelinekVersion")
 
     // Testkit: el plugin se prueba contra fixtures del core, no contra
     // un PipelineK real. La UAT-008 (instalado en distribución real)
