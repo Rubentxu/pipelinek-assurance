@@ -48,8 +48,22 @@ del wire format JSON (counterexample + replayPolicy),
 None, StepBody.None, capabilities, no-deprecation).
 3 warnings del compilador corregidos (parameter
 name `key` en `StepCapabilityAccess.get(...)`).
-Total acumulado: 611/0/0 en clean check (48s).
-Detalle en `odd/tasks/block-G-G3-status.md` § G3.1.
+G3.2 (validación extendida, `1975d95`): 43 tests
+en 5 archivos — invariants del Input (V7),
+contrato del counterexample (V8), replay policy
+(V9), outputSchema vs JSON real (V10),
+cross-checks consolidados (V11–V15: caps, severities
+strings, MockSdkHost compat, surface de outcome,
+precisión de dominios). 1 bug latente en engine
+documentado (`evaluateEnforcement` usa
+`indexOf(result)` que es equals-based; produce
+`blockingAssertionIds` duplicados cuando dos
+`AssertionResult` son `==`-iguales). El fix es
+engine-side, no plugin-side; queda para bloque
+post-G3.
+Total acumulado: 654/0/0 en clean check (74s).
+Detalle en `odd/tasks/block-G-G3-status.md` § G3.1
+y § G3.2.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
