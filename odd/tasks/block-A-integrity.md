@@ -197,6 +197,100 @@ verificados vía fitness tests en
 | M-I01 fix | 125304b | +1 | — |
 | **Total** | **125304b** | **+35 (462 → 496 → 497 en cert)** | **16/16 DEAD al cierre de A (catálogo era 16)** |
 
+## Annexo: cert post-cierre A (verificado 2026-10-11, HEAD `e3a2875`)
+
+El catálogo creció de 16 a **43** mutantes durante la
+consolidación A–F. El cert completo de los 43 está
+ejecutado y los recibos JSON están en
+`build/mutant-receipts/`. El histograma real (de los
+recibos, fuente de verdad) sobre HEAD `e3a2875` es:
+
+| Veredicto | N | Notas |
+|---|---|---|
+| `DEAD` (killed ≥ 2) | **38** | redundancia pasa el mínimo de 2 tests killed |
+| `UNDER_KILLED` | **2** | `M-10-CONTENT`, `M-CODEC01` — un solo test killed; falta redundancia en el test, no en el código |
+| `INFRA_FAILED` | **3** | `M-D02`, `M-V01`, `M-V02` — hallazgos reales (codec frágil en la frontera null-safety / sealed exhaustiveness) |
+| `SURVIVED` | **0** | — |
+| **Total** | **43** | — |
+
+### Análisis de los 3 `INFRA_FAILED` (no son flakes)
+
+- **`M-D02` ("codec digest field relaja a nullable")**:
+  la mutación hace que el campo `digest` se vuelva
+  `String?`. La nueva implementación en
+  `EvidenceArtifactCodec.kt:158` y `:207` rompe porque
+  hace llamadas no-seguras sobre el receptor ahora
+  nulable. Esto es exactamente el tipo de ataque que
+  un codec durable debe defender; la defensa **no
+  está** en el codec actual. Hallazgo: la defensa
+  debe ser de tipo (sealed o `NonNull` en la
+  entrada), no sólo runtime.
+- **`M-V01` ("un EvidenceProvider retorna
+  AssertionResult")**: la mutación provoca una
+  redeclaración de `interface EvidenceProvider : Any`
+  en `Assurance.kt:136` y `EvidenceProvider.kt:55`.
+  La intención del mutante es que el motor rechace un
+  provider que retorne algo que no sea
+  `Evidence`-flavored. La defensa real está en el type
+  system upstream, no en el codec. Hallazgo: si esa
+  defensa cae, el codec no la sostiene.
+- **`M-V02` ("AssertionResult deja de ser sealed")**:
+  la mutación hace que el `when` en
+  `CanonicalEncoder.kt:326` y
+  `SuiteReportArtifactCodec.kt:513` no sea exhaustivo
+  (las ramas no listadas se cuelan). El codec actual
+  no tiene `else`, así que el build rompe con
+  "exhaustiveness required". Hallazgo: el codec
+  asume `sealed`; la suposición no es defendida en
+  el propio codec.
+
+Estos 3 hallazgos son exactamente lo que el cert
+está para cazar. **No se cuentan como "certificados"
+en sentido estricto** — son hallazgos documentados
+que el bloque siguiente (F o, ahora, G) debe
+absorber. La acción concreta es: o bien el codec
+asume `sealed`/no-null como invariante **y** lo
+deja escrito en una prueba, o bien el codec añade
+defensa explícita. La primera vía es la correcta
+(type system > runtime); ya hay un plan tentativo
+en `block-G-pipelinek-real-integration.md` (G2:
+`FrozenAssuranceRuntime` como catálogo interno).
+
+### Análisis de los 2 `UNDER_KILLED`
+
+- **`M-10-CONTENT` (ConnascenceLens
+  `findConnascenceOfName` neutralizado)**: un solo
+  test (`M10ConnascenceLensTest>M_10_CONTENT_connascence_of_name_detecta_pares_en_misma_capa`)
+  detecta la mutación. Falta un segundo test
+  independiente que ataque el mismo punto.
+- **`M-CODEC01` (PackArtifactCodec no verifica
+  digest del plan al decodificar)**: un solo test.
+  Misma acción: añadir un test redundante que
+  también falle bajo la mutación.
+
+### Sobre el "44/44"
+
+El número "44/44 mutantes certificados" circuló
+en versiones anteriores de los docs y era
+incorrecto. El catálogo tiene 43 IDs (no 44), y
+el cert produce 38+2+3 = 43 veredictos con
+hallazgos, no 43 "verde limpio". El fraseo
+correcto es el de la tabla de arriba.
+
+### Sobre el wrapper `/tmp/cert-all.sh`
+
+El wrapper de la corrida del 2026-10-11 tuvo un
+bug de sintaxis bash en el `case "DEAD)"` que hizo
+que la línea del `master.log` apareciera como
+`fail=43 infra=0` cuando en realidad el cert
+produjo 43 recibos correctos. **Los recibos
+siempre fueron la fuente de verdad**; el wrapper
+era sólo un presentador. El wrapper ya está
+corregido: ahora deriva el veredicto del JSON del
+recibo, no del `stdout` del script Python. La
+línea del `master.log` queda anotada con la
+re-explicación.
+
 ## Lo que se entregó en este bloque
 
 - 5 commits principales (A1–A5) más el fix M-I01.

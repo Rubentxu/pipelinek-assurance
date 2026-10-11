@@ -150,22 +150,29 @@ sustituyen al `List<Any>` falso.
 
 - **590 tests verdes** (recuento sobre
   `*/build/test-results/*/TEST-*.xml` a 2026-10-10;
-  re-confirmado el 2026-10-11 sobre HEAD `573f013`).
-- **22/43 mutantes con recibo JSON**
-  (`build/mutant-receipts/*.json` a 2026-10-11).
-  La cifra "44/44" que circuló al cierre de Bloque A
-  es stale: el catálogo creció de 16 a 43 entradas sin
-  re-correr la cert. 5 spot-checks contra el código
-  actual (M-A02, M-CAP-DRIFT-2, M-COGN02,
-  M-SOLID-SRP-EMPTY, M-DSL01) volvieron DEAD con
-  `killed >= 2`, así que el código está sano, pero la
-  cert completa queda como decisión pendiente del
-  usuario (ver
-  `odd/tasks/block-pending-external.md`).
+  re-confirmado el 2026-10-11 sobre HEAD `e3a2875`).
+- **Cert de mutantes 43/43 ejecutados** sobre
+  `e3a2875`; los recibos JSON en
+  `build/mutant-receipts/*.json` son la fuente de
+  verdad. Histograma real:
+
+  | Veredicto | N | Mutantes |
+  |---|---|---|
+  | `DEAD` (killed ≥ 2) | **38** | ver `08-testing/MUTATION_CATALOG.md` § "Estado de cert" |
+  | `UNDER_KILLED` | **2** | `M-10-CONTENT`, `M-CODEC01` (redundancia insuficiente) |
+  | `INFRA_FAILED` | **3** | `M-D02`, `M-V01`, `M-V02` (hallazgos reales, codec frágil) |
+  | `SURVIVED` | **0** | — |
+  | **Total** | **43** | — |
+
+  Los **5 mutantes con hallazgo no se cuentan como
+  "certificados"**; cada uno tiene análisis en
+  `odd/tasks/block-A-integrity.md` §
+  "Annexo: cert post-cierre A". El bloque siguiente
+  que los absorba es G
+  (`block-G-pipelinek-real-integration.md`).
 - **32 commits** sobre v0.9.5-rc1, rama
   `consolidation/A-F` (verificado: `git rev-list --count
-  v0.9.5-rc1..HEAD` sobre `573f013` reporta 32; el número
-  subió a 33 después de este commit de reconciliación).
+  v0.9.5-rc1..HEAD` sobre `e3a2875` reporta 32).
 
 ## STOP gates (heredados del plan)
 

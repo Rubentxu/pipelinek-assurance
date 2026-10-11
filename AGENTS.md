@@ -10,12 +10,17 @@ documento de origen; este es el que manda para los agentes.
 Hitos cerrados: **M0..M11** (v0.8.0). Cierre post-audit: v0.9.0..v0.9.4.
 Tramo de consolidación A-F cerrado en-repo y tageado.
 
-Estado verificado (HEAD `efa6763`): 590 tests verdes,
+Estado verificado (HEAD `e3a2875`): 590 tests verdes,
 **`v0.10.0-rc1` tagged** (cierre Bloque B + Bloques A, C,
-D, E, F in-repo) sobre `consolidation/A-F` (29 commits
+D, E, F in-repo) sobre `consolidation/A-F` (32 commits
 sobre v0.9.5-rc1): A1-A5, **B1-B4** (con SDK PipelineK
 0.48.0 stable local), C2-C4, D5, E1-E3, F1 (matrix SDK
-0.48.0), F2-F5.
+0.48.0), F2-F5. **Cert 43/43 ejecutados** sobre
+`e3a2875`: 38 DEAD (killed≥2), 2 UNDER_KILLED
+(M-10-CONTENT, M-CODEC01), 3 INFRA_FAILED (M-D02, M-V01,
+M-V02), 0 SURVIVED. Los 5 hallazgos están analizados
+en `odd/tasks/block-A-integrity.md` § "Annexo: cert
+post-cierre A".
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que

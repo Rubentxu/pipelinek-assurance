@@ -138,3 +138,38 @@ M1 **no** está cerrado. Faltan la lens, el fixture en disco, el CLI mínimo,
 UAT-005, UAT-022, el self-model sintético, AAT-7, AAT-19 y M-H01. La lista
 está en `ROADMAP.md`; aquí sólo se deja constancia de que el trabajo hecho
 hasta ahora es el núcleo de las assertions, no el hito entero.
+
+## Estado de cert (verificado 2026-10-11, HEAD `e3a2875`)
+
+Este catálogo tiene **43** mutantes. El cert del
+tramo A–F ejecuta los 43 sobre el SHA `e3a2875` y
+produce un recibo JSON por mutante en
+`build/mutant-receipts/`. El histograma (de los
+recibos, fuente de verdad) es:
+
+| Veredicto | N | Mutantes |
+|---|---|---|
+| `DEAD` (killed ≥ 2) | **38** | M-10-01, M-10-02, M-10-03, M-10-04, M-A01, M-A02, M-A03, M-B01, M-C01, M-CAP-DRIFT, M-CAP-DRIFT-2, M-CHRONOS-BOUNDED, M-CHRONOS-REGEX-LEGACY, M-COGN01, M-COGN02, M-D01, M-DSL01, M-E01, M-E02, M-H01, M-I01, M-J01, M-NORM-01, M-O01, M-OTEL-BOUNDED, M-OTEL-REGEX-LEGACY, M-P01, M-P02, M-P03, M-R01, M-R02, M-R03, M-R04, M-S01, M-S02, M-SOLID-OCP-EMPTY, M-SOLID-SRP-EMPTY, M-V03 |
+| `UNDER_KILLED` | **2** | M-10-CONTENT (killed=1), M-CODEC01 (killed=1) |
+| `INFRA_FAILED` | **3** | M-D02, M-V01, M-V02 (hallazgos reales, codec frágil) |
+| `SURVIVED` | **0** | — |
+| **Total** | **43** | — |
+
+### Notas por mutante con hallazgo
+
+- **M-10-CONTENT** (`ConnascenceLens findConnascenceOfName` neutralizado): un solo test killed. Falta un test redundante.
+- **M-CODEC01** (`PackArtifactCodec` no verifica digest del plan al decodificar): un solo test killed. Misma acción.
+- **M-D02** (codec digest field relaja a nullable): el codec rompe en `EvidenceArtifactCodec.kt:158` y `:207`. Defensa de tipo ausente; debe documentarse como invariante del codec.
+- **M-V01** (un EvidenceProvider retorna AssertionResult): el codec no defiende la frontera. La defensa debe ser de tipo upstream.
+- **M-V02** (AssertionResult deja de ser sealed): el codec asume `sealed` sin un `else` defensivo. Asumir `sealed` está bien; debe dejarse escrito en un test.
+
+### Sobre el "44/44"
+
+El número "44/44 mutantes certificados" que circuló
+en versiones anteriores de los docs y el ROADMAP es
+incorrecto. El catálogo tiene **43** IDs (no 44), y
+los 43 veredictos son 38+2+3, no 43 "verde
+limpio". El fraseo correcto es el de la tabla de
+arriba. Análisis detallado de los 5 hallazgos en
+`odd/tasks/block-A-integrity.md` §
+"Annexo: cert post-cierre A".

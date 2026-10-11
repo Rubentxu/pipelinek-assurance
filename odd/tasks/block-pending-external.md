@@ -6,15 +6,42 @@ description: Registro consolidado de bloqueadores externos al tramo de consolida
 # Bloqueadores externos — tramo de consolidación A-F
 
 **Estado:** `v0.10.0-rc1` tageado localmente sobre
-`consolidation/A-F` (HEAD `dd9b486`, 32 commits sobre
-v0.9.5-rc1, 590 tests verdes). Los items siguientes
-requieren coordinación con productores upstream y **NO se
+`consolidation/A-F` (HEAD `e3a2875`, 32 commits sobre
+v0.9.5-rc1, 590 tests verdes, cert 43/43 ejecutados
+con 38 DEAD, 2 UNDER_KILLED, 3 INFRA_FAILED — 0
+SURVIVED). Los items siguientes requieren
+coordinación con productores upstream y **NO se
 cierran en-repo**.
 
 **B1 ya no está en esta lista.** Se cerró el 2026-10-10
 contra el SDK `dev.rubentxu.pipeline.v2:*:0.48.0` stable
 (instalado vía asdf, publicado en `~/.m2/repository/`). Ver
-`odd/tasks/block-B-pipelinek-plugin.md`.
+`odd/tasks/block-B-pipelinek-plugin.md`. El siguiente
+tramo (Bloque G, ver
+`block-G-pipelinek-real-integration.md`) re-trabaja
+esta integración contra la SDK actual
+(`a0f84e48`, ancla `0.48.0` + `0.51.0-rc1`).
+
+## Anexo de cert 2026-10-11 (HEAD `e3a2875`)
+
+El cert del tramo A–F ejecuta los **43** mutantes del
+catálogo y produce un recibo JSON por mutante en
+`build/mutant-receipts/`. Histograma:
+
+| Veredicto | N | IDs |
+|---|---|---|
+| `DEAD` (killed ≥ 2) | **38** | ver `08-testing/MUTATION_CATALOG.md` |
+| `UNDER_KILLED` | **2** | `M-10-CONTENT`, `M-CODEC01` |
+| `INFRA_FAILED` | **3** | `M-D02`, `M-V01`, `M-V02` (hallazgos reales) |
+| `SURVIVED` | **0** | — |
+
+Los 5 mutantes con hallazgo **no se cuentan como
+"certificados"**. Su análisis está en
+`odd/tasks/block-A-integrity.md` § "Annexo: cert
+post-cierre A". El bloque siguiente que los absorba
+es G (codec frágil en la frontera null-safety /
+sealed exhaustiveness; redundancia insuficiente en
+test lens y codec).
 
 ## C1 — CogniCode v0.101.10 (BLOQUEADO)
 

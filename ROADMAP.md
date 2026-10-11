@@ -2137,15 +2137,18 @@ Sub-tareas: A1 pure `evaluateEnforcement`; A2 álgebra de
 completitud; A3 normalizer de frontera; A4 endurecer
 `certify_mutants.py`; A5 CI osv-scanner + perf + AGENTS.md.
 
-Estado (observado 2026-10-10, SHA `125304b`): **cerrado**.
-Cinco commits pequeños (abf886d, a2565e6, ddfae99, 093d98d,
-c3df2a7) más el fix M-I01 redundancia (125304b). 496 tests
-verdes al cierre; `clean check` re-corrido el 2026-10-11
-sobre HEAD `573f013` reporta 590 tests, 0 fallos, 0
-skipped. Recepción de mutantes al cierre: 16 mutantes
-catalogados entonces; el catálogo creció a 43 después sin
-re-correr la cert. Ver la nota sobre cobertura real en
-`odd/tasks/block-pending-external.md`. Tag `v0.9.5-rc1`
+Estado (observado 2026-10-11, SHA `e3a2875`):
+**cerrado**. Cinco commits pequeños (abf886d, a2565e6,
+ddfae99, 093d98d, c3df2a7) más el fix M-I01 redundancia
+(125304b). 590 tests verdes; `clean check` BUILD
+SUCCESSFUL. **Cert post-cierre A**: 43/43 mutantes
+ejecutados sobre `e3a2875` con resultado 38 DEAD
+(killed≥2), 2 UNDER_KILLED, 3 INFRA_FAILED, 0
+SURVIVED. Los 5 hallazgos no se cuentan como
+"certificados" sino que están documentados con su
+análisis en
+`odd/tasks/block-A-integrity.md` §
+"Annexo: cert post-cierre A". Tag `v0.9.5-rc1`
 publicado en `origin/main`. Detalle en
 `odd/tasks/block-A-integrity.md`.
 
@@ -2161,7 +2164,7 @@ Sub-tareas: B1 integración con SDK público (real); B2
 application service (orquestación interna); B3 `assurance.check`
 real end-to-end; B4 artifact y replay.
 
-Estado (observado 2026-10-10, tag `v0.10.0-rc1` sobre `dd9b486`): **cerrado en-repo**. El bloqueo que esta sección declaraba (SDK v0.48.0-rc2 no publicable) se resolvió: el SDK `dev.rubentxu.pipeline.v2:*:0.48.0` stable está instalado vía asdf y publicado en `~/.m2/repository/`, así que B1 se certificó contra dependencias reales, no contra un mock.
+Estado (observado 2026-10-11, tag `v0.10.0-rc1` sobre `e3a2875`): **cerrado en-repo**. El bloqueo que esta sección declaraba (SDK v0.48.0-rc2 no publicable) se resolvió: el SDK `dev.rubentxu.pipeline.v2:*:0.48.0` stable está instalado vía asdf y publicado en `~/.m2/repository/`, así que B1 se certificó contra dependencias reales, no contra un mock.
 
 - **B1** cerrado: `AssurancePluginContributor` implementa `StepDefinitionContributor` del SDK; `ServiceLoader.load(...)` lo descubre en test; codecs `StepCodec<I,O>` con `EncodedStepValue` sustituyen al `List<Any>` falso.
 - **B2** cerrado: `AssuranceOrchestrator` con los 10 pasos del contrato, 9 tests.
