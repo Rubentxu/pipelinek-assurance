@@ -366,6 +366,181 @@ G3 base: 599 tests. G3.1 añade 12 tests (1 edge
 case + 4 JSON fitness + 7 contract fields). 0
 regresiones, 0 warnings en código G3.
 
+## G3.2 — Pase de validación extendida (más allá del contrato)
+
+G3.2 cubre las dimensiones del G3 que el plan original
+no trataba: invariants del Input, contrato del
+counterexample, replay policy, schema, capabilities,
+compat backwards, y precisión de dominios. 4 archivos
+de test nuevos, 43 tests añadidos.
+
+### V7: Invariants del Input
+
+`G3InputInvariantsTest`, 11 tests. Cubre:
+
+- R1-R3: `lenses = []`, `assertions = []`, y
+  `lensRef` dangling lanzan `IllegalArgumentException`
+  desde `AssuranceSuiteIR.init` (AAT-16). El
+  handler NO propaga — convierte a `Aborted` con
+  `kind = "engine-error"`.
+- R4-R5: `mode` y `completenessPolicy` con valores
+  no canónicos caen al else-branch (`FailClosed` /
+  `RequireComplete`). El plugin es tolerante con
+  typos en estos strings.
+- R6: `evidence = []` es válido.
+- R7: `evidence` con digest duplicado se deduplica
+  en el orchestrator (`distinctBy { it.digest }`).
+- R7b-R7c: `digest` no-SHA-256 o `logicalRole`
+  blank lanzan `IllegalArgumentException` desde
+  `validateEvidenceRefs` (en
+  `AssuranceOrchestrator.kt:448`).
+- R8: `name = ""` y `name` con caracteres
+  especiales no se rechazan.
+- R9: el handler convierte engine exceptions
+  en `Aborted` con `kind = "engine-error"`,
+  cerrando la simetría del "no throw" del handler.
+
+**Descubrimiento V7:** `EvidenceRefDto.digest`
+tiene un formato canónico (64 hex chars = SHA-256)
+y `logicalRole` no puede ser blank. El plugin
+**delega** esta validación al orchestrator (no
+la hace en el DTO), lo cual es coherente: el
+plugin sólo serializa, el orchestrator es la
+puerta de entrada.
+
+### V8: Contrato del counterexample
+
+`G3CounterexampleContractTest`, 8 tests. Pinea
+los 4 kinds canónicos del `CounterexampleDto`:
+
+- CK-1: grep dinámico sobre el código verifica
+  que sólo se producen 4 kinds: `mandatory-failure`,
+  `incomplete`, `engine-error`, `missing-capability`.
+- CK-2: `mandatory-failure` con 1 assertion
+  produce 1 `blockingAssertionId`.
+- **CK-2b (bug latente documentado):** con 2
+  Mandatory assertions que comparten operator y
+  quedan `Unsupported`, `blockingAssertionIds`
+  trae la primera assertion dos veces:
+  `["a/blocks-1", "a/blocks-1"]`. Causa:
+  `AssuranceEngine.evaluateEnforcement` (en
+  `assurance-engine/.../Assurance.kt:588-595`)
+  usa `report.results.indexOf(result)`, que es
+  `equals`-based; con dos `Unsupported` `==`-iguales,
+  `indexOf` siempre devuelve 0. El fix correcto
+  está en el engine (no en el plugin):
+  `forEachIndexed` o adjuntar `assertionId` al
+  `AssertionResult` ("A1 secundario" del comentario
+  existente en Assurance.kt:590-593). Documentado,
+  no corregido en G3.2.
+- CK-3: `incomplete` no lleva `blockingAssertionIds`.
+- CK-4/CK-5: `engine-error` (handler outer catch)
+  no lleva `blockingAssertionIds`.
+- CK-6: `missing-capability` lista las capabilities
+  ausentes en el message.
+- CK-7: `blockingAssertionIds` con 1 ID no produce
+  duplicados.
+- CK-8: `sourceLocation` es `null` por defecto en
+  los 4 kinds.
+
+**Descubrimiento V8:** el engine tiene un bug
+latente en `evaluateEnforcement` que sólo se
+manifiesta cuando dos `AssertionResult` son
+`==`-iguales. En práctica es raro (típicamente
+las Mandatory son sobre operators distintos), pero
+un test con operator duplicado lo reproduce. G3.2
+documenta el bug; el fix se programa para después
+de G3 (afecta al engine, no al plugin).
+
+### V9: Replay policy
+
+`G3ReplayPolicyContractTest`, 10 tests. Pinea
+las 10 reglas del `replayPolicy`:
+
+- RP-1: adapter no-blank → `MEMOIZED`.
+- RP-2: adapter null → `RERUN`.
+- RP-3: adapter empty → `RERUN`.
+- RP-4: adapter whitespace → `RERUN`.
+- RP-5: determinismo bit-a-bit: dos invocaciones
+  con los mismos argumentos producen el mismo
+  `reportDigest`, `summary`, `outcome`, `replayPolicy`,
+  `failure`.
+- RP-6: `engineVersion` NO afecta `replayPolicy`.
+  El handler hardcodea "0.10.0" y el run no
+  incluye la engine version en el fingerprint.
+- RP-7: `runtime.lenses` no afecta `replayPolicy`.
+- RP-8: mismo adapter y misma suite → mismo
+  `reportDigest` (precondición de la memoización).
+- RP-9: outcome (Success/Failure) NO afecta
+  `replayPolicy` con la misma suite. La policy
+  describe reproducibilidad, no decisión.
+- RP-10: cuando el handler extrae el adapter
+  exitosamente, `replayPolicy` se serializa
+  correctamente. (Pin end-to-end del path
+  feliz del handler.)
+
+### V10: outputSchema declarado vs Output real
+
+`G3OutputSchemaContractTest`, 7 tests. Pinea que
+el string `outputSchema = "assurance.check/v1.output"`
+corresponde a la forma real del JSON:
+
+- X-1/X-2: schema names inmutables.
+- X-3: Output "Success" serializa con 5 keys
+  top-level.
+- X-4: Output "Failure" tiene 5 keys (failure
+  no-null, replayPolicy no-default).
+- X-5: las 5 keys son `failure`, `outcome`,
+  `replayPolicy`, `reportDigest`, `summary`.
+- X-6: `failure` puede ser `null` o un objeto
+  con las 4 sub-keys.
+- X-7: `summary` tiene 5 sub-keys con valores
+  correctos.
+
+### V11-V15: cross-checks consolidados
+
+`G3CrossCheckConsolidatedTest`, 6 tests. Cubre
+los huecos que quedaban:
+
+- V11: `requiredCapabilities` del descriptor
+  son exactamente las dos capabilities que el
+  handler chequea (`assurance.provider` +
+  `assurance.assertions`).
+- V12: `severity` y `enforcement` en
+  `AssertionDto` son strings libres (no enums
+  tipados) — extensible a severities futuras
+  sin cambiar el shape.
+- V13: `MockSdkHost.runCheck(input)` con 1
+  argumento (sin `evidenceAdapterVersion`)
+  sigue funcionando. La nueva firma con
+  default `evidenceAdapterVersion = null`
+  preserva compat.
+- V14: el `outcome` del Output sólo puede ser
+  uno de 3 valores: "Success", "Failure",
+  "Aborted". Surface cerrada.
+- V15: `ReplayPolicy` (re-correr) y
+  `RecoveryPolicy` (reconstruir) son policies
+  distintas, no se confunden. `Resilience`
+  no existe como policy tipada en el SDK (es
+  un concepto cross-cutting).
+- V15 extra: `executionLocation=CONTROLLER +
+  effects=READ_ONLY + body=None` son consistentes
+  entre sí (un step READ_ONLY no tiene
+  sub-pipeline).
+
+### Estado consolidado de validación G3
+
+```
+$ ./gradlew --no-daemon clean check
+BUILD SUCCESSFUL in 1m 14s
+654 tests, 0 failures, 0 errors, 0 skipped
+```
+
+G3 base: 599 tests. G3.1 añade 12 tests. G3.2
+añade 43 tests (11 V7 + 8 V8 + 10 V9 + 7 V10 +
+6 V11-V15). 0 regresiones, 0 warnings en código
+G3, 1 bug latente documentado (no corregido).
+
 ## Evidencia
 
 ```
