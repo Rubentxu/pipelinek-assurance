@@ -216,6 +216,156 @@ del SDK real).
   canal de logs por step; el plugin no lo emite
   todavía. Diferido a G6.
 
+## G3.1 — Pases de validación (post-implementación)
+
+G3.1 es el pase de validación autónoma que pidió el
+usuario. Cada item es un test o un comando que fallaría
+si la implementación G3 se desviara de su contrato.
+
+### V1: SDK 0.51.0-rc1 real
+
+```
+$ PIPELINEK_SDK_LIB=$HOME/.asdf/installs/pipelinek/0.51.0-rc1/lib \
+  ./gradlew --no-daemon clean check
+BUILD SUCCESSFUL in 50s
+599 tests, 0 failures, 0 errors, 0 skipped
+```
+
+Confirmó que el cambio de `Output` (con `failure?` y
+`replayPolicy`) y el `evidenceAdapterVersion?` del
+`run(...)` compilan y enlazan contra 0.51.0-rc1. El
+default `evidenceAdapterVersion = null` mantiene el
+JSON shape original (sin campo nuevo) para callers
+que no pasan versión.
+
+### V2: Edge case del handler (no-throw + CancellationException)
+
+Encontré dos bugs reales durante este pase:
+
+1. El `catch` de `readEvidenceAdapterVersion` era
+   estrecho (sólo `IllegalStateException |
+   ClassCastException`). Lo amplié a
+   `catch (t: Throwable)` para honrar el contrato
+   "no-throw": si el SDK lanza un
+   `NoSuchElementException` desde su `get<>`, el
+   handler no debe propagar.
+2. El `catch` externo del handler tragaba
+   `kotlinx.coroutines.CancellationException`,
+   rompiendo el contrato de coroutines. Añadí un
+   `catch (c: CancellationException) { throw c }`
+   explícito. Esto requirió declarar
+   `kotlinx-coroutines-core:1.11.0` en el
+   `build.gradle.kts` del plugin (era sólo transitivo
+   del SDK, no estaba en `compileClasspath`).
+
+Test añadido:
+- `G3_check_handler_no_propaga_excepciones_del_sdk_en_get`
+  usa un fake que lanza `NoSuchElementException` y
+  verifica que el handler completa con
+  `replayPolicy = "RERUN"`.
+
+Resultado: 600/0/0 verde.
+
+### V3: Fitness test del wire format JSON
+
+El test E2E preexistente
+(`MockSdkHostTest.runCheck_output_se_serializa_a_json_canonico`)
+sólo cubría los 3 campos del contract original
+(`reportDigest`, `summary`, `outcome`). Añadí
+`G3OutputJsonFitnessTest` con 4 tests que cierran
+esa cerradura:
+
+- `G3_output_serialize_failure_como_subobjeto_con_todos_los_campos`:
+  `failure` aparece como sub-objeto con `kind`,
+  `message`, `blockingAssertionIds`.
+- `G3_output_serialize_failure_null_y_replayPolicy_RERUN_en_success`:
+  `failure: null` (con `encodeDefaults = true`) y
+  `replayPolicy` se serializa con el valor exacto.
+- `G3_output_serialize_failure_completa_con_sourceLocation`:
+  el path "engine-error" con `sourceLocation` viaja
+  al JSON.
+- `G3_handler_real_serialize_output_tras_runtime_exception_del_sdk`:
+  integración handler → output → JSON end-to-end.
+  El SDK lanza una excepción no estándar, el handler
+  la captura, y el JSON final contiene
+  `"replayPolicy":"RERUN"`.
+
+Resultado: 4/4 verde.
+
+### V4: Dominios tipados del `StepDescriptor`
+
+El SDK no valida los strings de texto libre
+(`idempotencyModel`, `timeoutModel`, etc.), pero
+los 5 dominios tipados (`ExecutionLocation`,
+`Effect`, `ReplayPolicy`, `RecoveryPolicy`,
+`StepBody`) sí los usa el orquestador para tomar
+decisiones. `G3ContractFieldsTest` (7 tests)
+verifica que:
+
+- `executionLocation = CONTROLLER` (no WORKER).
+- `effects = [READ_ONLY]` (nada de escritura).
+- `replayPolicy = MEMOIZED` (no REPLAY).
+- `recoveryPolicy = None` (no Auto).
+- `body = StepBody.None` (no Linear, no
+  CanonicalEngine).
+- `requiredCapabilities = [assurance.provider,
+  assurance.assertions]`.
+- `deprecation` vacío (no deprecated).
+
+Si alguien edita esas líneas por error y pone,
+p.ej., `replayPolicy = ReplayPolicy.REPLAY`, el
+test atrapa la regresión antes de que llegue al
+orquestador del SDK.
+
+Resultado: 7/7 verde.
+
+### V5: Doble cómputo de `evaluateEnforcement` (observación, no bug)
+
+`run(...)` llama dos veces a
+`AssuranceEngine.evaluateEnforcement(...)` con el
+mismo `report + suite + mode`:
+
+1. Una vez dentro de `outcomeOfWithSuite`
+   (`AssuranceCheckStep.kt:250`).
+2. Otra vez dentro de `counterexampleOf`
+   (`AssuranceCheckStepDefinition.kt:433`).
+
+Las dos llamadas son funciones puras sobre el
+mismo `report`, así que NO es trabajo duplicado
+(no se re-ejecutan lenses/assertions). Es sólo un
+re-traveseo de la decisión.
+
+**Follow-up G3.2** (no en este commit): refactor
+`outcomeOfWithSuite` para que devuelva el
+`EnforcementDecision` además del `StepOutcome`, y
+reusar esa misma decisión en `counterexampleOf`.
+Coste estimado: trivial (mover 4 líneas). Beneficio:
+elimina la posibilidad de divergencia si en el
+futuro `evaluateEnforcement` deja de ser puro
+(timestamp-based, p.ej.).
+
+### V6: Warnings del compilador en archivos G3
+
+`./gradlew :pipelinek-assurance-plugin:compileTestKotlin --rerun-tasks`
+reportaba 3 warnings de parameter-name-mismatch
+entre nuestras overrides de `StepCapabilityAccess.get(...)`
+y la firma del supertipo. Renombré el parámetro
+`capability` → `key` en los 3 overrides para
+alinear con el SDK y silenciar los warnings.
+Post-fix: 0 warnings en archivos G3.
+
+### Estado consolidado de validación G3
+
+```
+$ ./gradlew --no-daemon clean check
+BUILD SUCCESSFUL in 48s
+611 tests, 0 failures, 0 errors, 0 skipped
+```
+
+G3 base: 599 tests. G3.1 añade 12 tests (1 edge
+case + 4 JSON fitness + 7 contract fields). 0
+regresiones, 0 warnings en código G3.
+
 ## Evidencia
 
 ```

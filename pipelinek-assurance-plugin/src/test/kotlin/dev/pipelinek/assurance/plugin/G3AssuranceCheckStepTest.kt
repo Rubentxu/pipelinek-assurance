@@ -29,6 +29,15 @@ import kotlinx.serialization.json.Json
  *    host no provee la capability `ASSURANCE_PROVIDER`, el
  *    Step retorna `outcome = "Aborted"` y el orchestrator
  *    nunca corre.
+ * 5. `G3_check_handler_no_propaga_excepciones_del_sdk_en_get`:
+ *    si el SDK lanza una excepción que NO es
+ *    `IllegalStateException` ni `ClassCastException` desde
+ *    `capabilities.get<>()`, el handler NO propaga: la
+ *    trata como "adapter version desconocida" y cae a
+ *    `replayPolicy = RERUN`. (Edge case de la G3: la
+ *    garantía "no throw" del handler cubre cualquier
+ *    `Throwable` del SDK, no sólo los dos tipos que la
+ *    primera versión del código enumeraba.)
  *
  * Estos tests usan un `FakeCapabilityAccess` para inyectar
  * capabilities arbitrarias en el handler sin necesidad de un
@@ -168,6 +177,16 @@ class G3AssuranceCheckStepTest : AnnotationSpec() {
             evidenceAdapterVersion = "cognicode/1.0",
         )
         withAdapter.replayPolicy shouldBe "MEMOIZED"
+        // outcome real: con la suite mínima (1 lens + 1 Advisory
+        // assertion) y providers VACÍOS, el orchestrator no
+        // produce evidence items, así que report.results está
+        // vacío. `evaluateEnforcement` con results=[] no encuentra
+        // bloqueantes y devuelve Passed. outcome = "Success",
+        // failure = null. El campo replayPolicy refleja la
+        // policy de replay (MEMOIZED con adapter version), no
+        // el outcome del run.
+        withAdapter.outcome shouldBe "Success"
+        withAdapter.failure shouldBe null
 
         // Caso "sin adapter version" — replayPolicy = RERUN.
         val withoutAdapter = AssuranceCheckStepDefinition.run(
@@ -216,6 +235,52 @@ class G3AssuranceCheckStepTest : AnnotationSpec() {
         failure.message shouldContain ASSURANCE_ASSERTIONS.key
         // replayPolicy = RERUN: no hubo run, no se puede memoizar.
         output.replayPolicy shouldBe "RERUN"
+    }
+
+    // -----------------------------------------------------------------
+    // Test 5 (edge case G3): capabilities presentes pero get<>
+    // lanza una excepción NO IllegalStateException (e.g.
+    // NoSuchElementException del SDK). El handler NO debe
+    // propagar la excepción: la trata como "adapter version
+    // desconocida" y cae a replayPolicy = RERUN. El orchestrator
+    // tampoco corre porque la capability `get` falla antes de
+    // llegar al `run()`.
+    // -----------------------------------------------------------------
+
+    @Test
+    fun G3_check_handler_no_propaga_excepciones_del_sdk_en_get() {
+        val input = minimalInput("s/sdk-exc")
+        val ctx = StepHandlerContext(
+            runId = dev.rubentxu.pipeline.v2.domain.RunId("test/run-2"),
+            stepIndex = 0,
+            capabilities = object : StepCapabilityAccess {
+                override fun available(): Set<StepCapability> = setOf(
+                    ASSURANCE_PROVIDER,
+                    ASSURANCE_ASSERTIONS,
+                )
+                // El SDK lanza una excepción que NO es
+                // IllegalStateException ni ClassCastException.
+                // El handler debe tragársela y caer a
+                // replayPolicy = RERUN con outcome = "Success"
+                // (run se ejecutó con el path vacío).
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : Any> get(key: StepCapability): T {
+                    throw NoSuchElementException("simulated SDK internal failure: $key")
+                }
+            },
+        )
+        val output = kotlinx.coroutines.runBlocking {
+            stepHandler().execute(input, ctx)
+        }
+        // El handler no propagó la excepción. El run() corrió
+        // con registries vacíos (no-op para la ausencia de
+        // capabilities de evidencia), así que outcome es
+        // Success (no hay Mandatory fail en la suite mínima).
+        // Lo importante: replayPolicy = RERUN porque la
+        // evidenceAdapterVersion quedó null.
+        output.replayPolicy shouldBe "RERUN"
+        // Y el handler no propagó (no hubo throw saliendo del
+        // execute). El test llega hasta aquí sin fallar.
     }
 
     // -----------------------------------------------------------------
@@ -307,8 +372,8 @@ class G3AssuranceCheckStepTest : AnnotationSpec() {
             // que un CapabilityAccess del SDK real). El handler
             // captura esa excepción y la trata como capability ausente.
             @Suppress("UNCHECKED_CAST")
-            override fun <T : Any> get(capability: StepCapability): T {
-                throw IllegalStateException("capability $capability not present")
+            override fun <T : Any> get(key: StepCapability): T {
+                throw IllegalStateException("capability $key not present")
             }
         },
     )

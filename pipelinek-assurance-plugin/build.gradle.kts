@@ -93,6 +93,12 @@ dependencies {
     implementation(project(":assurance-providers"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.serialization.json)
+    // G3.1 (Bloque G): el handler `execute` es `suspend` (SDK) y
+    // queremos distinguir `kotlinx.coroutines.CancellationException`
+    // de otros Throwables para no tragarnos la cancelación. La
+    // dependencia viene transitiva del SDK pero la declaramos
+    // explícita para tener un import estable en compilación.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     // B1 (Bloque B): el SDK de PipelineK 0.48.0 ya está
     // localmente disponible (asdf install, jar en

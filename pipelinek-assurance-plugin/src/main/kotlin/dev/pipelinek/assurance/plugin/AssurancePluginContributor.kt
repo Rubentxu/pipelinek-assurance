@@ -31,6 +31,7 @@ package dev.pipelinek.assurance.plugin
 import dev.pipelinek.assurance.domain.evidence.Digest
 import dev.pipelinek.assurance.engine.FrozenAssuranceRuntime
 import dev.rubentxu.pipeline.v2.domain.ExecutionLocation
+import kotlinx.coroutines.CancellationException
 import dev.rubentxu.pipeline.v2.domain.PluginStepId
 import dev.rubentxu.pipeline.v2.domain.StepDescriptor
 import dev.rubentxu.pipeline.v2.domain.durable.Effect
@@ -256,6 +257,11 @@ private class AssuranceCheckStepHandler :
                 assertionsById = emptyMap(),
                 evidenceAdapterVersion = evidenceAdapterVersion,
             )
+        } catch (c: CancellationException) {
+            // Cancelación del coroutine: NO se captura. El host
+            // del SDK espera que la cancelación se propague
+            // (es el contrato de `suspend fun execute(...)`).
+            throw c
         } catch (t: Throwable) {
             // Bug del orchestrator (no Mandatory fail; Mandatory
             // fail se serializa como Output.failure). El handler
@@ -292,13 +298,20 @@ private class AssuranceCheckStepHandler :
             // El SDK expone `get<T>(capability: StepCapability)`.
             // `StepCapability` es un value class: en Kotlin fuente
             // se ve como el wrapper, en bytecode como String.
+            //
+            // El handler NO propaga excepciones del SDK. El `get<>`
+            // puede lanzar `IllegalStateException` (capability no
+            // satisfecha), `ClassCastException` (tipo equivocado),
+            // o cualquier `RuntimeException` interna del SDK. Los
+            // tres casos los tratamos como "adapter version
+            // desconocida" ⇒ replayPolicy cae a RERUN.
             val registry = context.capabilities.get<ProviderRegistry>(ASSURANCE_PROVIDER)
             registry.all().firstOrNull()?.descriptor?.version
-        } catch (e: IllegalStateException) {
-            // El SDK lanza si la capability no se puede satisfacer.
-            // Lo tratamos como ausente.
-            null
-        } catch (e: ClassCastException) {
+        } catch (t: Throwable) {
+            // Cualquier excepción del SDK o de cast la tratamos
+            // como "el adapter version no se pudo leer". El
+            // caller caerá a RERUN, que es la policy segura
+            // cuando no sabemos si el adapter puede cambiar.
             null
         }
     }
