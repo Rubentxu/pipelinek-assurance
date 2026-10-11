@@ -75,9 +75,26 @@ diferente suite.id ⇒ diferente digest). V18/V20/V21
 no testeables (codecs private, evidenceItems
 hardcoded, handler private); documentados como
 cobertura en B3 o pendiente para G4.
-Total acumulado: 664/0/0 en clean check (65s).
+G3.4 (property + negative paths, `af6c430`): 13 tests
+en 2 archivos — property-based (V25, 50 inputs
+aleatorios con seed=42), snapshot del JSON output
+(V26, 5 top-level keys pineadas), negative paths
+del orchestrator (V27/V28, IAE esperado en
+inputs inválidos consistente con R1/R2), engine
+contract (V29, sólo Advisory + FailClosed ⇒
+Success), stress (V31, 100 assertions en < 5s),
+schema cross-version (V32, tipos pineados).
+**1 hallazgo real documentado**: el digestOf del
+orchestrator (AssuranceCheckStepDefinition.kt:371)
+ES order-dependent — dos suites con las mismas
+assertions en distinto orden producen digests
+distintos. Fix engine-side, programado para
+bloque post-G3. V18/V20/V21/V30 no testeables
+(codecs private, evidenceItems hardcoded, handler
+private, plugin no parsea JSON).
+Total acumulado: 677/0/0 en clean check (51s).
 Detalle en `odd/tasks/block-G-G3-status.md` § G3.1,
-§ G3.2 y § G3.3.
+§ G3.2, § G3.3 y § G3.4.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
