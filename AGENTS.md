@@ -32,7 +32,7 @@ abierto, 3 codec warnings silenced.
 G2 (FrozenAssuranceRuntime, `806282b`): `freeze()`
 materializa la inmutabilidad; 3 contract tests + 2
 fitness tests cierran la regla 0 + regla 4 + regla 7.
-G3 (assurance.check tipado, commit actual): contract
+G3 (assurance.check tipado, `bd13470`): contract
 con `requiredCapabilities=ASSURANCE_PROVIDER,ASSURANCE_ASSERTIONS`,
 descriptor con `ReplayPolicy.MEMOIZED` + `Effect.READ_ONLY`
 + `ExecutionLocation.CONTROLLER`, handler que aborta
@@ -40,8 +40,16 @@ sin lanzar cuando las capabilities faltan o cuando el
 orchestrator lanza, `Output.failure` estructurado con
 counterexample, `Output.replayPolicy` derivado del
 fingerprint (engine + suite + adapter version).
-Total acumulado: 599/0/0 en clean check (50s). Detalle
-en `odd/tasks/block-G-G3-status.md`.
+G3.1 (validación post-impl, `cc701fb`): 12 tests
+añadidos — 1 edge case del handler (no propaga
+`NoSuchElementException` del SDK), 4 fitness tests
+del wire format JSON (counterexample + replayPolicy),
+7 contract fields (CONTROLLER, READ_ONLY, MEMOIZED,
+None, StepBody.None, capabilities, no-deprecation).
+3 warnings del compilador corregidos (parameter
+name `key` en `StepCapabilityAccess.get(...)`).
+Total acumulado: 611/0/0 en clean check (48s).
+Detalle en `odd/tasks/block-G-G3-status.md` § G3.1.
 
 Plan de consolidación activo: **Bloques A → F** (ver
 `ROADMAP.md` §3 al final y los `odd/tasks/block-*.md` que
