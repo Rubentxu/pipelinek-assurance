@@ -105,6 +105,35 @@ class M10ConnascenceLensTest : AnnotationSpec() {
     }
 
     @Test
+    fun M_10_CONTENT_redundante_name_finding_reporta_strength_2_y_subject_no_vacio() {
+        // M-10-CONTENT redundancia #2: el primer test de name
+        // (`M_10_CONTENT_connascence_of_name_detecta_pares_en_misma_capa`)
+        // verifica `nameFindings.isNotEmpty()`. Para que un mutante
+        // `dependents.size >= 2` → `false` sea cazado por un SEGUNDO
+        // test (necesario para UNDER_KILLED → DEAD), este test
+        // verifica PROPIEDADES del finding que un mutante más
+        // quirúrgico podría romper sin cambiar el conteo. Un
+        // mutante que cambie `strength = 2` a `strength = 0`
+        // también rompería este test, aunque el primer test
+        // seguiría verde.
+        //
+        // G7 (Bloque G) — UNDER_KILLED → DEAD.
+        val snapshot = snapshotConGrafoNoTrivial()
+        val projection = ConnascenceLens.project(snapshot)
+        val projected = projection.shouldBeInstanceOf<dev.pipelinek.assurance.engine.ProjectionResult.Projected<*>>()
+        val connascence = projected.value as dev.pipelinek.assurance.engine.architecture.ConnascenceProjection
+        val nameFindings = connascence.findings.filter { it.kind == ConnascenceKind.Name }
+        // El primer test ya garantiza isNotEmpty; aquí verificamos
+        // la FORMA del finding: strength 2 (connascence of name
+        // por convención de la spec) y subject no vacío.
+        (nameFindings.isNotEmpty()) shouldBe true
+        nameFindings.forEach { finding ->
+            (finding.strength == 2) shouldBe true
+            finding.subject.isNotBlank() shouldBe true
+        }
+    }
+
+    @Test
     fun la_lens_reusa_hexagonal_lens_para_el_grafo() {
         // Si la hexagonal falla, la connascence también. Esta es la
         // garantía de la indirección: no hay un segundo parser.
