@@ -90,11 +90,12 @@ de cambio: el documento es un mapa del proyecto, no un release log.
 - AAT-3 (`G3_V47`) allowlist extendido a dos archivos: `AssurancePluginContributor.kt` + `PluginManifestBuilder.kt` (con comentario que justifica la exención).
 - `docs/G6-FINDINGS.md` (178 líneas) documenta el hallazgo + comandos para reproducir + la limitación del script-context PipelineK compiler.
 
-#### G6.2 — Typed DSL extension + honest SDK gap (closed en estructura)
+#### G6.2 — Typed DSL extension + honest SDK gaps (closed en estructura)
 - `AssuranceCheckDslExtension.kt` expone `assuranceCheck(scope, stepKey, encodedInput)` y la sobrecarga `assuranceCheck(scope, name, input: Input)` que envuelve explícitamente las inline classes del SDK (`PluginStepId`, `EncodedStepValue`) que el script-context compiler no auto-wrapea.
 - `G6E2ETest.kt` (V55–V59) cubre el contrato estructural de la extensión: compile-time reference, JSON round-trip, payload shape, inline-class wrapping, manifest embedded.
-- **Gap honesto**: el runtime del SDK 0.48.0 y 0.51.0-rc1 impone un pre-check de capabilities que aborta la ejecución del step con `missing required capabilities for step 'assurance.check': assurance.provider, assurance.assertions` — el handler **nunca corre**. No existe la SPI `RuntimeCapabilityContributor` en el bytecode del SDK. El plugin declara las capabilities en el manifest (correcto) pero el host no las publica. **Esto es un gap upstream, no un workaround nuestro.**
-- No se suaviza `requiredCapabilities` (rompe `G3_V36`); no se inyecta un `RuntimeCapabilityContributor` reflectivo (rompe AAT-3).
+- **Gap honesto 1 — runtime capability pre-check**: el runtime del SDK 0.48.0 y 0.51.0-rc1 impone un pre-check de capabilities que aborta la ejecución del step con `missing required capabilities for step 'assurance.check': assurance.provider, assurance.assertions` — el handler **nunca corre**. No existe la SPI `RuntimeCapabilityContributor` en el bytecode del SDK.
+- **Gap honesto 2 — kts script classpath**: el compilador de `.kts` del SDK no incluye el JAR del plugin en su classpath. Cualquier `import dev.pipelinek.assurance.plugin.*` falla con `Unresolved reference`. El plugin se descubre a runtime vía ServiceLoader, pero el compiler no resuelve símbolos de él. Por tanto `g6-sample.pipeline.kts` no compila contra 0.48.0 / 0.51.0-rc1.
+- No se suaviza `requiredCapabilities` (rompe `G3_V36`); no se inyecta un `RuntimeCapabilityContributor` reflectivo (rompe AAT-3); no se acopla el plugin a un flag interno del script compiler (frágil entre versiones).
 - La corrección de la lógica del handler queda cubierta por `AssuranceCheckEndToEndTest` + `G3AssuranceCheckStepTest` vía `MockSdkHost` (que sí inyecta las capabilities).
 - 203/0/0 verde en ambos SDKs.
 
