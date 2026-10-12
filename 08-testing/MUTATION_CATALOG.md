@@ -173,3 +173,58 @@ limpio". El fraseo correcto es el de la tabla de
 arriba. Análisis detallado de los 5 hallazgos en
 `odd/tasks/block-A-integrity.md` §
 "Annexo: cert post-cierre A".
+
+## Resultado G7 (re-cert Bloque G, HEAD `521bf38`)
+
+Re-corrida del cert sobre la nueva ruta del plugin
+(`assurance.check` + `assurance.verify` con `BodyContinuation`,
+`FrozenAssuranceRuntime`, manifest generado, DSL extension).
+Cierra 2 hallazgos del cert anterior y deja 3 INFRA
+documentados (que la spec de G7 acepta como no-bloqueantes
+siempre que se documenten).
+
+| Veredicto | N | Mutantes |
+|---|---|---|
+| `DEAD` (killed ≥ 2) | **40** | A–F + M-B01, M-CODEC01, M-10-CONTENT, M-NORM-01, M-V03 |
+| `INFRA_FAILED` | **3** | M-D02, M-V01, M-V02 (no se reintentan: el código mutado no compila; documentados en `odd/tasks/block-G-G6-status.md` §G7) |
+| `UNDER_KILLED` | **0** | M-CODEC01 y M-10-CONTENT cerrados con tests redundantes |
+| `MUTATION_NOT_APPLIED` | **0** | M-B01 y M-NORM-01 cerrados con fix de patrón (quinto veredicto) |
+| `SURVIVED` | **0** | gate verde |
+| **Total** | **43** | — |
+
+**Cerrados respecto a cert A–F:**
+
+- **M-CODEC01** → `DEAD`: añadido test redundante
+  `plan_con_digest_recalculado_tras_modificar_selecciones_se_rechaza`
+  en `assurance-artifact/testkit/.../PackArtifactCodecRoundtripTest.kt`.
+  assurance-artifact: 51 → 52 tests.
+- **M-10-CONTENT** → `DEAD`: añadido test redundante
+  `M_10_CONTENT_redundante_name_finding_reporta_strength_2_y_subject_no_vacio`
+  en `assurance-testkit/.../M10ConnascenceLensTest.kt`.
+  assurance-testkit: 339 → 341 tests.
+- **M-B01** → `DEAD`: el patrón `baselineById[id]` quedó
+  obsoleto tras M4 (renombrado a `baselineByAssertionId`).
+  Cert ahora usa `baselineByAssertionId[id.assertionId]`.
+- **M-NORM-01** → `DEAD`: el path `assurance-engine/.../EvidenceNormalizer.kt`
+  quedó obsoleto tras M2 (movido a `assurance-providers`).
+  Cert ahora usa el path correcto.
+
+**Harness nuevo (G7):** el `verdict` por defecto del cert
+cambió de `DEAD` a `MUTATION_NOT_APPLIED`. Antes, un
+patrón que no se encontraba en la fuente producía
+`verdict=DEAD, killed_count=0` (falso positivo). Ahora
+produce `verdict=MUTATION_NOT_APPLIED` y el cert no
+cuenta al mutante como muerto. El catálogo de veredictos
+queda así:
+
+| Veredicto | Significado | Conteo G7 |
+|---|---|---|
+| DEAD | killed ≥ 2 | 40 |
+| INFRA_FAILED | Gradle no compiló | 3 |
+| UNDER_KILLED | killed = 1 | 0 |
+| MUTATION_NOT_APPLIED | patrón no encontrado | 0 |
+| SURVIVED | killed = 0 | 0 |
+
+Recibos JSON en `build/mutant-receipts/<name>.json`,
+SHA anclado a `521bf38`. Detalle por mutante en
+`odd/tasks/block-G-G6-status.md` §G7.
