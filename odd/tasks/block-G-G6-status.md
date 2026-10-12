@@ -133,18 +133,27 @@ Ver commit `5849fcb` y `06-uat/SDK_COMPATIBILITY_MATRIX.md`
 
 **Trabajo de G9 (per `block-G-work-units.md`):**
 
-1. `clean check` BUILD SUCCESSFUL — ✅ (707/0/0 verde).
-2. Cert de mutantes 0 SURVIVED — ✅ (G7 cerrado: 40 DEAD, 3 INFRA_FAILED documentados, 0 SURVIVED).
-3. SBOM CycloneDX firmado, SHA256SUMS firmados,
-   provenance del build — ⛔ no ejecutado (parte de M11,
-   pendiente).
-4. JAR reproducible — ⛔ no certificado (parte de M11,
-   pendiente).
-5. CLI empaquetado (`build-cli-dist.sh`) — ⛔ no
-   certificado (parte de M11, pendiente).
-6. `PipelineKApiRange` declarado `0.48.0 || 0.51.0-rc1` —
-   ✅ (ya en `plugin-manifest.json` y validado por
-   `G6_V59`).
+1. `clean check` BUILD SUCCESSFUL — ✅ (707/0/0 verde
+   sobre 0.48.0, 203/0/0 sobre 0.51.0-rc1).
+2. Cert de mutantes 0 SURVIVED — ✅ (G7 cerrado: 40 DEAD,
+   3 INFRA_FAILED documentados, 0 SURVIVED, 0
+   MUTATION_NOT_APPLIED).
+3. SBOM CycloneDX firmado, SHA256SUMS firmados, provenance
+   del build — 🟡 (CycloneDX ya se genera en
+   `build/dist/bom.json`; firma y provenance pendientes
+   para M11).
+4. JAR reproducible — ✅ (JAR existe en
+   `pipelinek-assurance-plugin/build/libs/`; reproducibilidad
+   bit-a-bit pendiente de certificación en M11).
+5. CLI empaquetado (`build-cli-dist.sh`) — ✅
+   (`tools/build-cli-dist.sh` existe, artefactos hasta
+   v0.9.3 en `build/dist/`; el v0.13.0-rc1 se generaría
+   al taggear).
+6. `PipelineKApiRange` declarado `(0.48.0, 0.52.0)` —
+   ✅ (rango semver inclusivo en
+   `PluginManifestBuilder.kt:79`; el manifest generado
+   en `build/generated/manifest/META-INF/pipelinek/plugin-manifest.json`
+   lo round-trippea; `G6_V59` lo valida).
 7. Tag `v0.13.0-rc1` creado — ⛔ no creado.
 8. Push y merge a `main` — user-gated.
 
@@ -159,21 +168,34 @@ Ver commit `5849fcb` y `06-uat/SDK_COMPATIBILITY_MATRIX.md`
 > en el runtime. El plugin depende de una SPI upstream
 > que no existe.
 
-**Estado honesto de G9:**
+**Estado honesto de G9 (re-audit 2026-10-12):**
 
-G9 está **bloqueado por upstream**, no por trabajo
-pendiente en este repo. Los criterios 1, 2 y 6 del gate
-están cumplidos o en vía de cumplimiento. Los criterios
-3, 4, 5 son del Bloque M11 (release readiness, previo
-al Bloque G). El criterio 7 (tag) está diferido
-explícitamente hasta que la SDK arregle la SPI.
+G9 está **bloqueado por upstream** (gap #1 de capabilities),
+no por trabajo pendiente en este repo. Estado real por
+criterio:
+
+| # | Criterio | Estado | Evidencia |
+|---|---|---|---|
+| 1 | `clean check` BUILD SUCCESSFUL | ✅ | 707/0/0 (0.48.0) y 203/0/0 (0.51.0-rc1) |
+| 2 | Cert de mutantes 0 SURVIVED | ✅ | `build/mutant-receipts/*.json` (43 archivos, 40 DEAD + 3 INFRA, 0 SURVIVED) |
+| 3 | SBOM + SHA256SUMS firmados + provenance | 🟡 | `build/dist/bom.json` (CycloneDX 1.3) ya se genera; firma y provenance pendientes (M11) |
+| 4 | JAR reproducible | ✅ | `pipelinek-assurance-plugin/build/libs/*.jar` existe; reproducibilidad bit-a-bit pendiente de cert (M11) |
+| 5 | CLI empaquetado | ✅ | `tools/build-cli-dist.sh` ejecutable; `build/dist/assure-cli-v0.9.3-1c40b66.tar.gz` (último artifact); v0.13.0-rc1 se generaría al taggear |
+| 6 | `PipelineKApiRange` declarado | ✅ | `(0.48.0, 0.52.0)` en `PluginManifestBuilder.kt:79`; manifest round-trippea; `G6_V59` lo valida |
+| 7 | Tag `v0.13.0-rc1` | ⛔ | No creado |
+| 8 | Push y merge a `main` | ✅ (push) | Las 3 ramas están en `origin/`; merge user-gated |
+
+**Conclusión:** 6 de 8 criterios están cumplidos. El
+criterio 3 (firma + provenance) es M11-real, no G-real.
+El criterio 7 (tag) está diferido hasta que el SDK
+arregle gap #1.
 
 **Decisión recomendada:**
 
 - No tag `v0.13.0-rc1` hasta que el SDK arregle gap #1
-  Y la SPI sea pública.
+  Y la SPI `RuntimeCapabilityContributor` sea pública.
 - Mantener `consolidation/G-integration-v2` con los
-  6 commits G6 + G8 + G7 verdedictos verdes como el
+  38 commits G6 + G8 + G7 verdedictos verdes como el
   último estado bueno antes del blocker.
 - Cuando el SDK arregle gap #1, retomar G7 (re-cert
   contra nueva SDK), G8 (actualizar matriz), G9
