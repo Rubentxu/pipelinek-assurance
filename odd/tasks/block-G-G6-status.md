@@ -133,7 +133,7 @@ Ver commit `5849fcb` y `06-uat/SDK_COMPATIBILITY_MATRIX.md`
 
 **Trabajo de G9 (per `block-G-work-units.md`):**
 
-1. `clean check` BUILD SUCCESSFUL — ✅ (596/0/0 verde).
+1. `clean check` BUILD SUCCESSFUL — ✅ (707/0/0 verde).
 2. Cert de mutantes 0 SURVIVED — ✅ (G7 cerrado: 40 DEAD, 3 INFRA_FAILED documentados, 0 SURVIVED).
 3. SBOM CycloneDX firmado, SHA256SUMS firmados,
    provenance del build — ⛔ no ejecutado (parte de M11,
@@ -183,10 +183,10 @@ explícitamente hasta que la SDK arregle la SPI.
 
 | SDK | Test count | Failures | Skipped |
 |-----|-----------|----------|---------|
-| 0.48.0      | 596 (203 plugin + 341 testkit + 52 artifact) | 0 | 0 |
+| 0.48.0      | 707 (52 artifact + 341 testkit + 111 providers + 203 plugin) | 0 | 0 |
 | 0.51.0-rc1  | 203 (plugin only) | 0 | 0 |
 
-`./gradlew clean check` cierra en BUILD SUCCESSFUL en ~41s.
+`./gradlew clean check` cierra en BUILD SUCCESSFUL en ~45s.
 El sub-proyecto `pipelinek-assurance-plugin` corre contra
 ambos SDKs (cambia la coordenada con `-PpipelinekVersion=...`
 y `PIPELINEK_SDK_LIB=...`).
