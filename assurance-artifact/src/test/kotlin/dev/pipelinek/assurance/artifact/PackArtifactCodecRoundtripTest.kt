@@ -149,6 +149,54 @@ class PackArtifactCodecRoundtripTest : AnnotationSpec() {
     }
 
     @Test
+    fun plan_con_digest_recalculado_tras_modificar_selecciones_se_rechaza() {
+        // M-CODEC01 redundancia #2: el primer test
+        // (`plan_con_digest_alterado_se_rechaza`) muta solo el campo
+        // `digest` y deja el resto del DTO intacto. Un mutante que
+        // elimine la verificación del digest y CASUALMENTE valide otro
+        // campo podría sobrevivir. Este segundo test modifica el
+        // contenido del DTO (las selecciones) pero RECALCULA el digest
+        // para que coincida, dejando un payload "consistente" que un
+        // mutante permisivo aceptaría. Sin la verificación, el plan
+        // modificado se aceptaría con un digest "correcto" sobre un
+        // cuerpo "incorrecto" — exactamente el ataque que el codec
+        // debe detectar.
+        //
+        // G7 (Bloque G) — UNDER_KILLED → DEAD.
+        val planOriginal = RequiredAssurancePlan.Plan(
+            engineVersion = "0.1.0",
+            selections = emptyList(),
+        )
+        val original = PackArtifactCodec.encodeToCbor(planOriginal)
+        val dto = kotlinx.serialization.cbor.Cbor.decodeFromByteArray(
+            PackArtifactCodec.PlanDto.serializer(), original,
+        )
+        // Modificamos el contenido: agregamos una selección nueva.
+        val planModificado = planOriginal.copy(
+            selections = listOf(
+                RequiredAssurancePlan.SuiteSelection(
+                    suiteId = SuiteId("mutation-suite"),
+                    reason = RequiredAssurancePlan.Reason.TouchedByChange("src/Mutated.kt"),
+                ),
+            ),
+        )
+        // Calculamos el digest del plan MODIFICADO (correcto) y lo
+        // ponemos en un DTO cuyo contenido es el ORIGINAL (incorrecto).
+        // El codec debe rechazar: el digest no corresponde al cuerpo.
+        val digestDelPlanModificado = CanonicalEncoder.digestPlan(planModificado).hex
+        val dtoInconsistente = dto.copy(
+            digest = digestDelPlanModificado,
+        )
+        val bytesInconsistentes = kotlinx.serialization.cbor.Cbor.encodeToByteArray(
+            PackArtifactCodec.PlanDto.serializer(), dtoInconsistente,
+        )
+        val ex = shouldThrow<EvidenceArtifactCodec.ArtifactDecodeException> {
+            PackArtifactCodec.decodeFromCborPlan(bytesInconsistentes)
+        }
+        (ex.message?.contains("digest") ?: false) shouldBe true
+    }
+
+    @Test
     fun plan_con_reason_desconocido_falla_tipado() {
         // CBOR no acepta campos arbitrarios; el decoder usa un `when`
         // cerrado y cualquier valor fuera de la union produce una
