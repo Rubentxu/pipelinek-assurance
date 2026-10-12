@@ -19,11 +19,16 @@ A4 (Bloque A) — el harness endurecido:
     aborta por infraestructura, el mutante NO se cataloga como
     "superviviente"; se cataloga como "infrastructure failure" y el
     script devuelve 1 con codigo distinguible.
-  - Distincion de cuatro veredictos:
-       DEAD          → killed >= 2
-       UNDER_KILLED  → killed == 1 (redundancia insuficiente)
-       SURVIVED      → killed == 0 (gate failure)
-       INFRA_FAILED  → Gradle no levanto la suite (no es fallo del mutante)
+  - Distincion de cinco veredictos:
+       DEAD               → killed >= 2
+       UNDER_KILLED       → killed == 1 (redundancia insuficiente)
+       SURVIVED           → killed == 0 (gate failure)
+       INFRA_FAILED       → Gradle no levanto la suite (no es fallo del mutante)
+       MUTATION_NOT_APPLIED → el patrón de búsqueda del mutante no
+                              coincidió con la fuente actual (G7
+                              Bloque G fix: antes esto se reportaba
+                              como DEAD con killed_count=0, que era un
+                              falso positivo del harness)
   - Recibo JSON por mutante en build/mutant-receipts/<name>.json con
     SHA del commit, tests que mataron, veredicto y exit codes.
   - Restauracion sin riesgo: el chequeo de "arbol limpio" en los
@@ -805,7 +810,16 @@ def main():
     killed_names = []
     gradle_exit = 0
     infra_log = ""
-    verdict = "DEAD"
+    # G7 (Bloque G): el default NO es DEAD — un mutante que no
+    # aplicó su patrón (porque el código bajo mutación cambió
+    # desde la última cert) NO es un DEAD. Es un
+    # `MUTATION_NOT_APPLIED`: el harness no puede certificarlo
+    # ni rechazarlo, requiere reescribir el patrón. Sin este
+    # cambio, el cert escribía un recibo con verdict=DEAD y
+    # killed_count=0 para mutantes con patrón roto, que es
+    # exactamente la clase de falso positivo que el gate
+    # existe para detectar.
+    verdict = "MUTATION_NOT_APPLIED"
     rc = 0
 
     try:
