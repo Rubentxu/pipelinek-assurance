@@ -1,7 +1,8 @@
 # Certificación del catálogo de mutantes — 2026-10-10
 
 **SHA certificado (Bloque A):** `c3df2a7` (cierre Bloque A — v0.9.5-rc1)
-**SHA certificado (Bloque G):** `6084fcb` (re-cert G7)
+**SHA certificado (Bloque G):** `a96c28f` / `f916e23` (recibos G7 anclados a estos SHAs)
+**SHA HEAD actual (Bloque G):** `f6de89e` (4 commits de docs después de los recibos)
 **Tag:** `v0.9.5-rc1` (Bloque A); tag de v0.13.0-rc1 pendiente (G9)
 **Comando:** `python3 tools/certify_mutants.py <mutante>` por cada uno,
 secuencialmente, sobre el mismo SHA.
