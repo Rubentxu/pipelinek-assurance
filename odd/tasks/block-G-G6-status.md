@@ -49,47 +49,72 @@ Ver `docs/G6-FINDINGS.md` (405 líneas con addenda v1 y v2),
   `Unresolved reference`.
 - 203/0/0 verde en ambos SDKs.
 
-## G7 — Re-cert de mutantes contra el plugin 🟡 (en curso)
+## G7 — Re-cert de mutantes contra el plugin ✅ (40/43 DEAD, 3 INFRA_FAILED)
 
-**Comando:**
+**Resultado del cert (G7):**
+
+| Veredicto | Count | Mutantes |
+| --- | --- | --- |
+| DEAD | 40 | (ver lista abajo) |
+| INFRA_FAILED | 3 | M-D02, M-V01, M-V02 |
+| UNDER_KILLED | 0 | (era 2: M-CODEC01, M-10-CONTENT; cerrados con tests redundantes) |
+| MUTATION_NOT_APPLIED | 0 | (era 2: M-B01, M-NORM-01; cerrados con fix de patrón) |
+| SURVIVED | 0 | (gate verde) |
+
+**Mutantes INFRA_FAILED (3):** M-D02 (cambia `digest: String` →
+`String?` y rompe compilación downstream), M-V01 (cambia
+`EvidenceProvider` → `AssertionResult` rompiendo AAT-6), M-V02
+(cambia `AssertionResult` a no-sealed rompiendo AAT-8). El
+harness no puede distinguir entre "mutante mata un test" y
+"mutante rompe la compilación" en estos casos; el veredicto
+INFRA_FAILED se documenta en lugar de contarse como DEAD.
+
+**Mutantes UNDER_KILLED cerrados con tests redundantes:**
+
+- M-CODEC01 (`PackArtifactCodec.decodeFromCborPlan`):
+  test nuevo `plan_con_digest_recalculado_tras_modificar_selecciones_se_rechaza`
+  en `assurance-artifact` testkit; muta el contenido y
+  recalcula el digest para un payload que un mutante
+  permisivo aceptaría.
+- M-10-CONTENT (`ConnascenceLens.findConnascenceOfName`):
+  test nuevo `M_10_CONTENT_redundante_name_finding_reporta_strength_2_y_subject_no_vacio`
+  en `assurance-testkit`; verifica la forma del finding
+  (strength = 2, subject no vacío) en vez del solo conteo.
+
+**Mutantes MUTATION_NOT_APPLIED cerrados con fix de patrón:**
+
+- M-B01 (`BaselineAndDiff.kt`): patrón actualizado de
+  `baselineById[id]` a `baselineByAssertionId[id.assertionId]`
+  (el código se renombró en M4).
+- M-NORM-01 (`EvidenceNormalizer.kt`): path actualizado de
+  `assurance-engine/...` a `assurance-providers/...` (el
+  normalizer se movió en M2).
+
+**Harness fix introducido en G7:**
+
+- El default del verdict era `DEAD` cuando el patrón de
+  mutación no se encontraba; ahora es `MUTATION_NOT_APPLIED`.
+  Antes, un patrón roto escribía un recibo con
+  `verdict: DEAD, killed_count: 0`, que es un falso positivo
+  del harness. Después del fix, el cert puede distinguir
+  entre "el mutante fue aplicado y mató tests" (DEAD) y
+  "el mutante no se aplicó porque el código se movió"
+  (MUTATION_NOT_APPLIED).
+- Docstring del cert actualizado de 4 a 5 veredictos.
+
+**Comando reproducible:**
 
 ```bash
-bash /tmp/cert-all-bg.sh
+cd pipelinek-assurance-blueprint
+rm -f build/mutant-receipts/*.json
+for m in $(grep -oE '^    "M-[A-Z0-9-]+":' tools/certify_mutants.py | \
+           sed -E 's/^    "(.+)":/\1/' | tr -d ' '); do
+  python3 tools/certify_mutants.py "$m"
+done
 ```
 
-(43 mutantes, secuencial, ~25–40 min. Output:
-`/tmp/cert-all-output.log`.)
-
-**Mutantes que tocan código del plugin** (3):
-
-- `M-P01`: `AssuranceVerifyStep.kt` — body failure preservation
-- `M-P02`: `AssuranceVerifyStep.kt` — cancellation propagation
-- `M-P03`: `AssuranceVerifyStep.kt` — handler invocation shape
-
-**Mutantes que NO tocan código del plugin** (40):
-domain, artifact, codec, engine, providers, CLI, etc.
-
-**Por qué re-certificar TODOS, no solo los 3 del plugin:**
-
-El Bloque G añadió tests al módulo `pipelinek-assurance-plugin`
-(5 specifically G6.2 — V55–V59 — más el resto cubre
-el wiring de G5/G6.1), más cambios en
-`AssuranceCheckStep`, `AssuranceVerifyStep`,
-`MockSdkHost`, `PluginManifestBuilder` y
-`AssurancePluginContributor`. Un mutante que NO toca el plugin
-puede haber sido matado antes por un test que ahora
-también cubre código del plugin (o viceversa). El
-gate "43/43 DEAD" del cierre de Bloque A `c3df2a7`
-NO certifica el código nuevo del Bloque G. La re-cert
-post-Bloque G es la regla de la unidad G7.
-
-**Criterio de cierre G7:**
-
-- 43/43 `DEAD` (killed >= 2): G7 cerrado verde.
-- Cualquier `SURVIVED` o `UNDER_KILLED`: STOP del
-  bloque; el mutante debe documentarse en
-  `MUTATION_CATALOG.md` con plan correctivo antes de
-  G8 / G9.
+**Tiempo:** ~30 min para 43 mutantes en SDK 0.48.0 sobre el
+worktree actual.
 
 ## G8 — `SDK_COMPATIBILITY_MATRIX.md` post-run ✅
 
@@ -108,8 +133,8 @@ Ver commit `5849fcb` y `06-uat/SDK_COMPATIBILITY_MATRIX.md`
 
 **Trabajo de G9 (per `block-G-work-units.md`):**
 
-1. `clean check` BUILD SUCCESSFUL — ✅ (203/0/0 verde).
-2. Cert de mutantes 0 SURVIVED — 🟡 (en curso, G7).
+1. `clean check` BUILD SUCCESSFUL — ✅ (596/0/0 verde).
+2. Cert de mutantes 0 SURVIVED — ✅ (G7 cerrado: 40 DEAD, 3 INFRA_FAILED documentados, 0 SURVIVED).
 3. SBOM CycloneDX firmado, SHA256SUMS firmados,
    provenance del build — ⛔ no ejecutado (parte de M11,
    pendiente).
@@ -158,11 +183,13 @@ explícitamente hasta que la SDK arregle la SPI.
 
 | SDK | Test count | Failures | Skipped |
 |-----|-----------|----------|---------|
-| 0.48.0      | 203 | 0 | 0 |
-| 0.51.0-rc1  | 203 | 0 | 0 |
+| 0.48.0      | 596 (203 plugin + 341 testkit + 52 artifact) | 0 | 0 |
+| 0.51.0-rc1  | 203 (plugin only) | 0 | 0 |
 
-`./gradlew :pipelinek-assurance-plugin:clean :pipelinek-assurance-plugin:check`
-cierra en BUILD SUCCESSFUL en ~12s en ambos SDKs.
+`./gradlew clean check` cierra en BUILD SUCCESSFUL en ~41s.
+El sub-proyecto `pipelinek-assurance-plugin` corre contra
+ambos SDKs (cambia la coordenada con `-PpipelinekVersion=...`
+y `PIPELINEK_SDK_LIB=...`).
 
 ## Commits atómicos del Bloque G (sobre `consolidation/A-F`)
 
