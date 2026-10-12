@@ -176,3 +176,140 @@ Pipeline finished with SUCCESS
 3. **Gradle task `g6E2ETest`** that wires the smoke run into CI.
 
 These are the next commit's work, not this one.
+
+---
+
+## G6.2 — Typed DSL extension + SDK capability pre-check (addendum)
+
+**Status:** Honest partial — see "G6.2 actual outcome" below.
+
+### What we tried to deliver in G6.2
+
+The original G6.2 scope was a full live-SDK run with two cases:
+- **Caso A**: `g6-green.pipeline.kts` → `assurance.check` with a passing suite → `pipelinek run` exits SUCCESS.
+- **Caso B**: `g6-mandatory-fail.pipeline.kts` → `assurance.check` with a Mandatory assertion that fails → `pipelinek run` exits FAILURE with counterexample.
+
+The expectation was that the live SDK 0.48.0 / 0.51.0-rc1 would invoke the
+`assurance.check` handler once the kts file is registered.
+
+### What we actually delivered
+
+1. **`AssuranceCheckDslExtension.kt`** — A top-level Kotlin extension function
+   that the `.kts` files import instead of the raw `registryStep`. The
+   extension wraps the SDK's inline-class arguments (`PluginStepId`,
+   `EncodedStepValue`) explicitly, because the kts compiler does not
+   auto-wrap `String` to these types reliably. Two overloads:
+   - `assuranceCheck(scope, stepKey, encodedInput: String)` — the
+     `registryStep` shape.
+   - `assuranceCheck(scope, name, input: AssuranceCheckStepDefinition.Input)` —
+     takes a typed DTO and serializes it via the plugin's `Input` codec.
+
+2. **`G6E2ETest.kt`** — 5 new tests (V55–V59) covering the typed
+   extension's compile-time contract, JSON round-trip, and the
+   embedded manifest's `capabilities` field. **203/0/0 verde on
+   both 0.48.0 and 0.51.0-rc1.**
+
+3. **`g6-sample.pipeline.kts`** — A working kts sample that imports
+   the extension and invokes `assurance.check` and `assurance.verify`.
+   The kts reaches the SDK's runtime dispatch layer.
+
+### Honest gap — the SDK's capability pre-check is a hard precondition
+
+When we actually ran `pipelinek run` against SDK 0.48.0 with the
+plugin installed in `~/.asdf/installs/pipelinek/0.48.0/lib/`, the
+SDK admitted the plugin, discovered its `assurance.check` step,
+**but refused to invoke the handler with the following error:**
+
+```
+[ERROR] missing required capabilities for step 'assurance.check':
+        assurance.provider, assurance.assertions
+```
+
+The handler code **never runs**. The SDK's runtime step executor
+checks `StepDescriptor.requiredCapabilities` against the manifest's
+`capabilities` field at admission time, and aborts the pipeline if
+the set is not a subset.
+
+**This is not a bug in our plugin.** The G3 contract explicitly says:
+
+> `RuntimeCapabilityContributor` is a mechanism that lives [in the host]
+> (the SDK's runtime), not in the plugin. The plugin declares the
+> capabilities in the manifest; the host publishes them via that
+> contributor.
+
+**But there is no `RuntimeCapabilityContributor` interface in the SDK
+0.48.0 / 0.51.0-rc1 bytecode.** The `assure-cli` and `cli-runtime`
+modules do not implement it (verified with `javap`). The capabilities
+declared in the manifest are *admission metadata*, not *runtime
+publishers*.
+
+**This is a real SDK gap.** Until the SDK provides a
+`RuntimeCapabilityContributor` interface, OR the capability check is
+softened to a warning, the handler cannot be reached via the live
+SDK regardless of input shape.
+
+### G6.2 actual outcome
+
+| Layer | Status | Where verified |
+| --- | --- | --- |
+| Build-time manifest generation | ✅ Working | `PluginManifestBuilder.kt`, embedded in JAR, `G6E2ETest.V59` |
+| Plugin admission (`/lib/` install + `META-INF/...`) | ✅ Working | `G6.1` commit `20fb3bf` |
+| kts compilation with `assuranceCheck` extension | ✅ Working | `g6-sample.pipeline.kts` |
+| SDK plugin discovery (`plugin-manifest.json` parse) | ✅ Working | Live run reaches the step dispatch |
+| SDK capability pre-check | ❌ BLOCKED | Live run error: `missing required capabilities` |
+| Handler execution against live SDK | ❌ Not reached | Blocked by capability pre-check |
+| Handler execution against `MockSdkHost` | ✅ Working | `AssuranceCheckEndToEndTest`, `G3AssuranceCheckStepTest` |
+
+The plugin's behavior is **correct** under the G3 contract. The
+**SDK's runtime enforcement** is what blocks execution. We pin this
+as a real, open gap against the upstream SDK — not a workaround.
+
+### How to reproduce
+
+```bash
+# 1. Build + install the plugin
+./gradlew :pipelinek-assurance-plugin:assemble
+cp pipelinek-assurance-plugin/build/libs/*.jar ~/.asdf/installs/pipelinek/0.48.0/lib/
+
+# 2. Run the sample kts
+cd 06-uat/examples/assurance-pipeline
+~/.asdf/installs/pipelinek/0.48.0/bin/pipelinek run g6-sample.pipeline.kts
+
+# 3. Observe:
+#    - plugin admitted
+#    - step discovered: assurance.check
+#    - ERROR: missing required capabilities for step 'assurance.check':
+#             assurance.provider, assurance.assertions
+```
+
+The same path on SDK 0.51.0-rc1 produces the same error.
+
+### What we are NOT doing in G6.2
+
+- **Not** shimming a `RuntimeCapabilityContributor` into the plugin
+  — there is no public interface to implement, and injecting a
+  reflective stub would violate AAT-3's "no SDK imports outside
+  the allowlist" rule.
+- **Not** softening `requiredCapabilities` in the descriptor — the
+  G3 contract requires the check, and the test `G3_V36` enforces
+  the descriptor's declared capabilities.
+- **Not** writing an "aspirational" e2e test that pretends the
+  handler ran when it didn't — the G6.2 tests assert on the
+  **structural** contract (codec round-trip, manifest presence,
+  extension compilation), not on a fabricated success.
+
+### Open SDK gap (upstream)
+
+> **Bug**: PipelineK SDK 0.48.0 / 0.51.0-rc1 has a hard runtime
+> capability pre-check that blocks step execution when the
+> `plugin-manifest.json` declares capabilities that the runtime
+> cannot publish (no `RuntimeCapabilityContributor` interface
+> exists). The plugin's handler is unreachable until either:
+>
+> 1. The SDK exposes a `RuntimeCapabilityContributor` SPI that
+>    the runtime can implement; or
+> 2. The capability check is softened to a warning when the
+>    runtime has no contributor for that capability.
+>
+> Filed as `docs/G6-FINDINGS.md` open issue. No ETA.
+
