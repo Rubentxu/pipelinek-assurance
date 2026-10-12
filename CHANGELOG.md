@@ -77,6 +77,27 @@ de cambio: el documento es un mapa del proyecto, no un release log.
 - ❌ Checksums firmados, provenance — pendientes de la integración final.
 - ❌ Distribución instalable y matriz de compatibilidad con PipelineK SDK — pendiente (requiere host con SDK).
 
+### Bloque G — End-to-end plugin admission + sample pipeline (closed en estructura)
+
+#### G1..G5 (closed)
+- G1–G5 cierran el contrato del plugin: el `StepDefinitionContributor` se admite, las capabilities y el replay policy son correctos, el `MockSdkHost` ejercita la lógica del handler con contrato verificable.
+- 729 tests verdes, 0 failures acumulado al cierre de G5.
+
+#### G6.1 — Build-time manifest generation (closed)
+- `PluginManifestBuilder.kt` genera `META-INF/pipelinek/plugin-manifest.json` a build time vía `JavaExec`, embebido en el JAR por `processResources`.
+- `StepRegistration(definition, provider)` cableado con `StepProviderMetadata.create(...)` (constructor `internal` documentado).
+- Verificado e2e: `pipelinek run` admite el plugin, descubre los steps en SDK 0.48.0 y 0.51.0-rc1.
+- AAT-3 (`G3_V47`) allowlist extendido a dos archivos: `AssurancePluginContributor.kt` + `PluginManifestBuilder.kt` (con comentario que justifica la exención).
+- `docs/G6-FINDINGS.md` (178 líneas) documenta el hallazgo + comandos para reproducir + la limitación del script-context PipelineK compiler.
+
+#### G6.2 — Typed DSL extension + honest SDK gap (closed en estructura)
+- `AssuranceCheckDslExtension.kt` expone `assuranceCheck(scope, stepKey, encodedInput)` y la sobrecarga `assuranceCheck(scope, name, input: Input)` que envuelve explícitamente las inline classes del SDK (`PluginStepId`, `EncodedStepValue`) que el script-context compiler no auto-wrapea.
+- `G6E2ETest.kt` (V55–V59) cubre el contrato estructural de la extensión: compile-time reference, JSON round-trip, payload shape, inline-class wrapping, manifest embedded.
+- **Gap honesto**: el runtime del SDK 0.48.0 y 0.51.0-rc1 impone un pre-check de capabilities que aborta la ejecución del step con `missing required capabilities for step 'assurance.check': assurance.provider, assurance.assertions` — el handler **nunca corre**. No existe la SPI `RuntimeCapabilityContributor` en el bytecode del SDK. El plugin declara las capabilities en el manifest (correcto) pero el host no las publica. **Esto es un gap upstream, no un workaround nuestro.**
+- No se suaviza `requiredCapabilities` (rompe `G3_V36`); no se inyecta un `RuntimeCapabilityContributor` reflectivo (rompe AAT-3).
+- La corrección de la lógica del handler queda cubierta por `AssuranceCheckEndToEndTest` + `G3AssuranceCheckStepTest` vía `MockSdkHost` (que sí inyecta las capabilities).
+- 203/0/0 verde en ambos SDKs.
+
 ### Recibo M2..M11 — cierre del primer ciclo
 - 14 commits de M2..M11, todos verificados con `clean check` (342 tests, 0 failures, 42–54s).
 - SHA final del ciclo: `7b14548` (HEAD en `main`).
