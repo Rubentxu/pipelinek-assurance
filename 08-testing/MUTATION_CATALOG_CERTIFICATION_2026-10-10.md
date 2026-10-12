@@ -1,13 +1,24 @@
 # Certificación del catálogo de mutantes — 2026-10-10
 
-**SHA certificado:** `c3df2a7` (cierre Bloque A — v0.9.5-rc1)
-**Tag:** `v0.9.5-rc1`
+**SHA certificado (Bloque A):** `c3df2a7` (cierre Bloque A — v0.9.5-rc1)
+**SHA certificado (Bloque G):** `6084fcb` (re-cert G7)
+**Tag:** `v0.9.5-rc1` (Bloque A); tag de v0.13.0-rc1 pendiente (G9)
 **Comando:** `python3 tools/certify_mutants.py <mutante>` por cada uno,
 secuencialmente, sobre el mismo SHA.
 
 ## Resultado global
 
-**44/44 mutantes certificados** con el harness endurecido de A4.
+**Bloque A (2026-10-10):** 44/44 mutantes certificados (44 DEAD).
+**Bloque G (re-cert G7):** 43 mutantes certificados:
+- 40 DEAD (killed ≥ 2)
+- 3 INFRA_FAILED (mutaciones que rompen la compilación; el
+  harness no puede certificarlas ni rechazarlas)
+- 0 UNDER_KILLED (M-CODEC01 y M-10-CONTENT cerrados con tests
+  redundantes; ver `odd/tasks/block-G-G6-status.md` §G7)
+- 0 MUTATION_NOT_APPLIED (M-B01 y M-NORM-01 cerrados con fix de
+  patrón; el cert ahora distingue este caso con un quinto
+  veredicto)
+- 0 SURVIVED (gate verde)
 
 Cada mutante tiene un **recibo JSON** en `build/mutant-receipts/<name>.json`
 con SHA, timestamp, veredicto tipado, killed_by, total_tests, gradle_exit_code
@@ -15,12 +26,13 @@ y un tail del log de infraestructura si la hubo.
 
 ## Veredictos
 
-| Veredicto | Significado | Count |
+| Veredicto | Significado | Count (G7) |
 |---|---|---|
-| DEAD | killed >= 2 (gate verde) | 44 |
+| DEAD | killed >= 2 (gate verde) | 40 |
+| INFRA_FAILED | Gradle no compiló con la mutación aplicada | 3 |
 | UNDER_KILLED | killed == 1 (redundancia insuficiente) | 0 |
 | SURVIVED | killed == 0 (gate failure) | 0 |
-| INFRA_FAILED | Gradle no levantó la suite | 0 |
+| MUTATION_NOT_APPLIED | patrón no encontrado en la fuente (G7 fix) | 0 |
 
 ## Detalle por mutante
 
@@ -52,6 +64,31 @@ ya no resume la tabla; los recibos son la fuente de verdad.)
   - **Restauración endurecida en finally**: try/except anidado
     para evitar dejar archivos `.bak` aunque el proceso crashee.
   - **Helper `current_sha()`** ancla cada recibo al HEAD.
+
+## Lo que cambió en este ciclo (G7 — Bloque G)
+
+- **Quinto veredicto** `MUTATION_NOT_APPLIED`: cuando el patrón
+  de mutación no se encuentra en la fuente actual, el cert ya
+  no escribe un recibo `verdict: DEAD, killed_count: 0` (falso
+  positivo); escribe `verdict: MUTATION_NOT_APPLIED`. El
+  default del verdict en el harness cambió de `DEAD` a
+  `MUTATION_NOT_APPLIED`. La distinción es crítica: un
+  mutante que NO se aplicó NO mató tests, pero tampoco
+  sobrevivió — requiere actualizar el patrón.
+- **Fix de patrón M-B01**: `baselineById[id]` →
+  `baselineByAssertionId[id.assertionId]` (el código se renombró
+  en M4).
+- **Fix de path M-NORM-01**: `assurance-engine/.../EvidenceNormalizer.kt`
+  → `assurance-providers/.../EvidenceNormalizer.kt` (el
+  normalizer se movió en M2).
+- **Tests redundantes**:
+  - M-CODEC01: `plan_con_digest_recalculado_tras_modificar_selecciones_se_rechaza`
+    en `assurance-artifact/testkit`.
+  - M-10-CONTENT: `M_10_CONTENT_redundante_name_finding_reporta_strength_2_y_subject_no_vacio`
+    en `assurance-testkit`.
+
+Resultado del cert G7: **40 DEAD, 3 INFRA_FAILED, 0 SURVIVED**.
+Ver `odd/tasks/block-G-G6-status.md` §G7 para el detalle.
 
 ## Lo que cambió en este ciclo (A1-A3 + A5)
 
