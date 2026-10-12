@@ -311,12 +311,22 @@ class G3CrossCuttingConformanceTest : StringSpec({
             //     Sus imports de `dev.rubentxu.pipeline.*` son
             //     del paquete `domain.step` (codec, manifest,
             //     family) y `domain.identity` (resource ref).
+            //   - `AssuranceCheckDslExtension.kt` (G6.2/Bloque G):
+            //     expone `assuranceCheck(scope, name, stepKey, jsonInput)`
+            //     como extension top-level para que las `.kts`
+            //     de usuario puedan invocar el step sin pelearse
+            //     con el inline-class `EncodedStepValue` /
+            //     `PluginStepId` que el scripting compiler de
+            //     PipelineK no auto-wrapea. Es el ÚNICO punto
+            //     de contacto entre un script `.kts` y el SDK
+            //     desde la perspectiva de este plugin.
             //     Cualquier NUEVO archivo que aparezca en este
             //     allowlist debe documentar la razon de la
             //     exención; un allowlist que crece sin
             //     justificación es un code smell.
             .filter { f -> f.name != "AssurancePluginContributor.kt" }
             .filter { f -> f.name != "PluginManifestBuilder.kt" }
+            .filter { f -> f.name != "AssuranceCheckDslExtension.kt" }
             .filter { f ->
                 f.readLines().any { line ->
                     line.trim().startsWith("import dev.rubentxu.pipeline.")
