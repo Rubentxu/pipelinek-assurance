@@ -177,7 +177,7 @@ criterio:
 | # | Criterio | Estado | Evidencia |
 |---|---|---|---|
 | 1 | `clean check` BUILD SUCCESSFUL | ✅ | 707/0/0 (0.48.0) y 203/0/0 (0.51.0-rc1) |
-| 2 | Cert de mutantes 0 SURVIVED | ✅ | `build/mutant-receipts/*.json` (43 archivos, 40 DEAD + 3 INFRA, 0 SURVIVED) |
+| 2 | Cert de mutantes 0 SURVIVED | ✅ | `build/mutant-receipts/*.json` (43 archivos, 40 DEAD + 3 INFRA, 0 SURVIVED). **Nota**: el SHA anclado en los recibos es `a96c28f`/`f916e23`; HEAD actual es `f6de89e`. Los commits entre los SHAs son sólo docs (no mutaciones), pero el cert formalmente no es válido contra HEAD — requeriría re-correr `tools/certify_mutants.py` sobre `f6de89e` (no hecho en este push). |
 | 3 | SBOM + SHA256SUMS firmados + provenance | 🟡 | `build/dist/bom.json` (CycloneDX 1.3) ya se genera; firma y provenance pendientes (M11) |
 | 4 | JAR reproducible | ✅ | `pipelinek-assurance-plugin/build/libs/*.jar` existe; reproducibilidad bit-a-bit pendiente de cert (M11) |
 | 5 | CLI empaquetado | ✅ | `tools/build-cli-dist.sh` ejecutable; `build/dist/assure-cli-v0.9.3-1c40b66.tar.gz` (último artifact); v0.13.0-rc1 se generaría al taggear |
