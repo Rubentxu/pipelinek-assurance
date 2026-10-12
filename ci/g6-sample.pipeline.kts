@@ -15,25 +15,22 @@
 //
 // If anything fails, `pipelinek run` exits non-zero with the
 // diagnostic above the "Discovered external Step plugins" line.
-import dev.rubentxu.pipeline.v2.domain.PluginStepId
-import dev.rubentxu.pipeline.v2.domain.step.EncodedStepValue
+import dev.pipelinek.assurance.plugin.assuranceCheck
 import dev.rubentxu.pipeline.v2.dsl.pipeline
 
 pipeline {
     stages {
         stage("g6-check") {
-            // `registryStep` takes (String, PluginStepId,
-            // EncodedStepValue) at the Kotlin level. Both
-            // `PluginStepId` and `EncodedStepValue` are inline
-            // classes wrapping String; the Kotlin compiler
-            // should auto-wrap, but the script context here
-            // doesn't do that reliably (the kts saw
-            // "EncodedStepValue expected" when we passed raw
-            // String). Passing them explicitly works.
-            registryStep(
-                "green-suite",
-                PluginStepId("assurance.check"),
-                EncodedStepValue("{}"),
+            // The plugin exposes `assuranceCheck(scope, stepKey,
+            // encodedInput)` as a top-level extension that wraps
+            // the SDK's `registryStep` correctly. We pass a
+            // minimal JSON payload; the handler will see
+            // `name=null` and report a missing-field failure
+            // (which is the honest observable for a smoke test).
+            assuranceCheck(
+                this,
+                "assurance.check",
+                "{}",
             )
         }
     }
