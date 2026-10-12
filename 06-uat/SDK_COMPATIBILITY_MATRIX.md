@@ -104,9 +104,10 @@ compilación.
 ## Cert artifacts
 
 - **Mutant receipts (Bloque G, G7)**: `build/mutant-receipts/*.json`
-  (43 archivos, todos con `verdict: DEAD` en el último
-  cert del cierre de Bloque A `c3df2a7`; re-cert post-Bloque
-  G en curso — ver `odd/tasks/block-G-G6-status.md` §G7).
+  (43 archivos, SHA `6084fcb`). Tally: 40 DEAD, 3 INFRA_FAILED,
+  0 SURVIVED. Ver `odd/tasks/block-G-G6-status.md` §G7 para
+  el detalle por mutante y `08-testing/MUTATION_CATALOG_CERTIFICATION_2026-10-10.md`
+  para la tabla de veredictos.
 - **Live run logs (G5, G6.1)**: `docs/G6-FINDINGS.md` §
   "Commands to reproduce" contiene los comandos exactos.
 - **SDK_COMPATIBILITY_MATRIX SHA**: este documento se
