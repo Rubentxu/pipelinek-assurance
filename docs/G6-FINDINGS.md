@@ -313,3 +313,93 @@ The same path on SDK 0.51.0-rc1 produces the same error.
 >
 > Filed as `docs/G6-FINDINGS.md` open issue. No ETA.
 
+
+---
+
+## G6.2 — Addendum v2: kts script classpath is also a hard SDK limitation
+
+**Status update after the live run on a fresh install:**
+
+After committing `72ade5f` and `18cd936`, we rebuilt the plugin
+JAR, reinstalled it in `~/.asdf/installs/pipelinek/0.48.0/lib/`,
+and ran:
+
+```
+pipelinek run g6-sample.pipeline.kts
+```
+
+The kts compiler emitted:
+
+```
+CompilationFinished (cacheKey=160abcfa59...)
+  diagnostics[0]: Unresolved reference 'pipelinek'. (line 18, col 12)
+  diagnostics[1]: Unresolved reference 'assuranceCheck'. (line 30, col 13)
+Pipeline finished with FAILURE: Unresolved reference 'assuranceCheck'.
+```
+
+**Root cause:** the PipelineK kts script compiler's classpath
+is the **SDK's lib/ minus the plugin JAR**. The plugin is
+discovered at **runtime** via `ServiceLoader` on the
+`StepDefinitionContributor` interface, but the **kts
+script compiler** resolves symbols against the SDK's own
+classpath only. Therefore any `import
+dev.pipelinek.assurance.plugin.*` fails — the compiler
+cannot see our extension function.
+
+**Workarounds we considered and rejected:**
+
+1. **Putting the plugin JAR in a classpath that the script
+   compiler does see.** The SDK's kts compiler has no
+   documented way to extend its classpath. We did not
+   reverse-engineer the runtime to find a hidden flag —
+   that would couple the plugin to a fragile SDK
+   internal that may change in 0.52.0.
+
+2. **Calling the handler from the script via reflection.**
+   Possible but degrades the G3 "typed contract" promise
+   and would not be exercisable by the same V55–V59
+   regression guard.
+
+3. **No kts sample at all.** A G6 deliverable that does
+   not include a runnable kts sample is honest about the
+   SDK's current limitation but provides no value to a
+   downstream user who wants to invoke `assurance.check`
+   from a script. We pin this as a **known G6
+   regression** against the SDK and document the
+   workaround we WOULD use if the SDK fixed the
+   classpath gap.
+
+**Honest G6.2 outcome v2:**
+
+- The kts sample exists at `ci/g6-sample.pipeline.kts` and
+  documents the *intended* invocation pattern.
+- The kts is **not** runnable against SDK 0.48.0 or
+  0.51.0-rc1 without the SDK fixing the script-classpath
+  gap.
+- The plugin's *handler* contract is fully exercisable
+  via `MockSdkHost`-based tests (handler runs, returns
+  Success / Failure with counterexample).
+- The plugin's *build-time artifacts* (manifest, services
+  file) are correct (V59 passes).
+- The plugin's *typed DSL extension* compiles and is
+  unit-tested (V55–V58 pass).
+
+**Open SDK gaps, in order of impact:**
+
+1. **Runtime capability pre-check is a hard precondition
+   with no SPI** — the handler never runs against the
+   live SDK. (Filed in the v1 addendum above.)
+2. **Script classpath does not include plugin classes**
+   — the kts sample cannot be compiled by the SDK
+   script compiler. (Filed in this v2 addendum.)
+3. **`registryStep` is untyped for inline-class
+   arguments in the script context** — the SDK
+   compiler does not auto-wrap `String` to
+   `PluginStepId` / `EncodedStepValue`. (Filed in G6.1.)
+
+**All three gaps are upstream; none are workarounds
+we will silently absorb.** The `assuranceCheck` DSL
+extension is still valuable once the SDK fixes (2) and
+(3): it provides the typed invocation surface that the
+SDK's `registryStep` should expose directly.
+
