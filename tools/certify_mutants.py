@@ -67,7 +67,7 @@ OTEL_CODEC = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/provid
 COGNICODE = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/cognicode/CogniCodeArtifactProvider.kt"
 DSL = "assure-cli/src/main/kotlin/dev/pipelinek/assurance/cli/dsl/AssuranceDsl.kt"
 PACK_CODEC = "assurance-artifact/src/main/kotlin/dev/pipelinek/assurance/artifact/PackArtifactCodec.kt"
-NORMALIZER = "assurance-engine/src/main/kotlin/dev/pipelinek/assurance/engine/EvidenceNormalizer.kt"
+NORMALIZER = "assurance-providers/src/main/kotlin/dev/pipelinek/assurance/providers/EvidenceNormalizer.kt"  # G7: movido desde assurance-engine en M2
 CAPABILITIES = "assurance-domain/src/main/kotlin/dev/pipelinek/assurance/domain/capabilities/Capabilities.kt"
 REPORT = os.path.join(ROOT, "assurance-testkit/build/reports/tests/test/classes")
 # Los tests del codec viven en el modulo `assurance-artifact` (sus DTO son
@@ -335,13 +335,13 @@ sealed interface AssertionResult {
     # primera.
     "M-B01": [(BASELINE, [(
         """        for ((id, failure) in currentFindings) {
-            val known = baselineById[id]
+            val known = baselineByAssertionId[id.assertionId]
             if (known == null) {
                 entries += DiffEntry(
                     stableId = id,
                     state = DiffState.New,""",
         """        for ((id, failure) in currentFindings) {
-            val known = baselineById[id]
+            val known = baselineByAssertionId[id.assertionId]
             if (known == null) {
                 entries += DiffEntry(
                     stableId = id,
